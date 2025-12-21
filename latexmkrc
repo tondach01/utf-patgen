@@ -1,7 +1,7 @@
-# Toto říká Overleafu: pokud vidíš soubor .w, použij cweave k výrobě .tex
+# Directive to Overleaf: if you see .w file, use cweave and make .tex
 add_cus_dep('w', 'tex', 0, 'w2tex');
 
 sub w2tex {
-    # Spustí cweave na vstupní soubor
+    # Runs cweave on input
     system("cweave \"$_[0].w\"");
 }
