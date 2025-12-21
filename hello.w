@@ -1,45 +1,36 @@
-% --- ZAČÁTEK LIMBO SEKCE (LaTeX nastavení) ---
-\documentclass[a4paper,11pt]{cweb} % Používáme třídu cweb (součást TeX Live)
-\usepackage[utf8]{inputenc}       % Kódování UTF-8
-\usepackage[T1]{fontenc}          % Fonty s českými znaky
-\usepackage[czech]{babel}         % Česká lokalizace
-\usepackage{hyperref}             % Klikací odkazy v PDF
-\usepackage{graphicx}             % Pro případné vkládání obrázků
+% --- LIMBO SECTION (LaTeX settings) ---
+\documentclass[a4paper,11pt]{cweb} % Use cweb class (součást TeX Live)
+\usepackage[utf8]{inputenc}       % UTF-8 encoding
 
 \begin{document}
 
-@* Úvod programu.
-Toto je ukázkový \emph{Hello World} program napsaný v systému \textbf{CWEB}.
-Ukazuje, jak spojit C++ kód s českou dokumentací vysázenou v \LaTeX u.
-
-Cílem programu je vypsat pozdrav do standardního výstupu.
+@* Beginning.
+Example \emph{Hello World} program written in \textbf{CWEB}.
+Shows C code connected with documentation written in \LaTeX.
 
 @c
-@<Vložení knihoven@>@;
+@<Library includes@>@;
 
 int main() {
-    @<Výpis pozdravu@>;
+    @<Greetings@>;
     return 0;
 }
 
-@* Implementace.
-Zde detailně popíšeme jednotlivé části kódu. Díky CWEB můžeme kód prezentovat
-v logickém pořadí pro čtenáře, ne nutně v pořadí pro kompilátor.
+@* Implementation.
+Detailed code parts description. In logical order for the reader, not for the compiler.
 
-@ Jako první potřebujeme standardní knihovnu pro vstup a výstup.
-V C++ se jedná o \texttt{iostream}.
+@ We need IO library.
+So we import \texttt{stdio.h}
 
-@<Vložení knihoven@>=
-#include <iostream>
+@<Library includes@>=
+#include <stdio.h>
 
-@ Nyní provedeme samotný výpis.
-Použijeme standardní \texttt{std::cout}. Všimněte si, že můžeme používat
-české komentáře přímo v kódu, pokud to překladač dovolí, ale v CWEB je lepší
-psát komentáře do TeXové části.
+@ Now the printout.
+Comments are okay in the code, but better to write them to the TeX part
 
-@<Výpis pozdravu@>=
-std::cout << "Ahoj světe! CWEB s LaTeXem funguje." << std::endl;
+@<Greetings@>=
+printf("Hello world, it works!");
 
-@* Rejstřík.
-Zde se automaticky vygeneruje seznam použitých identifikátorů.
+@* Index.
+Automatically generates the list of used identifiers
 \end{document}
