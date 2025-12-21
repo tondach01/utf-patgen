@@ -1,5 +1,8 @@
-# dummy for Overleaf
+# dummy for Overleaf / output from cweave
 hello.tex
+
+# ouput from ctangle
+hello.c
 
 # binaries
 hello
