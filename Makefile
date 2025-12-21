@@ -1,5 +1,5 @@
 # Project name
-NAME = hello
+NAME = utfpatgen
 
 # C compiler
 CXX = gcc

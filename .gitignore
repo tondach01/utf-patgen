@@ -1,11 +1,12 @@
 # dummy for Overleaf / output from cweave
+utfpatgen.tex
 hello.tex
 
 # ouput from ctangle
-hello.c
+utfpatgen.c
 
 # binaries
-hello
+utfpatgen
 
 # VS Code configurations
 .vscode
