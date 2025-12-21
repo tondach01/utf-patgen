@@ -21,6 +21,10 @@ exe: $(NAME).w
 	ctangle $(NAME).w
 	$(CXX) $(CXXFLAGS) -o $(NAME) $(NAME).c
 
+debug: $(NAME).w
+	ctangle $(NAME).w
+	$(CXX) -g $(NAME).c -o $(NAME) 
+
 # Cleaning
 clean:
-	rm -f $(NAME).c $(NAME).cpp $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME)
+	rm -f $(NAME).c $(NAME).cpp $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME)
