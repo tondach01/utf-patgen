@@ -1,6 +1,6 @@
 % --- LIMBO SECTION (LaTeX settings) ---
-\documentclass[a4paper,11pt]{cweb} % Use cweb class (součást TeX Live)
-\usepackage[utf8]{inputenc}       % UTF-8 encoding
+\documentclass[a4paper,11pt]{cweb} % Use cweb class
+\usepackage[utf8]{inputenc}        % UTF-8 encoding
 
 \begin{document}
 
@@ -11,7 +11,7 @@ Shows C code connected with documentation written in \LaTeX.
 @c
 @<Library includes@>@;
 
-int main() {
+int main(int argc, char *argv[]) {
     @<Greetings@>;
     return 0;
 }
@@ -24,6 +24,7 @@ So we import \texttt{stdio.h}
 
 @<Library includes@>=
 #include <stdio.h>
+#include "utfpatgen.h"
 
 @ Now the printout.
 Comments are okay in the code, but better to write them to the TeX part
