@@ -21,10 +21,17 @@ exe: $(NAME).w
 	ctangle $(NAME).w
 	$(CXX) $(CXXFLAGS) -o $(NAME) $(NAME).c
 
+# 3. Debug build
 debug: $(NAME).w
 	ctangle $(NAME).w
 	$(CXX) -g $(NAME).c -o $(NAME) 
 
+# 4. Test
+test: $(NAME).w
+	ctangle $(NAME).w
+	$(CXX) $(CXXFLAGS) -DTEST -o $(NAME)_test $(NAME).c test/unit_test.c
+	./$(NAME)_test
+
 # Cleaning
 clean:
-	rm -f $(NAME).c $(NAME).cpp $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME)
+	rm -f $(NAME).c $(NAME).cpp $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) $(NAME)_test
