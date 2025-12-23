@@ -1,11 +1,14 @@
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define MAX_LEVELS 256
 #define TRIE_MAX 100000L
 
 struct trie
 {
-    uint32_t size;
+    size_t size;
     char data[TRIE_MAX];
     /* TBD */
 };
@@ -24,8 +27,19 @@ struct params
     uint8_t thresh[MAX_LEVELS];
 };
 
+struct string_buffer {
+    size_t capacity;
+    size_t size;
+    char *data;
+    bool eof;
+};
 
-void parse_input(int argc, char *argv[]);
+
+bool parse_input(int argc, char *argv[], struct params *params);
+bool read_translate(FILE *translate);
+bool read_line(FILE *stream, struct string_buffer *buf);
+
+
 void initialize();
 void generate_patterns();
 void clean(); // if necessary

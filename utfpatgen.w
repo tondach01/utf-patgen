@@ -10,18 +10,16 @@ This is \texttt{utf-patgen} - reimplementation of the classic \texttt{patgen} pr
 @c
 @<Library includes@>@;
 
+# ifndef TEST
 int main(int argc, char *argv[]) {
     @<Greetings@>;
     return 0;
 }
+# endif
 
 @* Implementation.
 
-@ We need IO library.
-So we import \texttt{stdio.h}
-
 @<Library includes@>=
-#include <stdio.h>
 #include "utfpatgen.h"
 
 @ Demo code.
@@ -46,9 +44,46 @@ The program takes 4 arguments in this order:
     \item \textbf{translate file}: contains the characters that are contained in the dictionary. In the first line the
         hyphenation marks and \texttt{lefthyphenmin}, \texttt{righthyphenmin} parameters can be redefined:
         \begin{itemize}
-            \item first line (optional): 'XXYY BMG', where %TODO
+            \item first line (optional): 'XXYY BMG', where 'XX' is the value of \texttt{lefthyphenmin}, 'YY' the value 
+                of \texttt{righthyphenmin}, 'B' the symbol for bad hyphen (marked, not present in the data), 'M' the symbol
+                for missed hyphen (not marked, present in the data), and 'G' the symbol for good hyphen (marked, present).
+                If any of the parameters is left blank, the default is used: \texttt{lefthyphenmin}$=2$, \texttt{righthyphenmin}$=3$,
+                bad hyphen '.', missed hyphen '-', good hyphen '*'.
+            \item consequent lines: '$<>X<>Y_1<>...Y_n<><>$', where 'X' is a lower-case letter, '$Y_k$' arbitrary (even zero) 
+                number of upper-case variants of 'X', and '$<>$' the delimiter, usually space.
         \end{itemize}
+        For the sake of compatibility, the program should be able to read such format, although the inner representation
+        must allow for using the bytes corresponding to these "reserved characters" also as pattern bytes.
 \end{itemize}
+
+@c
+bool read_line(FILE *stream, struct string_buffer *buf){
+    char c;
+    while ((c = fgetc(stream)) != EOF) {
+        if (buf->size >= buf->capacity) {
+            void *new_ptr = realloc(buf->data, 2*buf->capacity);
+            if (new_ptr == NULL) {
+                fputs("Allocation error\n", stderr);
+                return false;
+            }
+            buf->data = (char *) new_ptr;
+            buf->capacity *= 2;
+        }
+        if (c == '\n'){
+            if (buf->size > 0 && buf->data[buf->size-1] == '\r'){  // Windows /r/n end of line
+                buf->size -= 1;
+            }
+            break;
+        }
+        buf->data[buf->size] = c;
+        buf->size += 1;
+    }
+    buf->data[buf->size] = '\0';
+    if (c == EOF) {
+        buf->eof = true;
+    }
+    return true;
+}
 
 @* Index.
 Automatically generates the list of used identifiers
