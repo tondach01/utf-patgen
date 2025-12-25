@@ -21,6 +21,7 @@ int main(int argc, char *argv[]) {
 
 @<Library includes@>=
 #include "utfpatgen.h"
+#include <string.h>
 
 @ Demo code.
 
@@ -56,6 +57,45 @@ The program takes 4 arguments in this order:
         must allow for using the bytes corresponding to these "reserved characters" also as pattern bytes.
 \end{itemize}
 
+@* IO procedures.
+
+@ String buffer.
+Buffer is used for storing lines read from input files. We use dynamic allocation to allow for arbitrary length lines.
+
+@c
+struct string_buffer *init_buffer(size_t capacity){
+    struct string_buffer *buf = malloc(sizeof(struct string_buffer));
+    if (buf == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    buf->capacity = capacity;
+    buf->size = 0;
+    buf->data = (char *)malloc(capacity);
+    buf->eof = false;
+    if (buf->data == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(buf);
+        return NULL;
+    }
+    buf->data[0] = '\0';
+    return buf;
+}
+
+void reset_buffer(struct string_buffer *buf){
+    buf->eof = false;
+    buf->size = 0;
+    buf->data[0] = '\0';
+}
+
+void destroy_buffer(struct string_buffer *buf){
+    free(buf->data);
+    free(buf);
+}
+
+@ Read line.
+Reads a line from the given stream into the provided string buffer. Returns true on success, false on failure.
+
 @c
 bool read_line(FILE *stream, struct string_buffer *buf){
     char c;
@@ -70,7 +110,7 @@ bool read_line(FILE *stream, struct string_buffer *buf){
             buf->capacity *= 2;
         }
         if (c == '\n'){
-            if (buf->size > 0 && buf->data[buf->size-1] == '\r'){  // Windows /r/n end of line
+            if ((buf->size > 0) && (buf->data[buf->size-1] == '\r')){  // Windows /r/n end of line
                 buf->size -= 1;
             }
             break;
@@ -81,6 +121,85 @@ bool read_line(FILE *stream, struct string_buffer *buf){
     buf->data[buf->size] = '\0';
     if (c == EOF) {
         buf->eof = true;
+    }
+    return true;
+}
+
+@ Parse header.
+Parses the header line from the translate file to extract hyphenation parameters. Returns true on success, false on failure.
+Note that failure might mean that default parameters should be used.
+
+@c
+bool is_integer(char c){
+    return (c >= '0' && c <= '9');
+}
+
+bool is_space(char c){
+    return (c == ' ');
+}
+
+bool parse_two_digit(struct string_buffer *buf, size_t pos, int8_t *out){
+    if (pos + 1 >= buf->size) {
+        return false;
+    }
+    char c1 = buf->data[pos];
+    char c2 = buf->data[pos + 1];
+    if (is_space(c1) && is_space(c2)) {
+        return true;
+    }
+    
+    if (is_space(c1)) {
+        c1 = '0';
+    }
+    if (is_space(c2)) {
+        c2 = '0';
+    }
+    if (!is_integer(c1) || !is_integer(c2)) {
+        return false;
+    }
+    *out = (c1 - '0') * 10 + (c2 - '0');
+    return true;
+}
+
+bool parse_header(struct string_buffer *buf, struct params *params){
+    params->left_hyphen_min = 2;
+    params->right_hyphen_min = 3;
+    params->bad_hyphen = '.';
+    params->missed_hyphen = '-';
+    params->good_hyphen = '*';
+
+    int8_t val = -1;
+    if (!parse_two_digit(buf, 0, &val)) {
+        return false;
+    } else if (val != -1) {
+        params->left_hyphen_min = val;
+    }
+    val = -1;
+    if (!parse_two_digit(buf, 2, &val)) {
+        return false;
+    } else if (val != -1){
+        params->right_hyphen_min = val;
+    }
+    if (buf->size >= 5){
+        if (!is_space(buf->data[5])) {
+                params->bad_hyphen = buf->data[5];
+        }
+    } else {
+        return false;
+    }
+    if (buf->size >= 6){
+        if (!is_space(buf->data[6])) {
+                params->missed_hyphen = buf->data[6];
+        }
+    } else {
+        return false;
+    }
+    if (buf->size >= 7){
+        if (!is_space(buf->data[7])) {
+                params->good_hyphen = buf->data[7];
+        }
+    } else {
+        return false;
     }
     return true;
 }
