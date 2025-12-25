@@ -14,7 +14,7 @@ struct trie
     size_t base_max;
     void *nodes;  // _c
     size_t *links;  // _l
-    size_t *right;  // _r
+    size_t *aux;  // _r
     char *taken;
 };
 

@@ -127,7 +127,7 @@ bool read_line(FILE *stream, struct string_buffer *buf){
 
 @ Parse header.
 Parses the header line from the translate file to extract hyphenation parameters. Returns true on success, false on failure.
-Note that failure might mean that default parameters should be used.
+Note that failure might mean that header was just not present and default parameters should be used.
 
 @c
 bool is_integer(char c){
@@ -205,7 +205,18 @@ bool parse_header(struct string_buffer *buf, struct params *params){
 }
 
 @* Trie structure.
-The trie structure is used for storing patterns efficiently.
+The \texttt{trie} structure is used for storing patterns efficiently. The structure uses following fields:
+\begin{itemize}
+    \item \textbf{capacity}: total number of nodes allocated (but not necessarily used),
+    \item \textbf{occupied}: number of nodes currently used,
+    \item \textbf{node\_size}: size of each node in bytes (so that we can create tries with different node sizes),
+    \item \textbf{node\_max}: highest index of used node,
+    \item \textbf{base\_max}: highest index of used base,
+    \item \textbf{nodes}: array of nodes,
+    \item \textbf{links}: array of links, i.e., pointers to next base,
+    \item \textbf{aux}: helper array: if a node is occupied, it stores a pointer to corresponding output, otherwise it points to neighboring empty spaces,
+    \item \textbf{taken}: bit array indicating which nodes are used as bases.
+\end{itemize}
 
 @c
 struct trie *init_trie(size_t capacity, size_t node_size){
@@ -270,7 +281,20 @@ void set_base_used(struct trie *t, size_t base){
 }
 
 @* Output.
-The output structure is used for storing hyphenation outputs.
+The \texttt{output} structure is used for storing hyphenation outputs. The structure uses following fields:
+\begin{itemize}
+    \item \textbf{value}: hyphenation value,
+    \item \textbf{position}: position in the pattern,
+    \item \textbf{next}: pointer to the next output in the linked list.
+\end{itemize}
+
+Outputs are grouped together in \texttt{outputs} structure:
+\begin{itemize}
+    \item \textbf{capacity}: total number of outputs allocated (but not necessarily used),
+    \item \textbf{max}: highest index of used output,
+    \item \textbf{count}: number of outputs currently used,
+    \item \textbf{data}: array of pointers to \texttt{output} structures.
+\end{itemize}
 
 @c
 struct output *new_output(uint8_t value, size_t position){
