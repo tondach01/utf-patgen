@@ -4,15 +4,43 @@
 #include <stdlib.h>
 
 #define MAX_LEVELS 256
-#define TRIE_MAX 100000L
 
 struct trie
 {
     size_t capacity;
-    size_t size;
-    char *data;
-    /* TBD */
+    size_t max;
+    size_t occupied;
+    size_t node_size;
+    void *nodes;  // _c
+    size_t *links;  // _l
+    size_t *right;  // _r
+    char *taken;
 };
+
+struct trie *init_trie(size_t capacity, size_t node_size);
+void reset_trie(struct trie *buf);
+void destroy_trie(struct trie *buf);
+
+struct output
+{
+    uint8_t value;
+    size_t position;
+    struct output *next;
+};
+
+struct output *new_output(uint8_t value, size_t position);
+void destroy_output(struct output *op);
+
+struct outputs
+{
+    size_t capacity;
+    size_t count;
+    struct output **data;
+};
+
+struct outputs *init_outputs(size_t capacity);
+void add_output(struct outputs *ops, uint8_t value, size_t position);
+void destroy_outputs(struct outputs *ops);
 
 struct params
 {
@@ -38,6 +66,10 @@ struct string_buffer {
     bool eof;
 };
 
+struct string_buffer *init_buffer(size_t capacity);
+void reset_buffer(struct string_buffer *buf);
+void destroy_buffer(struct string_buffer *buf);
+
 
 bool parse_input(int argc, char *argv[], struct params *params);
 bool read_translate(FILE *translate, struct params *params);  // TODO will need trie
@@ -48,10 +80,6 @@ bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool parse_word(struct string_buffer *buf);  // TODO will need trie
 
 bool read_line(FILE *stream, struct string_buffer *buf);
-
-struct string_buffer *init_buffer(size_t capacity);
-void reset_buffer(struct string_buffer *buf);
-void destroy_buffer(struct string_buffer *buf);
 
 void generate_patterns();
 void clean(); // if necessary

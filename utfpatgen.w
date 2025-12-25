@@ -204,6 +204,119 @@ bool parse_header(struct string_buffer *buf, struct params *params){
     return true;
 }
 
+@* Trie structure.
+The trie structure is used for storing patterns efficiently.
+
+@c
+struct trie *init_trie(size_t capacity, size_t node_size){
+    struct trie *t = malloc(sizeof(struct trie));
+    if (t == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    t->capacity = capacity;
+    t->max = 0;
+    t->occupied = 0;
+    t->node_size = node_size;
+
+    t->nodes = calloc(capacity, node_size);
+    t->links = calloc(capacity, sizeof(size_t));
+    t->right = calloc(capacity, sizeof(size_t));
+    t->taken = calloc((capacity / 8 ) + 1, sizeof(char));  // bit array
+
+    if (t->nodes == NULL || t->links == NULL || t->right == NULL || t->taken == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(t->nodes);
+        free(t->links);
+        free(t->right);
+        free(t->taken);
+        free(t);
+        return NULL;
+    }
+    return t;
+}
+
+void reset_trie(struct trie *t){
+    t->max = 0;
+    t->occupied = 0;
+    memset(t->nodes, 0, t->capacity * t->node_size);
+    memset(t->links, 0, t->capacity * sizeof(size_t));
+    memset(t->right, 0, t->capacity * sizeof(size_t));
+    memset(t->taken, 0, (t->capacity / 8 + 1) * sizeof(char));
+}
+
+void destroy_trie(struct trie *t){
+    free(t->nodes);
+    free(t->links);
+    free(t->right);
+    free(t->taken);
+    free(t);
+}
+
+@* Output.
+The output structure is used for storing hyphenation outputs.
+
+@c
+struct output *new_output(uint8_t value, size_t position){
+    struct output *op = malloc(sizeof(struct output));
+    if (op == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    op->value = value;
+    op->position = position;
+    op->next = NULL;
+    return op;
+}
+
+void destroy_output(struct output *op){
+    free(op);
+}
+
+struct outputs *init_outputs(size_t capacity){
+    struct outputs *ops = malloc(sizeof(struct outputs));
+    if (ops == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    ops->capacity = capacity;
+    ops->count = 0;
+    ops->data = malloc(capacity * sizeof(struct output *));
+    if (ops->data == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(ops);
+        return NULL;
+    }
+    return ops;
+}
+
+void add_output(struct outputs *ops, uint8_t value, size_t position){
+    if (ops->count >= ops->capacity) {
+        size_t new_capacity = ops->capacity * 2;
+        struct output **new_data = realloc(ops->data, new_capacity * sizeof(struct output *));
+        if (new_data == NULL) {
+            fputs("Allocation error\n", stderr);
+            return;
+        }
+        ops->data = new_data;
+        ops->capacity = new_capacity;
+    }
+    struct output *op = new_output(value, position);
+    if (op == NULL) {
+        return;
+    }
+    ops->data[ops->count] = op;
+    ops->count += 1;
+}
+
+void destroy_outputs(struct outputs *ops){
+    for (size_t i = 0; i < ops->count; i++) {
+        destroy_output(ops->data[i]);
+    }
+    free(ops->data);
+    free(ops);
+}
+
 @* Index.
 Automatically generates the list of used identifiers
 \end{document}
