@@ -8,9 +8,10 @@
 struct trie
 {
     size_t capacity;
-    size_t max;
     size_t occupied;
     size_t node_size;
+    size_t node_max;
+    size_t base_max;
     void *nodes;  // _c
     size_t *links;  // _l
     size_t *right;  // _r
@@ -20,6 +21,9 @@ struct trie
 struct trie *init_trie(size_t capacity, size_t node_size);
 void reset_trie(struct trie *buf);
 void destroy_trie(struct trie *buf);
+
+bool is_base_used(struct trie *t, size_t base);
+void set_base_used(struct trie *t, size_t base);
 
 struct output
 {
@@ -34,12 +38,14 @@ void destroy_output(struct output *op);
 struct outputs
 {
     size_t capacity;
+    size_t max;
     size_t count;
     struct output **data;
 };
 
 struct outputs *init_outputs(size_t capacity);
 void add_output(struct outputs *ops, uint8_t value, size_t position);
+void remove_output(struct outputs *ops, size_t index);
 void destroy_outputs(struct outputs *ops);
 
 struct params

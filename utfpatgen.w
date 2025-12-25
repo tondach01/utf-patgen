@@ -214,15 +214,18 @@ struct trie *init_trie(size_t capacity, size_t node_size){
         fputs("Allocation error\n", stderr);
         return NULL;
     }
+
     t->capacity = capacity;
-    t->max = 0;
-    t->occupied = 0;
     t->node_size = node_size;
 
     t->nodes = calloc(capacity, node_size);
     t->links = calloc(capacity, sizeof(size_t));
     t->right = calloc(capacity, sizeof(size_t));
     t->taken = calloc((capacity / 8 ) + 1, sizeof(char));  // bit array
+
+    t->node_max = 0;
+    t->base_max = 0;
+    t->occupied = 0;
 
     if (t->nodes == NULL || t->links == NULL || t->right == NULL || t->taken == NULL) {
         fputs("Allocation error\n", stderr);
@@ -237,7 +240,8 @@ struct trie *init_trie(size_t capacity, size_t node_size){
 }
 
 void reset_trie(struct trie *t){
-    t->max = 0;
+    t->node_max = 0;
+    t->base_max = 0;
     t->occupied = 0;
     memset(t->nodes, 0, t->capacity * t->node_size);
     memset(t->links, 0, t->capacity * sizeof(size_t));
@@ -251,6 +255,18 @@ void destroy_trie(struct trie *t){
     free(t->right);
     free(t->taken);
     free(t);
+}
+
+bool is_base_used(struct trie *t, size_t base){
+    size_t byte_index = base / 8;
+    size_t bit_index = base % 8;
+    return (t->taken[byte_index] & (1 << bit_index)) != 0;
+}
+
+void set_base_used(struct trie *t, size_t base){
+    size_t byte_index = base / 8;
+    size_t bit_index = base % 8;
+    t->taken[byte_index] |= (1 << bit_index);
 }
 
 @* Output.
@@ -281,7 +297,8 @@ struct outputs *init_outputs(size_t capacity){
     }
     ops->capacity = capacity;
     ops->count = 0;
-    ops->data = malloc(capacity * sizeof(struct output *));
+    ops->max = 0;
+    ops->data = calloc(capacity, sizeof(struct output *));
     if (ops->data == NULL) {
         fputs("Allocation error\n", stderr);
         free(ops);
@@ -291,7 +308,7 @@ struct outputs *init_outputs(size_t capacity){
 }
 
 void add_output(struct outputs *ops, uint8_t value, size_t position){
-    if (ops->count >= ops->capacity) {
+    if (ops->max >= ops->capacity) {
         size_t new_capacity = ops->capacity * 2;
         struct output **new_data = realloc(ops->data, new_capacity * sizeof(struct output *));
         if (new_data == NULL) {
@@ -305,13 +322,30 @@ void add_output(struct outputs *ops, uint8_t value, size_t position){
     if (op == NULL) {
         return;
     }
-    ops->data[ops->count] = op;
+    ops->data[ops->max] = op;
     ops->count += 1;
+    ops->max += 1;
+}
+
+void remove_output(struct outputs *ops, size_t index){
+    if (index >= ops->count) {
+        return;
+    }
+    destroy_output(ops->data[index]);
+    ops->data[index] = NULL;
+    if (index == ops->max) {
+        while (ops->max > 0 && ops->data[ops->max - 1] == NULL) {
+            ops->max -= 1;
+        }
+    }
+    ops->count -= 1;
 }
 
 void destroy_outputs(struct outputs *ops){
-    for (size_t i = 0; i < ops->count; i++) {
-        destroy_output(ops->data[i]);
+    for (size_t i = 0; i < ops->max; i++) {
+        if (ops->data[i] != NULL) {
+            destroy_output(ops->data[i]);
+        }
     }
     free(ops->data);
     free(ops);
