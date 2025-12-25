@@ -6,7 +6,7 @@ CXX = gcc
 CXXFLAGS = -O2 -Wall
 
 # Targets
-all: pdf exe
+all: pdf exe test
 
 # 1. WEAVE: PDF documentation
 # Run cweave (makes .tex) and twice pdflatex (cross-references)
@@ -29,9 +29,8 @@ debug: $(NAME).w
 # 4. Test
 test: $(NAME).w
 	ctangle $(NAME).w
-	$(CXX) $(CXXFLAGS) -DTEST -o $(NAME)_test $(NAME).c test/unit_test.c
-	./$(NAME)_test
+	$(CXX) -g -DTEST -o test/unit_test $(NAME).c test/unit_test.c
 
 # Cleaning
 clean:
-	rm -f $(NAME).c $(NAME).cpp $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) $(NAME)_test
+	rm -f $(NAME).c $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) test/unit_test

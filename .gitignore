@@ -6,7 +6,7 @@ utfpatgen.c
 
 # binaries
 utfpatgen
-utfpatgen_test
+test/utfpatgen_test
 
 # VS Code configurations
 .vscode
