@@ -37,6 +37,16 @@ struct string_buffer *mock_buffer(const char *str) {
     return buf;
 }
 
+void print_outputs(struct outputs *ops) {
+    for (size_t i = 0; i < ops->count; i++) {
+        struct output *op = ops->data[i];
+        if (op != NULL) {
+            printf("Output %zu: value=%d, position=%zu\n", i, op->value, op->position);
+        }
+    }
+    printf("Count: %zu, Max: %zu, Capacity: %zu\n", ops->count, ops->max, ops->capacity);
+}
+
 void test_parse_header(){
     
     struct params params;
@@ -61,8 +71,32 @@ void test_parse_header(){
     }
 }
 
+void test_outputs() {
+    struct outputs *ops = init_outputs(2);
+    if (ops == NULL) {
+        return;
+    }
+
+    add_output(ops, 5, 10);
+    add_output(ops, 15, 20);
+    add_output(ops, 25, 30);  // This should trigger a resize
+
+    printf("After additions:\n");
+    print_outputs(ops);
+    remove_output(ops, 1);  // Remove the second output
+
+    printf("After removal:\n");
+    print_outputs(ops);
+    
+    destroy_outputs(ops);
+}
+
 int main(void) {
+    printf("---- Read Line Test ----\n");
     test_read_line();
+    printf("\n---- Parse Header Test ----\n");
     test_parse_header();
+    printf("\n---- Outputs Test ----\n");
+    test_outputs();
     return 0;
 }
