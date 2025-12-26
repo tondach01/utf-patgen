@@ -231,22 +231,43 @@ struct trie *init_trie(size_t capacity, size_t node_size){
 
     t->nodes = calloc(capacity, node_size);
     t->links = calloc(capacity, sizeof(size_t));
-    t->right = calloc(capacity, sizeof(size_t));
+    t->aux = calloc(capacity, sizeof(size_t));
     t->taken = calloc((capacity / 8 ) + 1, sizeof(char));  // bit array
+
+    if (t->nodes == NULL || t->links == NULL || t->aux == NULL || t->taken == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(t->nodes);
+        free(t->links);
+        free(t->aux);
+        free(t->taken);
+        free(t);
+        return NULL;
+    }
 
     t->node_max = 0;
     t->base_max = 0;
     t->occupied = 0;
 
-    if (t->nodes == NULL || t->links == NULL || t->right == NULL || t->taken == NULL) {
+    return t;
+}
+
+struct trie *resize_trie(struct trie *t, size_t new_capacity){
+    void *new_nodes = realloc(t->nodes, new_capacity * t->node_size);
+    size_t *new_links = realloc(t->links, new_capacity * sizeof(size_t));
+    size_t *new_aux = realloc(t->aux, new_capacity * sizeof(size_t));
+    char *new_taken = realloc(t->taken, (new_capacity / 8 + 1) * sizeof(char));
+
+    if (new_nodes == NULL || new_links == NULL || new_aux == NULL || new_taken == NULL) {
         fputs("Allocation error\n", stderr);
-        free(t->nodes);
-        free(t->links);
-        free(t->right);
-        free(t->taken);
-        free(t);
         return NULL;
     }
+
+    t->nodes = new_nodes;
+    t->links = new_links;
+    t->aux = new_aux;
+    t->taken = new_taken;
+    t->capacity = new_capacity;
+
     return t;
 }
 
@@ -256,28 +277,191 @@ void reset_trie(struct trie *t){
     t->occupied = 0;
     memset(t->nodes, 0, t->capacity * t->node_size);
     memset(t->links, 0, t->capacity * sizeof(size_t));
-    memset(t->right, 0, t->capacity * sizeof(size_t));
+    memset(t->aux, 0, t->capacity * sizeof(size_t));
     memset(t->taken, 0, (t->capacity / 8 + 1) * sizeof(char));
 }
 
 void destroy_trie(struct trie *t){
     free(t->nodes);
     free(t->links);
-    free(t->right);
+    free(t->aux);
     free(t->taken);
     free(t);
 }
 
+char get_node_as_char(struct trie *t, size_t index){
+    if (index >= t->capacity) {
+        return '\0';
+    }
+    return ((char *)t->nodes)[index];
+}
+
+size_t get_node_as_size_t(struct trie *t, size_t index){
+    if (index >= t->capacity) {
+        return 0;
+    }
+    return ((size_t *)t->nodes)[index];
+}
+
+bool set_node(struct trie *t, size_t index, void *node_data){
+    if (index >= t->capacity) {
+        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    memcpy((char *)t->nodes + (index * t->node_size), node_data, t->node_size);
+    t->occupied += 1;
+    if (index >= t->node_max) {
+        t->node_max = index;
+    }
+    return true;
+}
+
+size_t get_link(struct trie *t, size_t index){
+    if (index >= t->capacity) {
+        return 0;
+    }
+    return t->links[index];
+}
+
+bool set_link(struct trie *t, size_t index, size_t link){
+    if (index >= t->capacity) {
+        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    t->links[index] = link;
+    return true;
+}
+
+size_t get_aux(struct trie *t, size_t index){
+    if (index >= t->capacity) {
+        return 0;
+    }
+    return t->aux[index];
+}
+
+bool set_aux(struct trie *t, size_t index, size_t aux){
+    if (index >= t->capacity) {
+        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    t->aux[index] = aux;
+    return true;
+}
+
+bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
+    if(!set_node(to, to_index, from+(from_index*from->node_size)) || !set_link(to, to_index, get_link(from, from_index)) || !set_aux(to, to_index, get_aux(from, from_index))) {
+        return false;
+    }
+    to->occupied += 1;
+    if (to_index >= to->node_max) {
+        to->node_max = to_index;
+    }
+    return true;
+}
+
 bool is_base_used(struct trie *t, size_t base){
+    if (base >= t->capacity) {
+        return false;
+    }
     size_t byte_index = base / 8;
     size_t bit_index = base % 8;
     return (t->taken[byte_index] & (1 << bit_index)) != 0;
 }
 
-void set_base_used(struct trie *t, size_t base){
+bool set_base_used(struct trie *t, size_t base){
+    if (base >= t->capacity) {
+        if (resize_trie(t, base) == NULL) {
+            return false;
+        }
+    }
     size_t byte_index = base / 8;
     size_t bit_index = base % 8;
     t->taken[byte_index] |= (1 << bit_index);
+
+    if (base >= t->base_max) {
+        t->base_max = base;
+    }
+
+    return true;
+}
+
+bool set_links(struct trie *t, size_t from, size_t to){
+    if (!set_link(t, from, to) || !set_aux(t, to, from)) {
+        return false;
+    }
+    return true;
+}
+
+bool is_node_occupied(struct trie *t, size_t index){
+    if (index >= t->capacity) {
+        return false;
+    }
+    for (size_t i = 0; i < t->node_size; i++) {
+        if (((char *)t->nodes)[index * t->node_size + i] != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool link_trie_up_to(struct trie *t, size_t index){
+    while (t->base_max < index){
+        t->base_max += 1;
+        if (!set_node(t, t->base_max + 255, 0) || !set_links(t, t->base_max + 255, t->base_max + 256)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
+    size_t t_index;
+    if (q->node_max > threshold) {
+        t_index = get_aux(t, t->node_max + 1);
+    } else {
+        t_index = 0;
+    }
+    while (true) {
+        t_index = get_link(t, t_index);
+        *out_base = t_index - get_node_as_char(q, 0);
+        if (!link_trie_up_to(t, *out_base)) {
+            return false;
+        }
+        if (is_base_used(t, *out_base)) {
+            continue;
+        }
+        bool conflict = false;
+        for (size_t q_index = q->node_max; q_index > 0; q_index--) {
+            if(is_node_occupied(t, *out_base + get_node_as_char(q, q_index))){
+                conflict = true;
+                break;
+            }
+        }
+        if (!conflict) {
+            break;
+        }
+    }
+    return true;
+}
+
+bool first_fit(struct trie *t, struct trie *q, uint8_t threshold){
+    size_t base;
+    if (!find_base_for_first_fit(t, q, threshold, &base)) {
+        return false;
+    }
+    for (size_t q_index = 0; q_index < q->node_max; q_index++) {
+        size_t t_index = base + get_node_as_char(q, q_index);
+        if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index) || !set_base_used(t, t_index)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 @* Output.
