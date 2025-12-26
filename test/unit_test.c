@@ -38,7 +38,7 @@ struct string_buffer *mock_buffer(const char *str) {
 }
 
 void print_outputs(struct outputs *ops) {
-    for (size_t i = 0; i < ops->count; i++) {
+    for (size_t i = 0; i < ops->max; i++) {
         struct output *op = ops->data[i];
         if (op != NULL) {
             printf("Output %zu: value=%d, position=%zu\n", i, op->value, op->position);
