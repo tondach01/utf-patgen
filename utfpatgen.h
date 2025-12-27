@@ -9,24 +9,21 @@ struct trie
 {
     size_t capacity;
     size_t occupied;
-    size_t node_size;
     size_t node_max;
     size_t base_max;
-    void *nodes;  // _c
+    char *nodes;  // _c
     size_t *links;  // _l
     size_t *aux;  // _r
     char *taken;
 };
 
-struct trie *init_trie(size_t capacity, size_t node_size);
+struct trie *init_trie(size_t capacity);
 struct trie *resize_trie(struct trie *t, size_t new_capacity);
 void reset_trie(struct trie *t);
 void destroy_trie(struct trie *t);
 
-char get_node_as_char(struct trie *t, size_t index);
-size_t get_node_as_size_t(struct trie *t, size_t index);
-// different node types will need different getters
-bool set_node(struct trie *t, size_t index, void *node_data);
+char get_node(struct trie *t, size_t index);
+bool set_node(struct trie *t, size_t index, char value);
 
 size_t get_link(struct trie *t, size_t index);
 bool set_link(struct trie *t, size_t index, size_t link);
@@ -36,8 +33,8 @@ bool set_aux(struct trie *t, size_t index, size_t aux);
 
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index);
 
-bool is_base_used(struct trie *t, size_t base);
-bool set_base_used(struct trie *t, size_t base);
+bool get_base_used(struct trie *t, size_t index);
+bool set_base_used(struct trie *t, size_t index, bool used);
 
 bool set_links(struct trie *t, size_t from, size_t to);
 
@@ -46,6 +43,8 @@ bool is_node_occupied(struct trie *t, size_t index);
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
 bool link_trie_up_to(struct trie *t, size_t index);
 bool first_fit(struct trie *t, struct trie *q, uint8_t threshold);
+
+bool unpack(struct trie *from, size_t base, struct trie *to);
 
 struct output
 {

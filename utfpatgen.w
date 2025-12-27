@@ -219,7 +219,7 @@ The \texttt{trie} structure is used for storing patterns efficiently. The struct
 \end{itemize}
 
 @c
-struct trie *init_trie(size_t capacity, size_t node_size){
+struct trie *init_trie(size_t capacity){
     struct trie *t = malloc(sizeof(struct trie));
     if (t == NULL) {
         fputs("Allocation error\n", stderr);
@@ -227,9 +227,8 @@ struct trie *init_trie(size_t capacity, size_t node_size){
     }
 
     t->capacity = capacity;
-    t->node_size = node_size;
 
-    t->nodes = calloc(capacity, node_size);
+    t->nodes = calloc(capacity, sizeof(char));
     t->links = calloc(capacity, sizeof(size_t));
     t->aux = calloc(capacity, sizeof(size_t));
     t->taken = calloc((capacity / 8 ) + 1, sizeof(char));  // bit array
@@ -252,7 +251,7 @@ struct trie *init_trie(size_t capacity, size_t node_size){
 }
 
 struct trie *resize_trie(struct trie *t, size_t new_capacity){
-    void *new_nodes = realloc(t->nodes, new_capacity * t->node_size);
+    void *new_nodes = realloc(t->nodes, new_capacity * sizeof(char));
     size_t *new_links = realloc(t->links, new_capacity * sizeof(size_t));
     size_t *new_aux = realloc(t->aux, new_capacity * sizeof(size_t));
     char *new_taken = realloc(t->taken, (new_capacity / 8 + 1) * sizeof(char));
@@ -275,7 +274,7 @@ void reset_trie(struct trie *t){
     t->node_max = 0;
     t->base_max = 0;
     t->occupied = 0;
-    memset(t->nodes, 0, t->capacity * t->node_size);
+    memset(t->nodes, 0, t->capacity * sizeof(char));
     memset(t->links, 0, t->capacity * sizeof(size_t));
     memset(t->aux, 0, t->capacity * sizeof(size_t));
     memset(t->taken, 0, (t->capacity / 8 + 1) * sizeof(char));
@@ -289,28 +288,21 @@ void destroy_trie(struct trie *t){
     free(t);
 }
 
-char get_node_as_char(struct trie *t, size_t index){
+char get_node(struct trie *t, size_t index){
     if (index >= t->capacity) {
         return '\0';
     }
-    return ((char *)t->nodes)[index];
+    return t->nodes[index];
 }
 
-size_t get_node_as_size_t(struct trie *t, size_t index){
-    if (index >= t->capacity) {
-        return 0;
-    }
-    return ((size_t *)t->nodes)[index];
-}
-
-bool set_node(struct trie *t, size_t index, void *node_data){
+bool set_node(struct trie *t, size_t index, char value){
     if (index >= t->capacity) {
         size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
         if (resize_trie(t, new_capacity) == NULL) {
             return false;
         }
     }
-    memcpy((char *)t->nodes + (index * t->node_size), node_data, t->node_size);
+    t->nodes[index] = value;
     t->occupied += 1;
     if (index >= t->node_max) {
         t->node_max = index;
@@ -355,7 +347,7 @@ bool set_aux(struct trie *t, size_t index, size_t aux){
 }
 
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
-    if(!set_node(to, to_index, from+(from_index*from->node_size)) || !set_link(to, to_index, get_link(from, from_index)) || !set_aux(to, to_index, get_aux(from, from_index))) {
+    if(!set_node(to, to_index, get_node(from, from_index)) || !set_link(to, to_index, get_link(from, from_index)) || !set_aux(to, to_index, get_aux(from, from_index))) {
         return false;
     }
     to->occupied += 1;
@@ -365,27 +357,27 @@ bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_
     return true;
 }
 
-bool is_base_used(struct trie *t, size_t base){
-    if (base >= t->capacity) {
+bool get_base_used(struct trie *t, size_t index){
+    if (index >= t->capacity) {
         return false;
     }
-    size_t byte_index = base / 8;
-    size_t bit_index = base % 8;
+    size_t byte_index = index / 8;
+    size_t bit_index = index % 8;
     return (t->taken[byte_index] & (1 << bit_index)) != 0;
 }
 
-bool set_base_used(struct trie *t, size_t base){
-    if (base >= t->capacity) {
-        if (resize_trie(t, base) == NULL) {
+bool set_base_used(struct trie *t, size_t index, bool used){
+    if (index >= t->capacity) {
+        if (resize_trie(t, index) == NULL) {
             return false;
         }
     }
-    size_t byte_index = base / 8;
-    size_t bit_index = base % 8;
-    t->taken[byte_index] |= (1 << bit_index);
-
-    if (base >= t->base_max) {
-        t->base_max = base;
+    size_t byte_index = index / 8;
+    size_t bit_index = index % 8;
+    if (used) {
+        t->taken[byte_index] |= (1 << bit_index);
+    } else {
+        t->taken[byte_index] &= ~(1 << bit_index);
     }
 
     return true;
@@ -399,15 +391,7 @@ bool set_links(struct trie *t, size_t from, size_t to){
 }
 
 bool is_node_occupied(struct trie *t, size_t index){
-    if (index >= t->capacity) {
-        return false;
-    }
-    for (size_t i = 0; i < t->node_size; i++) {
-        if (((char *)t->nodes)[index * t->node_size + i] != 0) {
-            return true;
-        }
-    }
-    return false;
+    return get_node(t, index) != 0;
 }
 
 bool link_trie_up_to(struct trie *t, size_t index){
@@ -458,6 +442,24 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold){
     for (size_t q_index = 0; q_index < q->node_max; q_index++) {
         size_t t_index = base + get_node_as_char(q, q_index);
         if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index) || !set_base_used(t, t_index)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool unpack(struct trie *from, size_t base, struct trie *to){
+    for (char i = '\0'; i < '\256'; i++){
+        size_t from_index = base + i;
+        if (get_node(from, from_index) == i) {
+            if (!copy_node(from, from_index, to, to->node_max + 1)) {
+                return false;
+            }
+            if (!set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index) || !set_node(from, from_index, 0)) {
+                return false;
+            }
+        }
+        if (!set_base_used(from, base, false)) {
             return false;
         }
     }
