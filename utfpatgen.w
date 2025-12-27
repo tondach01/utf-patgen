@@ -413,16 +413,16 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, 
     }
     while (true) {
         t_index = get_link(t, t_index);
-        *out_base = t_index - get_node_as_char(q, 0);
+        *out_base = t_index - get_node(q, 0);
         if (!link_trie_up_to(t, *out_base)) {
             return false;
         }
-        if (is_base_used(t, *out_base)) {
+        if (get_base_used(t, *out_base)) {
             continue;
         }
         bool conflict = false;
         for (size_t q_index = q->node_max; q_index > 0; q_index--) {
-            if(is_node_occupied(t, *out_base + get_node_as_char(q, q_index))){
+            if(is_node_occupied(t, *out_base + get_node(q, q_index))){
                 conflict = true;
                 break;
             }
@@ -440,8 +440,8 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold){
         return false;
     }
     for (size_t q_index = 0; q_index < q->node_max; q_index++) {
-        size_t t_index = base + get_node_as_char(q, q_index);
-        if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index) || !set_base_used(t, t_index)) {
+        size_t t_index = base + get_node(q, q_index);
+        if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index) || !set_base_used(t, t_index, true)) {
             return false;
         }
     }
