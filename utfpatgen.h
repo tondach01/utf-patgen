@@ -42,7 +42,7 @@ bool is_node_occupied(struct trie *t, size_t index);
 
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
 bool link_trie_up_to(struct trie *t, size_t index);
-bool first_fit(struct trie *t, struct trie *q, uint8_t threshold);
+bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
 
 bool unpack(struct trie *from, size_t base, struct trie *to);
 
@@ -53,7 +53,7 @@ struct output
     struct output *next;
 };
 
-struct output *new_output(uint8_t value, size_t position);
+struct output *new_output(uint8_t value, size_t position, struct output *next);
 void destroy_output(struct output *op);
 
 struct outputs
@@ -65,9 +65,13 @@ struct outputs
 };
 
 struct outputs *init_outputs(size_t capacity);
-void add_output(struct outputs *ops, uint8_t value, size_t position);
+void add_output(struct outputs *ops, uint8_t value, size_t position, struct output *next);
 void remove_output(struct outputs *ops, size_t index);
 void destroy_outputs(struct outputs *ops);
+
+bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next, size_t *op_index);
+bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position);
+bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
 
 struct params
 {

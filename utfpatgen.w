@@ -303,7 +303,6 @@ bool set_node(struct trie *t, size_t index, char value){
         }
     }
     t->nodes[index] = value;
-    t->occupied += 1;
     if (index >= t->node_max) {
         t->node_max = index;
     }
@@ -434,7 +433,7 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, 
     return true;
 }
 
-bool first_fit(struct trie *t, struct trie *q, uint8_t threshold){
+bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
     size_t base;
     if (!find_base_for_first_fit(t, q, threshold, &base)) {
         return false;
@@ -445,6 +444,7 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold){
             return false;
         }
     }
+    *out_base = base;
     return true;
 }
 
@@ -466,6 +466,113 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     return true;
 }
 
+bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next, size_t *op_index){
+    size_t hash = ((value + 313*position + 361* (next != NULL ? (size_t)next : 0)) % ops->capacity) + 1;
+    while (true) {
+        if (ops->data[hash] == NULL) {
+            ops->count += 1;
+            if (ops->count >= ops->capacity) {
+                size_t new_capacity = ops->capacity * 2;
+                struct output **new_data = realloc(ops->data, new_capacity * sizeof(struct output *));
+                if (new_data == NULL) {
+                    fputs("Allocation error\n", stderr);
+                    return false;
+                }
+                ops->data = new_data;
+                ops->capacity = new_capacity;
+            }
+            struct output *op = new_output(value, position, next);
+            if (op == NULL) {
+                return false;
+            }
+            ops->data[hash] = op;
+            *op_index = hash;
+            return true;
+        }
+        if (ops->data[hash]->value == value && ops->data[hash]->position == position && ops->data[hash]->next == next) {
+            *op_index = hash;
+            return true;
+        }
+        if (hash > 0) {
+            hash -= 1;
+        } else {
+            hash = ops->capacity - 1;
+        }
+    }
+    return false; // should not reach here
+}
+
+bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position){
+    size_t index = 0;
+    size_t node = pattern[0];
+    size_t link = get_link(t, node);
+    struct trie *repack_trie = init_trie(256);
+    size_t fit;
+    if (repack_trie == NULL) {
+        return false;
+    }
+    while (index < strlen(pattern) && link != 0) {
+        index += 1;
+        link += pattern[index];
+        if (get_node(t, link) != pattern[index]) {
+            if (get_node(t, link) == 0) {
+                if (!set_links(t, get_aux(t, link), link) || !set_node(t, link, pattern[index]) || !set_aux(t, link, 0) || !set_link(t, link, 0)) {
+                    destroy_trie(repack_trie);
+                    return false;
+                }
+                if (link >= t->node_max) {
+                    t->node_max = link;
+                }
+            } else {
+                if (!repack(t, repack_trie, &node, &link, pattern[index])) {
+                    destroy_trie(repack_trie);
+                    return false;
+                }
+            }
+        }
+        node = link;
+        link = get_link(t, node);
+    }
+    while (index < strlen(pattern)) {
+        index += 1;
+        if (!first_fit(t, repack_trie, 5, &fit)) {
+            destroy_trie(repack_trie);
+            return false;
+        }
+        link = fit;
+        if (!set_node(repack_trie, repack_trie->node_max + 1, pattern[index]) || !set_link(t, node, link)) {
+            destroy_trie(repack_trie);
+            return false;
+        }
+        node = link + pattern[index];
+        t->occupied += 1;
+    }
+    size_t op_index;
+    if (!new_trie_output(ops, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
+        destroy_trie(repack_trie);
+        return false;
+    }
+    destroy_trie(repack_trie);
+    return true;
+}
+
+bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value){
+    if (!unpack(t, *link - value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
+        return false;
+    }
+    size_t fit;
+    if (!first_fit(t, q, 5, &fit)) {
+        return false;
+    }
+    *link = fit;
+    if (!set_link(t, *node, *link)) {
+        return false;
+    }
+    *link += value;
+    t->occupied += 1;
+    return true;
+}
+
 @* Output.
 The \texttt{output} structure is used for storing hyphenation outputs. The structure uses following fields:
 \begin{itemize}
@@ -483,7 +590,7 @@ Outputs are grouped together in \texttt{outputs} structure:
 \end{itemize}
 
 @c
-struct output *new_output(uint8_t value, size_t position){
+struct output *new_output(uint8_t value, size_t position, struct output *next){
     struct output *op = malloc(sizeof(struct output));
     if (op == NULL) {
         fputs("Allocation error\n", stderr);
@@ -491,7 +598,7 @@ struct output *new_output(uint8_t value, size_t position){
     }
     op->value = value;
     op->position = position;
-    op->next = NULL;
+    op->next = next;
     return op;
 }
 
@@ -517,7 +624,7 @@ struct outputs *init_outputs(size_t capacity){
     return ops;
 }
 
-void add_output(struct outputs *ops, uint8_t value, size_t position){
+void add_output(struct outputs *ops, uint8_t value, size_t position, struct output *next){
     if (ops->max >= ops->capacity) {
         size_t new_capacity = ops->capacity * 2;
         struct output **new_data = realloc(ops->data, new_capacity * sizeof(struct output *));
@@ -528,7 +635,7 @@ void add_output(struct outputs *ops, uint8_t value, size_t position){
         ops->data = new_data;
         ops->capacity = new_capacity;
     }
-    struct output *op = new_output(value, position);
+    struct output *op = new_output(value, position, next);
     if (op == NULL) {
         return;
     }
