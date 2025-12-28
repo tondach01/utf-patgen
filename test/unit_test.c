@@ -77,9 +77,9 @@ void test_outputs() {
         return;
     }
 
-    add_output(ops, 5, 10);
-    add_output(ops, 15, 20);
-    add_output(ops, 25, 30);  // This should trigger a resize
+    add_output(ops, 5, 10, NULL);
+    add_output(ops, 15, 20, NULL);
+    add_output(ops, 25, 30, NULL);  // This should trigger a resize
 
     printf("After additions:\n");
     print_outputs(ops);
