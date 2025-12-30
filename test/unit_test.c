@@ -71,32 +71,51 @@ void test_parse_header(){
     }
 }
 
-void test_outputs() {
-    struct outputs *ops = init_outputs(2);
-    if (ops == NULL) {
+void print_trie(struct trie *t) {
+    printf("Trie capacity: %zu, occupied: %zu, node_max: %zu, base_max: %zu\n", t->capacity, t->occupied, t->node_max, t->base_max);
+    printf("Index|Node|Link| Aux|Base|\n");
+    for (size_t i = 0; i < t->capacity; i++) {
+        if (i <= 259) printf("%5ld|%4d|%4zu|%4zu|%4d|\n", i, (uint8_t) t->nodes[i], t->links[i], t->aux[i], get_base_used(t, i));
+    }
+}
+
+void test_trie() {
+    struct trie *t = init_trie(4);
+    if (t == NULL) {
         return;
     }
 
-    add_output(ops, 5, 10, NULL);
-    add_output(ops, 15, 20, NULL);
-    add_output(ops, 25, 30, NULL);  // This should trigger a resize
+    if (!put_first_level(t)){
+        destroy_trie(t);
+        return;
+    }
 
-    printf("After additions:\n");
+    // Further trie tests would go here
+    const char *pattern = "test";
+    struct outputs *ops = init_outputs(2);
+    if (ops == NULL) {
+        destroy_trie(t);
+        return;
+    }
+    if (insert_pattern(t, pattern, ops, 1, 2)) {
+        printf("Pattern '%s' inserted successfully.\n", pattern);
+    } else {
+        printf("Failed to insert pattern '%s'.\n", pattern);
+    }
+    print_trie(t);
     print_outputs(ops);
-    remove_output(ops, 1);  // Remove the second output
 
-    printf("After removal:\n");
-    print_outputs(ops);
-    
+    // Cleanup
     destroy_outputs(ops);
+    destroy_trie(t);
 }
 
 int main(void) {
-    printf("---- Read Line Test ----\n");
-    test_read_line();
-    printf("\n---- Parse Header Test ----\n");
-    test_parse_header();
-    printf("\n---- Outputs Test ----\n");
-    test_outputs();
+    //printf("---- Read Line Test ----\n");
+    //test_read_line();
+    //printf("\n---- Parse Header Test ----\n");
+    //test_parse_header();
+    printf("\n---- Trie Test ----\n");
+    test_trie();
     return 0;
 }
