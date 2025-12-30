@@ -18,6 +18,7 @@ struct trie
 };
 
 struct trie *init_trie(size_t capacity);
+bool put_first_level(struct trie *t);
 struct trie *resize_trie(struct trie *t, size_t new_capacity);
 void reset_trie(struct trie *t);
 void destroy_trie(struct trie *t);
@@ -65,8 +66,7 @@ struct outputs
 };
 
 struct outputs *init_outputs(size_t capacity);
-void add_output(struct outputs *ops, uint8_t value, size_t position, struct output *next);
-void remove_output(struct outputs *ops, size_t index);
+struct outputs *resize_outputs(struct outputs *ops, size_t capacity);
 void destroy_outputs(struct outputs *ops);
 
 bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next, size_t *op_index);
