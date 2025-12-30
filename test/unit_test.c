@@ -38,7 +38,7 @@ struct string_buffer *mock_buffer(const char *str) {
 }
 
 void print_outputs(struct outputs *ops) {
-    for (size_t i = 0; i < ops->max; i++) {
+    for (size_t i = 1; i < ops->capacity+1; i++) {
         struct output *op = ops->data[i];
         if (op != NULL) {
             printf("Output %zu: value=%d, position=%zu\n", i, op->value, op->position);
@@ -75,7 +75,7 @@ void print_trie(struct trie *t) {
     printf("Trie capacity: %zu, occupied: %zu, node_max: %zu, base_max: %zu\n", t->capacity, t->occupied, t->node_max, t->base_max);
     printf("Index|Node|Link| Aux|Base|\n");
     for (size_t i = 0; i < t->capacity; i++) {
-        if (i <= 259) printf("%5ld|%4d|%4zu|%4zu|%4d|\n", i, (uint8_t) t->nodes[i], t->links[i], t->aux[i], get_base_used(t, i));
+        if ((i > 256 && get_node(t, i) != 0) || get_aux(t, i) == 2) printf("%5ld|%4d|%4zu|%4zu|%4d|\n", i, (uint8_t) t->nodes[i], t->links[i], t->aux[i], get_base_used(t, i));
     }
 }
 
@@ -98,12 +98,24 @@ void test_trie() {
         return;
     }
     if (insert_pattern(t, pattern, ops, 1, 2)) {
-        printf("Pattern '%s' inserted successfully.\n", pattern);
+        printf("Pattern  '%s' inserted successfully.\n", pattern);
+    } else {
+        printf("Failed to insert pattern '%s'.\n", pattern);
+    }
+    pattern = "top";
+    if (insert_pattern(t, pattern, ops, 2, 2)) {
+        printf("Pattern  '%s' inserted successfully.\n", pattern);
     } else {
         printf("Failed to insert pattern '%s'.\n", pattern);
     }
     print_trie(t);
     print_outputs(ops);
+    struct output *retrieved_op = get_pattern_output(t, ops, pattern);
+    if (retrieved_op != NULL) {
+        printf("Retrieved output for pattern '%s': value=%d, position=%zu\n", pattern, retrieved_op->value, retrieved_op->position);
+    } else {
+        printf("No output found for pattern '%s'.\n", pattern);
+    }
 
     // Cleanup
     destroy_outputs(ops);
