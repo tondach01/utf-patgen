@@ -252,19 +252,21 @@ struct trie *init_trie(size_t capacity){
 
 bool put_first_level(struct trie *t){
     size_t root = 1;
-    for (size_t i = 0; i < 256; i++) {
-        if (!set_node(t, root + i, i)){
+    size_t n_bytes = 256;
+    size_t last_byte = 255;
+    for (size_t i = 0; i <= last_byte; i++) {
+        if (!set_node(t, root + i, (char) i)){
             return false;
         }
     }
 
-    if (!set_base_used(t, root, true) || !set_links(t, 0, 256)) {
+    t->node_max = root + last_byte;
+    t->base_max = root;
+    t->occupied = n_bytes;
+
+    if (!set_base_used(t, root, true) || !set_links(t, 0, t->node_max + 1)) {
         return false;
     }
-
-    t->node_max = 256;
-    t->base_max = 1;
-    t->occupied = 255;
     return true;
 }
 
@@ -512,57 +514,60 @@ bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct
 }
 
 bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position){
-    size_t index = 0;
+    size_t index = 1;
     size_t node = pattern[0] + 1;
-    size_t link = get_link(t, node);
+    size_t base = get_link(t, node);
     size_t fit;
-    struct trie *repack_trie = init_trie(256);
-    if (repack_trie == NULL) {
+    struct trie *q = init_trie(256);
+    if (q == NULL) {
         return false;
     }
-    while (index < strlen(pattern) && link > 0) {
-        index += 1;
-        link += pattern[index];
-        if (get_node(t, link) != pattern[index]) {
-            if (get_node(t, link) == 0) {
-                if (!set_links(t, get_aux(t, link), get_link(t, link)) || !set_node(t, link, pattern[index]) || !set_aux(t, link, 0) || !set_link(t, link, 0)) {
-                    destroy_trie(repack_trie);
+    while (index < strlen(pattern) && base > 0) {
+        
+        base += pattern[index];
+        if (get_node(t, base) != pattern[index]) {
+            if (get_node(t, base) == 0) {
+                if (!set_links(t, get_aux(t, base), get_link(t, base)) || !set_node(t, base, pattern[index]) || !set_aux(t, base, 0) || !set_link(t, base, 0)) {
+                    destroy_trie(q);
                     return false;
                 }
-                if (link > t->node_max) {
-                    t->node_max = link;
+                if (base > t->node_max) {
+                    t->node_max = base;
                 }
             } else {
-                if (!repack(t, repack_trie, &node, &link, pattern[index])) {
-                    destroy_trie(repack_trie);
+                if (!repack(t, q, &node, &base, pattern[index])) {
+                    destroy_trie(q);
                     return false;
                 }
             }
             t->occupied += 1;
+            index += 1;
         }
-        node = link;
-        link = get_link(t, node);
+        node = base;
+        base = get_link(t, node);
     }
+    if (!set_link(q, 1, 0) || !set_aux(q, 1, 0)) {
+        destroy_trie(q);
+        return false;
+    }
+    q->node_max = 1;
     while (index < strlen(pattern)) {
-        index += 1;
-        if (!first_fit(t, repack_trie, 5, &fit)) {
-            destroy_trie(repack_trie);
+        
+        if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, 5, &fit) || !set_link(t, node, fit)) {
+            destroy_trie(q);
             return false;
         }
-        link = fit;
-        if (!set_node(repack_trie, 1, pattern[index]) || !set_link(t, node, link)) {
-            destroy_trie(repack_trie);
-            return false;
-        }
-        node = link + pattern[index];
+        base = fit;
+        node = base + pattern[index];
         t->occupied += 1;
+        index += 1;
     }
     size_t op_index;
     if (!new_trie_output(ops, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
-        destroy_trie(repack_trie);
+        destroy_trie(q);
         return false;
     }
-    destroy_trie(repack_trie);
+    destroy_trie(q);
     return true;
 }
 
@@ -580,6 +585,29 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char val
     }
     *link += value;
     return true;
+}
+
+struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
+    size_t index = 0;
+    size_t node = pattern[0] + 1;
+    size_t link = get_link(t, node);
+    while (index < strlen(pattern) && link > 0) {
+        index += 1;
+        link += pattern[index];
+        if (get_node(t, link) != pattern[index]) {
+            return NULL;
+        }
+        node = link;
+        link = get_link(t, node);
+    }
+    if (index < strlen(pattern) - 1) {
+        return NULL;
+    }
+    size_t op_index = get_aux(t, node);
+    if (op_index == 0) {
+        return NULL;
+    }
+    return ops->data[op_index];
 }
 
 @* Output.
