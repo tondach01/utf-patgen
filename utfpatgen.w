@@ -82,6 +82,17 @@ struct string_buffer *init_buffer(size_t capacity){
     return buf;
 }
 
+struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity){
+    char *new_ptr = realloc(buf->data, new_capacity);
+    if (new_ptr == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    buf->data = new_ptr;
+    buf->capacity = new_capacity;
+    return buf;
+}
+
 void reset_buffer(struct string_buffer *buf){
     buf->eof = false;
     buf->size = 0;
@@ -101,13 +112,9 @@ bool read_line(FILE *stream, struct string_buffer *buf){
     char c;
     while ((c = fgetc(stream)) != EOF) {
         if (buf->size >= buf->capacity) {
-            void *new_ptr = realloc(buf->data, 2*buf->capacity);
-            if (new_ptr == NULL) {
-                fputs("Allocation error\n", stderr);
+            if (resize_buffer(buf, 2*buf->capacity) == NULL) {
                 return false;
             }
-            buf->data = (char *) new_ptr;
-            buf->capacity *= 2;
         }
         if (c == '\n'){
             if ((buf->size > 0) && (buf->data[buf->size-1] == '\r')){  // Windows /r/n end of line
@@ -122,6 +129,29 @@ bool read_line(FILE *stream, struct string_buffer *buf){
     if (c == EOF) {
         buf->eof = true;
     }
+    return true;
+}
+
+bool append_char(struct string_buffer *buf, char c){
+    if (buf->size + 1 >= buf->capacity) {
+        if (resize_buffer(buf, 2*buf->capacity) == NULL) {
+            return false;
+        }
+    }
+    buf->data[buf->size] = c;
+    buf->size++;
+    return true;
+}
+
+bool append_string(struct string_buffer *buf, const char *str){
+    size_t len = strlen(str);
+    if (buf->size + len >= buf->capacity) {
+        if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
+            return false;
+        }
+    }
+    strcpy(&buf->data[buf->size], str);
+    buf->size += len;
     return true;
 }
 
@@ -200,6 +230,54 @@ bool parse_header(struct string_buffer *buf, struct params *params){
         }
     } else {
         return false;
+    }
+    return true;
+}
+
+@ Parse letters.
+Parses the letter mappings from the translate file. Returns true on success, false on failure.
+
+@c
+bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet){
+    if (buf->size == 0){
+        fprintf(stderr, "Empty line in translate file\n");
+        return false;
+    }
+    char separator = buf->data[0];
+    if (buf->size > 1 && buf->data[1] == separator){  // a comment, not forbidden
+        return true;
+    }
+    size_t alphabet_index = alphabet->size + 1;
+    size_t out_index;
+    struct string_buffer *letter = init_buffer(4);
+    if (letter == NULL) {
+        return false;
+    }
+    bool lower = true;
+    for (size_t i = 1; i < buf->size; i++){
+        char c = buf->data[i];
+        if (c == separator){
+            if (letter->size == 0){
+                break;  // end of line
+            }
+            if (!append_char(letter, '\0') || !insert_pattern(mapping, letter->data, &out_index) || !set_aux(mapping, out_index, alphabet_index)) {
+                destroy_buffer(letter);
+                return false;
+            }
+            if (lower) {
+                if (!append_string(alphabet, letter->data, letter->size)) {
+                    destroy_buffer(letter);
+                    return false;
+                }
+                lower = false;
+            }
+            reset_buffer(letter);
+        } else {
+            if (!append_char(letter, c)) {
+                destroy_buffer(letter);
+                return false;
+            }
+        }
     }
     return true;
 }

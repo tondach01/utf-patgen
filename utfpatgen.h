@@ -104,19 +104,21 @@ struct string_buffer {
 };
 
 struct string_buffer *init_buffer(size_t capacity);
+struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity);
 void reset_buffer(struct string_buffer *buf);
 void destroy_buffer(struct string_buffer *buf);
 
+bool read_line(FILE *stream, struct string_buffer *buf);
+bool append_char(struct string_buffer *buf, char c);
+bool append_string(struct string_buffer *buf, const char *str);
 
 bool parse_input(int argc, char *argv[], struct params *params);
 bool read_translate(FILE *translate, struct params *params);  // TODO will need trie
 bool parse_header(struct string_buffer *buf, struct params *params);
-bool parse_letters(struct string_buffer *buf);  // TODO will need trie
+bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);  // TODO will need trie
 
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool parse_word(struct string_buffer *buf);  // TODO will need trie
-
-bool read_line(FILE *stream, struct string_buffer *buf);
 
 void generate_patterns();
 void clean(); // if necessary
