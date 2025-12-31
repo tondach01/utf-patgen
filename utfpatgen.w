@@ -116,7 +116,7 @@ bool read_line(FILE *stream, struct string_buffer *buf){
             break;
         }
         buf->data[buf->size] = c;
-        buf->size += 1;
+        buf->size++;
     }
     buf->data[buf->size] = '\0';
     if (c == EOF) {
@@ -408,7 +408,7 @@ bool is_node_occupied(struct trie *t, size_t index){
 
 bool link_trie_up_to(struct trie *t, size_t index){
     while (t->base_max < index){
-        t->base_max += 1;
+        t->base_max++;
         if (!set_node(t, t->base_max + 255, 0) || !set_links(t, t->base_max + 255, t->base_max + 256)) {
             return false;
         }
@@ -466,19 +466,17 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
 
 bool unpack(struct trie *from, size_t base, struct trie *to){
     to->node_max = 1;
-    for (uint8_t i = '\x00'; i < '\xff'; i++){
+    for (size_t i = 0; i < 256; i++){
         size_t from_index = base + i;
         if (get_node(from, from_index) == i) {
-            if (!copy_node(from, from_index, to, to->node_max)) {
+            if (!copy_node(from, from_index, to, to->node_max) || !set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index) || !set_node(from, from_index, 0)) {
                 return false;
             }
-            if (!set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index) || !set_node(from, from_index, 0)) {
-                return false;
-            }
+            to->node_max++;
         }
-        if (!set_base_used(from, base, false)) {
-            return false;
-        }
+    }
+    if (!set_base_used(from, base, false)) {
+        return false;
     }
     return true;
 }
@@ -487,7 +485,7 @@ bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct
     size_t hash = (((next != NULL ? (size_t)next : 0) + 313*position + 361*value) % ops->capacity) + 1;
     while (true) {
         if (ops->data[hash] == NULL) {
-            ops->count += 1;
+            ops->count++;
             if (ops->count >= ops->capacity) {
                 size_t new_capacity = ops->capacity * 2;
                 if (resize_outputs(ops, new_capacity) == NULL){
@@ -540,9 +538,9 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
                     return false;
                 }
             }
-            t->occupied += 1;
-            index += 1;
+            t->occupied++;
         }
+        index++;
         node = base;
         base = get_link(t, node);
     }
@@ -552,15 +550,14 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
     }
     q->node_max = 1;
     while (index < strlen(pattern)) {
-        
         if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, 5, &fit) || !set_link(t, node, fit)) {
             destroy_trie(q);
             return false;
         }
         base = fit;
         node = base + pattern[index];
-        t->occupied += 1;
-        index += 1;
+        t->occupied++;
+        index++;
     }
     size_t op_index;
     if (!new_trie_output(ops, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
@@ -571,19 +568,19 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
     return true;
 }
 
-bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value){
-    if (!unpack(t, *link - value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
+bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
+    if (!unpack(t, *base - value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
         return false;
     }
     size_t fit;
     if (!first_fit(t, q, 5, &fit)) {
         return false;
     }
-    *link = fit;
-    if (!set_link(t, *node, *link)) {
+    *base = fit;
+    if (!set_link(t, *node, *base)) {
         return false;
     }
-    *link += value;
+    *base += value;
     return true;
 }
 
@@ -592,7 +589,7 @@ struct output *get_pattern_output(struct trie *t, struct outputs *ops, const cha
     size_t node = pattern[0] + 1;
     size_t link = get_link(t, node);
     while (index < strlen(pattern) && link > 0) {
-        index += 1;
+        index++;
         link += pattern[index];
         if (get_node(t, link) != pattern[index]) {
             return NULL;
