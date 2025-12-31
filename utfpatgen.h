@@ -66,10 +66,11 @@ struct outputs
 };
 
 struct outputs *init_outputs(size_t capacity);
-struct outputs *resize_outputs(struct outputs *ops, size_t capacity);
+struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t);
 void destroy_outputs(struct outputs *ops);
 
-bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next, size_t *op_index);
+bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index);
+size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next);
 bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
 struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);

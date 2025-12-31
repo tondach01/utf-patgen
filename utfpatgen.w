@@ -481,34 +481,41 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     return true;
 }
 
-bool new_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next, size_t *op_index){
+bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index){
+    if (ops->count >= ops->capacity - 1) {
+        if (resize_outputs(ops, ops->capacity * 2, t) == NULL) {
+            return false;
+        }
+    }
+    size_t hash = hash_trie_output(ops, value, position, next);
+    if (ops->data[hash] == NULL) {
+        ops->count++;
+        struct output *op = new_output(value, position, next);
+        if (op == NULL) {
+            return false;
+        }
+        ops->data[hash] = op;
+        *op_index = hash;
+        return true;
+    } 
+    *op_index = hash;
+    return false;
+}
+
+size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next){
     size_t hash = (((next != NULL ? (size_t)next : 0) + 313*position + 361*value) % ops->capacity) + 1;
     while (true) {
         if (ops->data[hash] == NULL) {
-            ops->count++;
-            if (ops->count >= ops->capacity) {
-                size_t new_capacity = ops->capacity * 2;
-                if (resize_outputs(ops, new_capacity) == NULL){
-                    return false;
-                }
-            }
-            struct output *op = new_output(value, position, next);
-            if (op == NULL) {
-                return false;
-            }
-            ops->data[hash] = op;
-            *op_index = hash;
-            return true;
+            return hash;
         } else if (ops->data[hash]->value == value && ops->data[hash]->position == position && ops->data[hash]->next == next) {
-            *op_index = hash;
-            return true;
+            return hash;
         } else if (hash > 1) {
             hash -= 1;
         } else {
             hash = ops->capacity;
         }
     }
-    return false; // should not reach here
+    return 0; // should not reach here
 }
 
 bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position){
@@ -560,7 +567,7 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
         index++;
     }
     size_t op_index;
-    if (!new_trie_output(ops, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
+    if (!new_trie_output(ops, t, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
         destroy_trie(q);
         return false;
     }
@@ -657,15 +664,24 @@ struct outputs *init_outputs(size_t capacity){
     return ops;
 }
 
-struct outputs *resize_outputs(struct outputs *ops, size_t capacity){
-    struct output **new_data = realloc(ops->data, (capacity + 1) * sizeof(struct output *)); 
+// warning: computationally very expensive for larger tries!
+struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t){
+    struct output **new_data = calloc(capacity + 1, sizeof(struct output *)); 
     if (new_data == NULL) {
         fputs("Allocation error\n", stderr);
         return NULL;
     }
-    ops->data = new_data;
     ops->capacity = capacity;
-    // TODO resizing meddles with the hashing
+    for (size_t i = 0; i < t->capacity; i++) {
+        if (is_node_occupied(t, i) && get_aux(t, i) != 0) {
+            size_t old_index = get_aux(t, i);
+            struct output *old_op = ops->data[old_index];
+            size_t new_index = hash_trie_output(ops, old_op->value, old_op->position, old_op->next);
+            new_data[new_index] = old_op;
+        }
+    }
+    free(ops->data);
+    ops->data = new_data;
     return ops;
 }
 
