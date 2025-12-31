@@ -11,6 +11,7 @@ struct trie
     size_t occupied;
     size_t node_max;
     size_t base_max;
+    size_t pattern_count;
     char *nodes;  // _c
     size_t *links;  // _l
     size_t *aux;  // _r
@@ -71,9 +72,12 @@ void destroy_outputs(struct outputs *ops);
 
 bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index);
 size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next);
-bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position);
+
+bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
+bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
 struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
+bool set_output(struct trie *t, size_t index, struct outputs *ops, uint8_t value, size_t position);
 
 struct params
 {

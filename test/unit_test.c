@@ -91,13 +91,14 @@ void test_trie() {
     }
 
     const char *patterns[] = {"test", "tea"};
+    size_t op_index;
     struct outputs *ops = init_outputs(2);
     if (ops == NULL) {
         destroy_trie(t);
         return;
     }
     for (size_t i = 0; i < 2; i++){
-        if (insert_pattern(t, patterns[i], ops, 1, i)) {
+        if (insert_pattern(t, patterns[i], &op_index) && set_output(t, op_index, ops, (uint8_t)(i), i + 1)) {
             printf("Pattern '%s' inserted successfully.\n", patterns[i]);
         } else {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);

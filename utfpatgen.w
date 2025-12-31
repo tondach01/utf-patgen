@@ -246,6 +246,7 @@ struct trie *init_trie(size_t capacity){
     t->node_max = 0;
     t->base_max = 0;
     t->occupied = 0;
+    t->pattern_count = 0;
     
     return t;
 }
@@ -263,6 +264,7 @@ bool put_first_level(struct trie *t){
     t->node_max = root + last_byte;
     t->base_max = root;
     t->occupied = n_bytes;
+    t->pattern_count = n_bytes;
 
     if (!set_base_used(t, root, true) || !set_links(t, 0, t->node_max + 1)) {
         return false;
@@ -294,6 +296,7 @@ void reset_trie(struct trie *t){
     t->node_max = 0;
     t->base_max = 0;
     t->occupied = 0;
+    t->pattern_count = 0;
     memset(t->nodes, 0, t->capacity * sizeof(char));
     memset(t->links, 0, t->capacity * sizeof(size_t));
     memset(t->aux, 0, t->capacity * sizeof(size_t));
@@ -518,8 +521,12 @@ size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, str
     return 0; // should not reach here
 }
 
-bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, uint8_t value, size_t position){
-    size_t index = 1;
+bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
+    return insert_substring(t, pattern, strlen(pattern), strlen(pattern), out_op_index);
+}
+
+bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
+    size_t index = end - length + 1;
     size_t node = pattern[0] + 1;
     size_t base = get_link(t, node);
     size_t fit;
@@ -527,8 +534,7 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
     if (q == NULL) {
         return false;
     }
-    while (index < strlen(pattern) && base > 0) {
-        
+    while (index < end && base > 0) {
         base += pattern[index];
         if (get_node(t, base) != pattern[index]) {
             if (get_node(t, base) == 0) {
@@ -556,7 +562,7 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
         return false;
     }
     q->node_max = 1;
-    while (index < strlen(pattern)) {
+    while (index < end) {
         if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, 5, &fit) || !set_link(t, node, fit)) {
             destroy_trie(q);
             return false;
@@ -566,11 +572,8 @@ bool insert_pattern(struct trie *t, const char *pattern, struct outputs *ops, ui
         t->occupied++;
         index++;
     }
-    size_t op_index;
-    if (!new_trie_output(ops, t, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
-        destroy_trie(q);
-        return false;
-    }
+    *out_op_index = node;
+    t->pattern_count++;
     destroy_trie(q);
     return true;
 }
@@ -612,6 +615,14 @@ struct output *get_pattern_output(struct trie *t, struct outputs *ops, const cha
         return NULL;
     }
     return ops->data[op_index];
+}
+
+bool set_output(struct trie *t, size_t node, struct outputs *ops, uint8_t value, size_t position){
+    size_t op_index;
+    if (!new_trie_output(ops, t, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
+        return false;
+    }
+    return true;
 }
 
 @* Output.
