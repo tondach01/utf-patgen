@@ -110,7 +110,7 @@ void destroy_buffer(struct string_buffer *buf);
 
 bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);
-bool append_string(struct string_buffer *buf, const char *str);
+bool append_string(struct string_buffer *buf, const char *str, size_t len);
 
 bool parse_input(int argc, char *argv[], struct params *params);
 bool read_translate(FILE *translate, struct params *params);  // TODO will need trie

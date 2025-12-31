@@ -143,8 +143,7 @@ bool append_char(struct string_buffer *buf, char c){
     return true;
 }
 
-bool append_string(struct string_buffer *buf, const char *str){
-    size_t len = strlen(str);
+bool append_string(struct string_buffer *buf, const char *str, size_t len){
     if (buf->size + len >= buf->capacity) {
         if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
             return false;
