@@ -90,33 +90,31 @@ void test_trie() {
         return;
     }
 
-    // Further trie tests would go here
-    const char *pattern = "test";
+    const char *patterns[] = {"test", "tea"};
     struct outputs *ops = init_outputs(2);
     if (ops == NULL) {
         destroy_trie(t);
         return;
     }
-    if (insert_pattern(t, pattern, ops, 1, 2)) {
-        printf("Pattern  '%s' inserted successfully.\n", pattern);
-    } else {
-        printf("Failed to insert pattern '%s'.\n", pattern);
-    }
-    pattern = "top";
-    if (insert_pattern(t, pattern, ops, 2, 2)) {
-        printf("Pattern  '%s' inserted successfully.\n", pattern);
-    } else {
-        printf("Failed to insert pattern '%s'.\n", pattern);
+    for (size_t i = 0; i < 2; i++){
+        if (insert_pattern(t, patterns[i], ops, 1, i)) {
+            printf("Pattern '%s' inserted successfully.\n", patterns[i]);
+        } else {
+            printf("Failed to insert pattern '%s'.\n", patterns[i]);
+        }
     }
     print_trie(t);
     print_outputs(ops);
-    struct output *retrieved_op = get_pattern_output(t, ops, pattern);
-    if (retrieved_op != NULL) {
-        printf("Retrieved output for pattern '%s': value=%d, position=%zu\n", pattern, retrieved_op->value, retrieved_op->position);
-    } else {
-        printf("No output found for pattern '%s'.\n", pattern);
+    struct output *retrieved_op;
+    for (size_t i = 0; i < 2; i++){
+        retrieved_op = get_pattern_output(t, ops, patterns[i]);
+        if (retrieved_op != NULL) {
+            printf("Retrieved output for pattern '%s': value=%d, position=%zu\n", patterns[i], retrieved_op->value, retrieved_op->position);
+        } else {
+            printf("No output found for pattern '%s'.\n", patterns[i]);
+        }
     }
-
+    
     // Cleanup
     destroy_outputs(ops);
     destroy_trie(t);
