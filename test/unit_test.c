@@ -37,6 +37,13 @@ struct string_buffer *mock_buffer(const char *str) {
     return buf;
 }
 
+void print_buffer(struct string_buffer *buf) {
+    printf("Buffer(size=%zu, capacity=%zu, eof=%d):\n", buf->size, buf->capacity, buf->eof);
+    for (size_t i = 0; i < buf->size; i++) {
+        printf(" buf[%zu] = '%c' (0x%02x)\n", i, buf->data[i], (uint8_t)buf->data[i]);
+    }
+}
+
 void print_outputs(struct outputs *ops) {
     for (size_t i = 1; i < ops->capacity+1; i++) {
         struct output *op = ops->data[i];
@@ -121,12 +128,51 @@ void test_trie() {
     destroy_trie(t);
 }
 
+void test_read_letters() {
+    struct string_buffer *buf = mock_buffer(" a A Á ˇA  ");
+    struct trie *mapping = init_trie(128);
+    if (mapping == NULL) {
+        return;
+    }
+    if (!put_first_level(mapping)) {
+        destroy_trie(mapping);
+        return;
+    }
+    struct string_buffer *alphabet = init_buffer(64);
+    if (alphabet == NULL) {
+        destroy_trie(mapping);
+        return;
+    }
+    if (!append_char(alphabet, '\0')) {
+        destroy_trie(mapping);
+        destroy_buffer(alphabet);
+        return;
+    }
+    if (parse_letters(buf, mapping, alphabet)) {
+        printf("Parsed letters successfully.\n");
+    } else {
+        printf("Failed to parse letters.\n");
+    }
+
+    size_t index = 0;
+    if ((index = traverse_trie(mapping, "ˇA")) != 0) {
+        printf("Pattern 'ˇA' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
+    } else {
+        printf("Pattern 'ˇA' not found in trie.\n");
+    }
+
+    destroy_trie(mapping);
+    destroy_buffer(alphabet);
+}
+
 int main(void) {
     //printf("---- Read Line Test ----\n");
     //test_read_line();
     //printf("\n---- Parse Header Test ----\n");
     //test_parse_header();
-    printf("\n---- Trie Test ----\n");
-    test_trie();
+    //printf("\n---- Trie Test ----\n");
+    //test_trie();
+    printf("\n---- Read Letters Test ----\n");
+    test_read_letters();
     return 0;
 }
