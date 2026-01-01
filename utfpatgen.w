@@ -246,7 +246,7 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
     if (buf->size > 1 && buf->data[1] == separator){  // a comment, not forbidden
         return true;
     }
-    size_t alphabet_index = alphabet->size + 1;
+    size_t alphabet_index = alphabet->size;
     size_t out_index;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
@@ -561,6 +561,25 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     return true;
 }
 
+size_t traverse_trie(struct trie *t, const char *pattern){
+    size_t index = 1;
+    size_t node = (uint8_t) pattern[0] + 1;
+    size_t base = get_link(t, node);
+    while (index < strlen(pattern) && base > 0) {
+        base += pattern[index];
+        if (get_node(t, base) != pattern[index]) {
+            return 0;
+        }
+        node = base;
+        base = get_link(t, node);
+        index++;
+    }
+    if (index < strlen(pattern) - 1) {
+        return 0;
+    }
+    return node;
+}
+
 bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index){
     if (ops->count >= ops->capacity - 1) {
         if (resize_outputs(ops, ops->capacity * 2, t) == NULL) {
@@ -599,12 +618,13 @@ size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, str
 }
 
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
-    return insert_substring(t, pattern, strlen(pattern), strlen(pattern), out_op_index);
+    size_t length = strlen(pattern);
+    return insert_substring(t, pattern, length, length, out_op_index);
 }
 
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
     size_t index = end - length + 1;
-    size_t node = pattern[0] + 1;
+    size_t node = (uint8_t) pattern[index - 1] + 1;
     size_t base = get_link(t, node);
     size_t fit;
     struct trie *q = init_trie(256);
