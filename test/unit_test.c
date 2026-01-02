@@ -72,13 +72,12 @@ void test_parse_header(){
         struct string_buffer buf_mock = *mock_buffer(test_headers[i]);
         reset_params(params);
         bool parsed = parse_header(&buf_mock, params);
-        printf("Header: '%s'\n", test_headers[i]);
+        printf("Header '%s'", test_headers[i]);
         if (parsed) {
-            printf("lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n", params->left_hyphen_min, params->right_hyphen_min, params->bad_hyphen, params->missed_hyphen, params->good_hyphen);
+            printf(": lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n", params->left_hyphen_min, params->right_hyphen_min, params->bad_hyphen, params->missed_hyphen, params->good_hyphen);
         } else {
-            printf("Header not parsed\n");
+            printf(" was not parsed\n");
         }
-        
     }
 }
 
@@ -101,7 +100,7 @@ void test_trie() {
         return;
     }
 
-    const char *patterns[] = {"test", "tea"};
+    const char *patterns[] = {"test", "tea", "text"};
     size_t op_index;
     struct outputs *ops = init_outputs(2);
     if (ops == NULL) {
@@ -115,10 +114,8 @@ void test_trie() {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
         }
     }
-    //print_trie(t);
-    //print_outputs(ops);
     struct output *retrieved_op;
-    for (size_t i = 0; i < 2; i++){
+    for (size_t i = 0; i < 3; i++){
         retrieved_op = get_pattern_output(t, ops, patterns[i]);
         if (retrieved_op != NULL) {
             printf("Retrieved output for pattern '%s': value=%d, position=%zu\n", patterns[i], retrieved_op->value, retrieved_op->position);
@@ -157,23 +154,28 @@ void test_read_letters() {
         destroy_buffer(alphabet);
         return;
     }
-    size_t index = 0;
-    if ((index = traverse_trie(mapping, "F")) != 0) {
-        printf("Letter 'F' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
-    } else {
-        printf("Letter 'F' not found in trie.\n");
-    }
+    printf("Default mapping loaded successfully.\n");
 
+    size_t index = 0;
+    char *letters[] = {"F", "ˇA", "ř"};
+    for (size_t i = 0; i < 3; i++) {
+        if ((index = traverse_trie(mapping, letters[i])) != 0) {
+            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], alphabet->data + get_aux(mapping, index));
+        } else {
+            printf("Letter '%s' not found in trie.\n", letters[i]);
+        }
+    }
+    
     if (parse_letters(buf, mapping, alphabet)) {
         printf("Parsed line '%s' successfully.\n", buf->data);
     } else {
-        printf("Failed to parse line.\n");
+        printf("Failed to parse line '%s'.\n", buf->data);
     }
 
-    if ((index = traverse_trie(mapping, "ˇA")) != 0) {
-        printf("Letter 'ˇA' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
+    if ((index = traverse_trie(mapping, letters[1])) != 0) {
+        printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[1], alphabet->data + get_aux(mapping, index));
     } else {
-        printf("Letter 'ˇA' not found in trie.\n");
+        printf("Letter '%s' not found in trie.\n", letters[1]);
     }
 
     destroy_trie(mapping);
@@ -244,14 +246,14 @@ void test_read_translate() {
 }
 
 int main(void) {
-    //printf("---- Read Line Test ----\n");
-    //test_read_line();
-    //printf("\n---- Parse Header Test ----\n");
-    //test_parse_header();
+    printf("---- Read Line Test ----\n");
+    test_read_line();
+    printf("\n---- Parse Header Test ----\n");
+    test_parse_header();
     printf("\n---- Trie Test ----\n");
     test_trie();
-    //printf("\n---- Read Letters Test ----\n");
-    //test_read_letters();
+    printf("\n---- Read Letters Test ----\n");
+    test_read_letters();
     printf("\n---- Read Translate Test ----\n");
     test_read_translate();
     return 0;
