@@ -281,6 +281,23 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
     return true;
 }
 
+bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet){
+    size_t out_index;
+    size_t alphabet_index;
+    char upper;
+    for (char c = 'a'; c <= 'z'; c++){
+        alphabet_index = alphabet->size;
+        upper = c - ('a' - 'A');
+        if (!insert_pattern(mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(mapping, out_index, alphabet_index) || !append_string(alphabet, (const char[]){c, '\0'}, 2)) {
+            return false;
+        }
+        if (!insert_pattern(mapping, (const char[]){upper, '\0'}, &out_index) || !set_aux(mapping, out_index, alphabet_index)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 @* Trie structure.
 The \texttt{trie} structure is used for storing patterns efficiently. The structure uses following fields:
 \begin{itemize}
@@ -333,7 +350,7 @@ bool put_first_level(struct trie *t){
     size_t n_bytes = 256;
     size_t last_byte = 255;
     for (size_t i = 0; i <= last_byte; i++) {
-        if (!set_node(t, root + i, (char) i)){
+        if (!set_node(t, root + i, (uint8_t) i)){
             return false;
         }
     }
@@ -692,22 +709,11 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
 }
 
 struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
-    size_t index = 0;
-    size_t node = pattern[0] + 1;
-    size_t link = get_link(t, node);
-    while (index < strlen(pattern) && link > 0) {
-        index++;
-        link += pattern[index];
-        if (get_node(t, link) != pattern[index]) {
-            return NULL;
-        }
-        node = link;
-        link = get_link(t, node);
-    }
-    if (index < strlen(pattern) - 1) {
+    size_t trie_index = traverse_trie(t, pattern);
+    if (trie_index == 0) {
         return NULL;
     }
-    size_t op_index = get_aux(t, node);
+    size_t op_index = get_aux(t, trie_index);
     if (op_index == 0) {
         return NULL;
     }

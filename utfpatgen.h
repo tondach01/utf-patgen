@@ -115,7 +115,8 @@ bool append_string(struct string_buffer *buf, const char *str, size_t len);
 bool parse_input(int argc, char *argv[], struct params *params);
 bool read_translate(FILE *translate, struct params *params);  // TODO will need trie
 bool parse_header(struct string_buffer *buf, struct params *params);
-bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);  // TODO will need trie
+bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);
+bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet);
 
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool parse_word(struct string_buffer *buf);  // TODO will need trie
