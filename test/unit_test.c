@@ -111,8 +111,8 @@ void test_trie() {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
         }
     }
-    print_trie(t);
-    print_outputs(ops);
+    //print_trie(t);
+    //print_outputs(ops);
     struct output *retrieved_op;
     for (size_t i = 0; i < 2; i++){
         retrieved_op = get_pattern_output(t, ops, patterns[i]);
@@ -123,7 +123,6 @@ void test_trie() {
         }
     }
     
-    // Cleanup
     destroy_outputs(ops);
     destroy_trie(t);
 }
@@ -148,17 +147,29 @@ void test_read_letters() {
         destroy_buffer(alphabet);
         return;
     }
-    if (parse_letters(buf, mapping, alphabet)) {
-        printf("Parsed letters successfully.\n");
+
+    if (!default_ascii_mapping(mapping, alphabet)) {
+        destroy_trie(mapping);
+        destroy_buffer(alphabet);
+        return;
+    }
+    size_t index = 0;
+    if ((index = traverse_trie(mapping, "F")) != 0) {
+        printf("Letter 'F' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
     } else {
-        printf("Failed to parse letters.\n");
+        printf("Letter 'F' not found in trie.\n");
     }
 
-    size_t index = 0;
-    if ((index = traverse_trie(mapping, "ˇA")) != 0) {
-        printf("Pattern 'ˇA' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
+    if (parse_letters(buf, mapping, alphabet)) {
+        printf("Parsed line '%s' successfully.\n", buf->data);
     } else {
-        printf("Pattern 'ˇA' not found in trie.\n");
+        printf("Failed to parse line.\n");
+    }
+
+    if ((index = traverse_trie(mapping, "ˇA")) != 0) {
+        printf("Letter 'ˇA' found in trie, lower-case letter is '%s'\n", alphabet->data + get_aux(mapping, index));
+    } else {
+        printf("Letter 'ˇA' not found in trie.\n");
     }
 
     destroy_trie(mapping);
@@ -170,8 +181,8 @@ int main(void) {
     //test_read_line();
     //printf("\n---- Parse Header Test ----\n");
     //test_parse_header();
-    //printf("\n---- Trie Test ----\n");
-    //test_trie();
+    printf("\n---- Trie Test ----\n");
+    test_trie();
     printf("\n---- Read Letters Test ----\n");
     test_read_letters();
     return 0;
