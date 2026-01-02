@@ -56,21 +56,25 @@ void print_outputs(struct outputs *ops) {
 
 void test_parse_header(){
     
-    struct params params;
+    struct params *params = init_params();
+    if (params == NULL) {
+        return;
+    }
 
     const char *full_header = " 510 xyz";
     const char *no_header = " a A  ";
-    const char *incomplete_header = " 1   x  ";
+    const char *incomplete_header = " 1   x";
     const char *bad_header = "baadf00d";
 
     const char *test_headers[4] = {full_header, no_header, incomplete_header, bad_header};
 
     for (size_t i = 0; i < 4; i++){
         struct string_buffer buf_mock = *mock_buffer(test_headers[i]);
-        bool parsed = parse_header(&buf_mock, &params);
+        reset_params(params);
+        bool parsed = parse_header(&buf_mock, params);
         printf("Header: '%s'\n", test_headers[i]);
         if (parsed) {
-            printf("lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n", params.left_hyphen_min, params.right_hyphen_min, params.bad_hyphen, params.missed_hyphen, params.good_hyphen);
+            printf("lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n", params->left_hyphen_min, params->right_hyphen_min, params->bad_hyphen, params->missed_hyphen, params->good_hyphen);
         } else {
             printf("Header not parsed\n");
         }
@@ -174,6 +178,69 @@ void test_read_letters() {
 
     destroy_trie(mapping);
     destroy_buffer(alphabet);
+}
+
+void test_read_translate() {
+    FILE *file = fopen("test/german.tr", "r");
+    if (file == NULL) {
+        fputs("Could not open german.tr\n", stderr);
+        return;
+    }
+
+    struct params *params = init_params();
+    if (params == NULL) {
+        fclose(file);
+        return;
+    }
+
+    struct trie *mapping = init_trie(256);
+    if (mapping == NULL) {
+        destroy_params(params);
+        fclose(file);
+        return;
+    }
+    if (!put_first_level(mapping)) {
+        destroy_trie(mapping);
+        destroy_params(params);
+        fclose(file);
+        return;
+    }
+
+    struct string_buffer *alphabet = init_buffer(128);
+    if (alphabet == NULL) {
+        destroy_trie(mapping);
+        destroy_params(params);
+        fclose(file);
+        return;
+    }
+    if (!append_char(alphabet, '\0')) {
+        destroy_buffer(alphabet);
+        destroy_trie(mapping);
+        destroy_params(params);
+        fclose(file);
+        return;
+    }
+
+    if (read_translate(file, params, mapping, alphabet)) {
+        printf("Translate file read successfully.\n");
+    } else {
+        printf("Failed to read translate file.\n");
+    }
+
+    char *letters[] = {"X", "ê", "ř", "ß"};
+    size_t index = 0;
+    for (size_t i = 0; i < 4; i++) {
+        if ((index = traverse_trie(mapping, letters[i])) != 0) {
+            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], alphabet->data + get_aux(mapping, index));
+        } else {
+            printf("Letter '%s' not found in trie.\n", letters[i]);
+        }
+    }
+
+    destroy_buffer(alphabet);
+    destroy_trie(mapping);
+    destroy_params(params);
+    fclose(file);
 }
 
 int main(void) {
