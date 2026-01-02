@@ -508,7 +508,7 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, 
     }
     while (true) {
         t_index = get_link(t, t_index);
-        *out_base = t_index - get_node(q, 1);
+        *out_base = t_index - (uint8_t) get_node(q, 1);
         if (!link_trie_up_to(t, *out_base)) {
             return false;
         }
@@ -517,7 +517,7 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, 
         }
         bool conflict = false;
         for (size_t q_index = q->node_max; q_index >= 2; q_index--) {
-            if(is_node_occupied(t, *out_base + get_node(q, q_index))){
+            if(is_node_occupied(t, *out_base + (uint8_t) get_node(q, q_index))){
                 conflict = true;
                 break;
             }
@@ -535,7 +535,7 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
         return false;
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
-        size_t t_index = base + get_node(q, q_index);
+        size_t t_index = base + (uint8_t) get_node(q, q_index);
         if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index)) {
             return false;
         }
@@ -551,7 +551,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     to->node_max = 1;
     for (size_t i = 0; i < 256; i++){
         size_t from_index = base + i;
-        if (get_node(from, from_index) == i) {
+        if ((uint8_t) get_node(from, from_index) == i) {
             if (!copy_node(from, from_index, to, to->node_max) || !set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index) || !set_node(from, from_index, 0)) {
                 return false;
             }
@@ -577,7 +577,7 @@ size_t traverse_trie(struct trie *t, const char *pattern){
         base = get_link(t, node);
         index++;
     }
-    if (index < strlen(pattern) - 1) {
+    if (index < strlen(pattern)) {
         return 0;
     }
     return node;
