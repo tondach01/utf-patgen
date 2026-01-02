@@ -204,14 +204,14 @@ bool parse_header(struct string_buffer *buf, struct params *params){
         params->right_hyphen_min = val;
     }
     if (buf->size >= 6 && !is_space(buf->data[5])) {
-                params->bad_hyphen = buf->data[5];
-        }
+        params->bad_hyphen = buf->data[5];
+    }
     if (buf->size >= 7 && !is_space(buf->data[6])) {
-                params->missed_hyphen = buf->data[6];
-        }
+        params->missed_hyphen = buf->data[6];   
+    }
     if (buf->size >= 8 && !is_space(buf->data[7])) {
-                params->good_hyphen = buf->data[7];
-        }
+        params->good_hyphen = buf->data[7];
+    }
     return true;
 }
 
@@ -569,7 +569,7 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     size_t node = (uint8_t) pattern[0] + 1;
     size_t base = get_link(t, node);
     while (index < strlen(pattern) && base > 0) {
-        base += pattern[index];
+        base += (uint8_t) pattern[index];
         if (get_node(t, base) != pattern[index]) {
             return 0;
         }
@@ -635,7 +635,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         return false;
     }
     while (index < end && base > 0) {
-        base += pattern[index];
+        base += (uint8_t) pattern[index];
         if (get_node(t, base) != pattern[index]) {
             if (get_node(t, base) == 0) {
                 if (!set_links(t, get_aux(t, base), get_link(t, base)) || !set_node(t, base, pattern[index]) || !set_aux(t, base, 0) || !set_link(t, base, 0)) {
@@ -668,7 +668,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
             return false;
         }
         base = fit;
-        node = base + pattern[index];
+        node = base + (uint8_t) pattern[index];
         t->occupied++;
         index++;
     }
@@ -679,7 +679,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
 }
 
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
-    if (!unpack(t, *base - value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
+    if (!unpack(t, *base - (uint8_t) value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
         return false;
     }
     size_t fit;
@@ -690,7 +690,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     if (!set_link(t, *node, *base)) {
         return false;
     }
-    *base += value;
+    *base += (uint8_t) value;
     return true;
 }
 
