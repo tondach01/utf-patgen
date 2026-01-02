@@ -191,12 +191,6 @@ bool parse_two_digit(struct string_buffer *buf, size_t pos, int8_t *out){
 }
 
 bool parse_header(struct string_buffer *buf, struct params *params){
-    params->left_hyphen_min = 2;
-    params->right_hyphen_min = 3;
-    params->bad_hyphen = '.';
-    params->missed_hyphen = '-';
-    params->good_hyphen = '*';
-
     int8_t val = -1;
     if (!parse_two_digit(buf, 0, &val)) {
         return false;
@@ -209,27 +203,15 @@ bool parse_header(struct string_buffer *buf, struct params *params){
     } else if (val != -1){
         params->right_hyphen_min = val;
     }
-    if (buf->size >= 5){
-        if (!is_space(buf->data[5])) {
+    if (buf->size >= 6 && !is_space(buf->data[5])) {
                 params->bad_hyphen = buf->data[5];
         }
-    } else {
-        return false;
-    }
-    if (buf->size >= 6){
-        if (!is_space(buf->data[6])) {
+    if (buf->size >= 7 && !is_space(buf->data[6])) {
                 params->missed_hyphen = buf->data[6];
         }
-    } else {
-        return false;
-    }
-    if (buf->size >= 7){
-        if (!is_space(buf->data[7])) {
+    if (buf->size >= 8 && !is_space(buf->data[7])) {
                 params->good_hyphen = buf->data[7];
         }
-    } else {
-        return false;
-    }
     return true;
 }
 
@@ -253,6 +235,10 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
         return false;
     }
     bool lower = true;
+    if (!append_char(buf, separator)){  // just to be sure, if the translate file is in the format specified in patgen report, not necessary
+        destroy_buffer(letter);
+        return false;
+    }
     for (size_t i = 1; i < buf->size; i++){
         char c = buf->data[i];
         if (c == separator){
@@ -807,6 +793,69 @@ void destroy_outputs(struct outputs *ops){
     }
     free(ops->data);
     free(ops);
+}
+
+@* Translate file parsing.
+Parses the translate file to build character mappings and hyphenation parameters. Returns true on success, false on failure.
+
+@c
+struct params *init_params(){
+    struct params *p = malloc(sizeof(struct params));
+    if (p == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    p->left_hyphen_min = 2;
+    p->right_hyphen_min = 3;
+    p->bad_hyphen = '.';
+    p->missed_hyphen = '-';
+    p->good_hyphen = '*';
+    return p;
+}
+
+void reset_params(struct params *p){
+    p->left_hyphen_min = 2;
+    p->right_hyphen_min = 3;
+    p->bad_hyphen = '.';
+    p->missed_hyphen = '-';
+    p->good_hyphen = '*';
+}
+
+void destroy_params(struct params *p){
+    free(p);
+}
+
+bool read_translate(FILE *translate, struct params *params, struct trie *mapping, struct string_buffer *alphabet){
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL) {
+        return false;
+    }
+    if (!read_line(translate, buf)) {
+        destroy_buffer(buf);
+        return false;
+    }
+    if (buf->eof) {
+        bool default_mapping = default_ascii_mapping(mapping, alphabet);
+        destroy_buffer(buf);
+        return default_mapping;
+    }
+    bool first_line = true;
+    while (!buf->eof) {
+        if (first_line && parse_header(buf, params)) {
+            // header parsed successfully
+        } else if (!parse_letters(buf, mapping, alphabet)) {
+            destroy_buffer(buf);
+            return false;
+        }
+        first_line = false;
+        reset_buffer(buf);
+        if (!read_line(translate, buf)) {
+            destroy_buffer(buf);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    return true;
 }
 
 @* Index.

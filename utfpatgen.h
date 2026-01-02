@@ -96,6 +96,10 @@ struct params
     uint8_t thresh[MAX_LEVELS];
 };
 
+struct params *init_params();
+void reset_params(struct params *params);
+void destroy_params(struct params *params);
+
 struct string_buffer {
     size_t capacity;
     size_t size;
@@ -113,7 +117,7 @@ bool append_char(struct string_buffer *buf, char c);
 bool append_string(struct string_buffer *buf, const char *str, size_t len);
 
 bool parse_input(int argc, char *argv[], struct params *params);
-bool read_translate(FILE *translate, struct params *params);  // TODO will need trie
+bool read_translate(FILE *translate, struct params *params, struct trie *mapping, struct string_buffer *alphabet);
 bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);
 bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet);
