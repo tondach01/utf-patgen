@@ -227,9 +227,9 @@ void test_read_translate() {
         printf("Failed to read translate file.\n");
     }
 
-    char *letters[] = {"X", "ê", "ř", "ß"};
+    char *letters[] = {"X", "ê", "ř", "ß", "Œ"};
     size_t index = 0;
-    for (size_t i = 0; i < 4; i++) {
+    for (size_t i = 0; i < 5; i++) {
         if ((index = traverse_trie(mapping, letters[i])) != 0) {
             printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], alphabet->data + get_aux(mapping, index));
         } else {
