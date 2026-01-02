@@ -183,7 +183,9 @@ int main(void) {
     //test_parse_header();
     printf("\n---- Trie Test ----\n");
     test_trie();
-    printf("\n---- Read Letters Test ----\n");
-    test_read_letters();
+    //printf("\n---- Read Letters Test ----\n");
+    //test_read_letters();
+    printf("\n---- Read Translate Test ----\n");
+    test_read_translate();
     return 0;
 }
