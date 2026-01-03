@@ -144,8 +144,8 @@ bool set_bad(struct pattern_counts *pc, size_t index, size_t value);
 
 bool is_utf_start_byte(uint8_t byte);
 bool put_on_stack(size_t **stack, size_t *capacity, size_t *stack_top, size_t value);
-bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, size_t *level_pattern_cnt);
-bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops);
+bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt);
+bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc);
 
 bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);

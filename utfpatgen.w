@@ -930,11 +930,11 @@ size_t get_good(struct pattern_counts *pc, size_t index){
 bool set_good(struct pattern_counts *pc, size_t index, size_t value){
     if (index >= pc->capacity) {
         size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
-        if (resize_trie(pc, new_capacity) == NULL) {
+        if (resize_pattern_counts(pc, new_capacity) == NULL) {
             return false;
         }
     }
-    t->good[index] = value;
+    pc->good[index] = value;
     return true;
 }
 
@@ -948,11 +948,11 @@ size_t get_bad(struct pattern_counts *pc, size_t index){
 bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
     if (index >= pc->capacity) {
         size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
-        if (resize_trie(pc, new_capacity) == NULL) {
+        if (resize_pattern_counts(pc, new_capacity) == NULL) {
             return false;
         }
     }
-    t->bad[index] = value;
+    pc->bad[index] = value;
     return true;
 }
 
@@ -960,28 +960,28 @@ bool is_utf_start_byte(uint8_t byte){
     return (byte & 0xc0) != 0x80;
 }
 
-bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, size_t *level_pattern_cnt){
+bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt){
     double bad_eff = (double) params->thresh / (double) params->good_wt;
     struct pass_stats ps = {
-        .good_pat_cnt = 0;
-        .bad_pat_cnt = 0;
-        .good_cnt = 0;
-        .bad_cnt = 0;
-        .more_to_come = false;
+        .good_pat_cnt = 0,
+        .bad_pat_cnt = 0,
+        .good_cnt = 0,
+        .bad_cnt = 0,
+        .more_to_come = false
     };
-    if (!traverse_count_trie(counts, patterns, params, ps, ops)){
+    if (!traverse_count_trie(counts, patterns, params, &ps, ops, pc)){
         return false;
     }
-    printf("%zu good and %zu bad patterns added", good_pat_cnt, bad_pat_cnt);
-    *level_pattern_cnt += good_pat_cnt;
-    if (more_to_come) {
+    printf("%zu good and %zu bad patterns added", ps.good_pat_cnt, ps.bad_pat_cnt);
+    *level_pattern_cnt += ps.good_pat_cnt;
+    if (ps.more_to_come) {
         printf(" (more to come)\n");
     } else {
         printf("\n");
     }
-    printf("finding %zu good and %zu bad hyphens", good_cnt, bad_cnt);
-    if (good_pat_cnt > 0) {
-        printf(", efficiency = %.2lf\n", (double) good_cnt / (good_pat_cnt + ((double) bad_cnt / bad_eff)));
+    printf("finding %zu good and %zu bad hyphens", ps.good_cnt, ps.bad_cnt);
+    if (ps.good_pat_cnt > 0) {
+        printf(", efficiency = %.2lf\n", (double) ps.good_cnt / (ps.good_pat_cnt + ((double) ps.bad_cnt / bad_eff)));
     } else {
         printf("\n");
     }
@@ -1003,7 +1003,7 @@ bool put_on_stack(size_t **stack, size_t *capacity, size_t *stack_top, size_t va
     return true;
 }
 
-bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops) {
+bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc) {
     size_t root = 1;
     size_t current_len = 0;
     uint8_t c;
@@ -1046,22 +1046,22 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                     continue;
                 }
                 size_t op_index;
-                if (params->good_wt * get_good(counts, counts_index) < params->thresh){
-                    if (!insert_pattern(patterns, pattern, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
+                if (params->good_wt * get_good(pc, counts_index) < params->thresh){
+                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
                         destroy_buffer(pattern);
                         free(base_stack);
                         return false;
                     }
                     ps->bad_pat_cnt++;
-                } else if (params->good_wt * get_good(counts, counts_index) - params->bad_wt * get_bad(counts, counts_index) >= params->thresh) {
-                    if (!insert_pattern(patterns, pattern, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
+                } else if (params->good_wt * get_good(pc, counts_index) - params->bad_wt * get_bad(pc, counts_index) >= params->thresh) {
+                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
                         destroy_buffer(pattern);
                         free(base_stack);
                         return false;
                     }
                     ps->good_pat_cnt++;
-                    ps->good_cnt += get_good(counts, counts_index);
-                    ps->bad_cnt += get_bad(counts, counts_index);
+                    ps->good_cnt += get_good(pc, counts_index);
+                    ps->bad_cnt += get_bad(pc, counts_index);
                 } else {
                     ps->more_to_come = true;
                 }
