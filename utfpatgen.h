@@ -79,26 +79,38 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char val
 struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
 bool set_output(struct trie *t, size_t index, struct outputs *ops, uint8_t value, size_t position);
 
-struct params
-{
+struct params {
+    // global
     uint8_t left_hyphen_min;
     uint8_t right_hyphen_min;
     char bad_hyphen;
     char missed_hyphen;
     char good_hyphen;
-    uint8_t n_levels;
     uint8_t hyph_start;
     uint8_t hyph_finish;
-    uint8_t pat_start[MAX_LEVELS];
-    uint8_t pat_finish[MAX_LEVELS];
-    uint8_t good_wt[MAX_LEVELS];
-    uint8_t bad_wt[MAX_LEVELS];
-    uint8_t thresh[MAX_LEVELS];
+    // level specific
+    uint8_t hyph_level;
+    uint8_t pat_start;
+    uint8_t pat_finish;
+    uint8_t good_wt;
+    uint8_t bad_wt;
+    uint8_t thresh;
+    // pass specific
+    uint8_t pat_len;
+    uint8_t pat_dot;
 };
 
 struct params *init_params();
 void reset_params(struct params *params);
 void destroy_params(struct params *params);
+
+struct pass_stats {
+    size_t good_pat_cnt;
+    size_t bad_pat_cnt;
+    size_t good_cnt;
+    size_t bad_cnt;
+    bool more_to_come;
+};
 
 struct string_buffer {
     size_t capacity;
@@ -111,6 +123,29 @@ struct string_buffer *init_buffer(size_t capacity);
 struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity);
 void reset_buffer(struct string_buffer *buf);
 void destroy_buffer(struct string_buffer *buf);
+
+struct pattern_counts {
+    size_t capacity;
+    size_t size;
+    size_t *good;
+    size_t *bad;
+};
+
+struct pattern_counts *init_pattern_counts(size_t capacity);
+struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t new_capacity);
+void reset_pattern_counts(struct pattern_counts *pc);
+void destroy_pattern_counts(struct pattern_counts *pc);
+
+size_t get_good(struct pattern_counts *pc, size_t index);
+bool set_good(struct pattern_counts *pc, size_t index, size_t value);
+
+size_t get_bad(struct pattern_counts *pc, size_t index);
+bool set_bad(struct pattern_counts *pc, size_t index, size_t value);
+
+bool is_utf_start_byte(uint8_t byte);
+bool put_on_stack(size_t **stack, size_t *capacity, size_t *stack_top, size_t value);
+bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, size_t *level_pattern_cnt);
+bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops);
 
 bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);

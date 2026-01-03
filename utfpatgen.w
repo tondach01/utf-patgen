@@ -866,6 +866,225 @@ bool read_translate(FILE *translate, struct params *params, struct trie *mapping
     return true;
 }
 
+@* Count trie traversing.
+
+@c
+struct pattern_counts *init_pattern_counts(size_t capacity){
+    struct pattern_counts *pc = malloc(sizeof(struct pattern_counts));
+    if (pc == NULL) {
+        fprintf(stderr, "Allocation error\n");
+        return NULL;
+    }
+    pc->good = malloc(capacity * sizeof(size_t));
+    pc->bad = malloc(capacity * sizeof(size_t));
+    if (pc->good == NULL || pc->bad == NULL){
+        fprintf(stderr, "Allocation error\n");
+        free(pc->good);
+        free(pc->bad);
+        free(pc);
+        return NULL;
+    }
+    pc->capacity = capacity;
+    pc->size = 0;
+    return pc;
+}
+
+struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t new_capacity){
+    size_t *new_good = realloc(pc->good, new_capacity * sizeof(size_t));
+    if (new_good == NULL){
+        fprintf(stderr, "Allocation error\n");
+        destroy_pattern_counts(pc);
+        return NULL;
+    }
+    size_t *new_bad = realloc(pc->bad, new_capacity * sizeof(size_t));
+    if (new_good == NULL){
+        fprintf(stderr, "Allocation error\n");
+        destroy_pattern_counts(pc);
+        return NULL;
+    }
+    pc->good = new_good;
+    pc->bad = new_bad;
+    pc->capacity = new_capacity;
+    return pc;
+}
+
+void reset_pattern_counts(struct pattern_counts *pc){
+    pc->size = 0;
+    memset(pc->good, 0, pc->capacity);
+    memset(pc->bad, 0, pc->capacity);
+}
+
+void destroy_pattern_counts(struct pattern_counts *pc){
+    free(pc->good);
+    free(pc->bad);
+    free(pc);
+}
+
+size_t get_good(struct pattern_counts *pc, size_t index){
+    if (index >= pc->size){
+        return 0;
+    }
+    return pc->good[index];
+}
+
+bool set_good(struct pattern_counts *pc, size_t index, size_t value){
+    if (index >= pc->capacity) {
+        size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
+        if (resize_trie(pc, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    t->good[index] = value;
+    return true;
+}
+
+size_t get_bad(struct pattern_counts *pc, size_t index){
+    if (index >= pc->size){
+        return 0;
+    }
+    return pc->bad[index];
+}
+
+bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
+    if (index >= pc->capacity) {
+        size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
+        if (resize_trie(pc, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    t->bad[index] = value;
+    return true;
+}
+
+bool is_utf_start_byte(uint8_t byte){
+    return (byte & 0xc0) != 0x80;
+}
+
+bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, size_t *level_pattern_cnt){
+    double bad_eff = (double) params->thresh / (double) params->good_wt;
+    struct pass_stats ps = {
+        .good_pat_cnt = 0;
+        .bad_pat_cnt = 0;
+        .good_cnt = 0;
+        .bad_cnt = 0;
+        .more_to_come = false;
+    };
+    if (!traverse_count_trie(counts, patterns, params, ps, ops)){
+        return false;
+    }
+    printf("%zu good and %zu bad patterns added", good_pat_cnt, bad_pat_cnt);
+    *level_pattern_cnt += good_pat_cnt;
+    if (more_to_come) {
+        printf(" (more to come)\n");
+    } else {
+        printf("\n");
+    }
+    printf("finding %zu good and %zu bad hyphens", good_cnt, bad_cnt);
+    if (good_pat_cnt > 0) {
+        printf(", efficiency = %.2lf\n", (double) good_cnt / (good_pat_cnt + ((double) bad_cnt / bad_eff)));
+    } else {
+        printf("\n");
+    }
+    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", patterns->occupied, patterns->node_max, ops->count);
+    return true;
+}
+
+bool put_on_stack(size_t **stack, size_t *capacity, size_t *stack_top, size_t value){
+    if (*stack_top >= *capacity){
+        size_t *new_stack = realloc((*stack), 2*(*stack_top)*sizeof(size_t));
+        if (new_stack == NULL){
+            return false;
+        }
+        *stack = new_stack;
+        *capacity = 2*(*stack_top);
+    }
+    *stack[*stack_top] = value;
+    *stack_top += 1;
+    return true;
+}
+
+bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops) {
+    size_t root = 1;
+    size_t current_len = 0;
+    uint8_t c;
+    struct string_buffer *pattern = init_buffer(4 * params->pat_len);
+    if (pattern == NULL){
+        return false;
+    }
+
+    size_t *base_stack = malloc(4 * params->pat_len * sizeof(size_t));
+    if (base_stack == NULL) {
+        destroy_buffer(pattern);
+        return false;
+    }
+    size_t stack_capacity = 4 * params->pat_len * sizeof(size_t);
+    size_t stack_top = 1;
+    if (!append_char(pattern, '\0') || !put_on_stack(&base_stack, &stack_capacity, &stack_top, root)){
+        destroy_buffer(pattern);
+        free(base_stack);
+        return false;
+    }
+
+    size_t counts_index, node;
+    while (stack_top > 0 && pattern->size > 0){
+        root = base_stack[stack_top - 1];
+        c = (uint8_t) pattern->data[pattern->size - 1];
+        if (c == 255){
+            pattern->data[pattern->size - 1] = '\0';
+            pattern->size--;
+            stack_top--;
+            continue;
+        }
+        pattern->data[pattern->size - 1] += 1;
+        node = root + c;
+        if ((uint8_t) get_node(counts, node) != c){
+            continue;
+        }
+        if (is_utf_start_byte((uint8_t) c)){
+            if (current_len >= params->pat_len){
+                if ((counts_index = get_aux(counts, node)) == 0){
+                    continue;
+                }
+                size_t op_index;
+                if (params->good_wt * get_good(counts, counts_index) < params->thresh){
+                    if (!insert_pattern(patterns, pattern, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
+                        destroy_buffer(pattern);
+                        free(base_stack);
+                        return false;
+                    }
+                    ps->bad_pat_cnt++;
+                } else if (params->good_wt * get_good(counts, counts_index) - params->bad_wt * get_bad(counts, counts_index) >= params->thresh) {
+                    if (!insert_pattern(patterns, pattern, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
+                        destroy_buffer(pattern);
+                        free(base_stack);
+                        return false;
+                    }
+                    ps->good_pat_cnt++;
+                    ps->good_cnt += get_good(counts, counts_index);
+                    ps->bad_cnt += get_bad(counts, counts_index);
+                } else {
+                    ps->more_to_come = true;
+                }
+                continue;
+            } else {
+                current_len++;
+            }
+        }
+        root = get_link(counts, root + c);
+        if (root == 0){
+            continue;
+        }
+        if (!append_char(pattern, '\0') || !put_on_stack(&base_stack, &stack_capacity, &stack_top, root)){
+            destroy_buffer(pattern);
+            free(base_stack);
+            return false;
+        }        
+    }
+    destroy_buffer(pattern);
+    free(base_stack);
+    return true;
+}
+
 @* Index.
 Automatically generates the list of used identifiers
 \end{document}
