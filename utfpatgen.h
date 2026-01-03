@@ -121,6 +121,7 @@ bool read_translate(FILE *translate, struct params *params, struct trie *mapping
 bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);
 bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet);
+char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter);
 
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool parse_word(struct string_buffer *buf);  // TODO will need trie

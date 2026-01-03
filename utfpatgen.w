@@ -284,6 +284,14 @@ bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet)
     return true;
 }
 
+char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter){
+    size_t index = traverse_trie(mapping, letter);
+    if (index == 0 || index >= alphabet->size){
+        return NULL;
+    }
+    return alphabet->data + get_aux(mapping, index);
+}
+
 @* Trie structure.
 The \texttt{trie} structure is used for storing patterns efficiently. The structure uses following fields:
 \begin{itemize}
