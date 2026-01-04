@@ -1070,7 +1070,7 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                 size_t good = get_good(pc, counts_index);
                 size_t bad = get_bad(pc, counts_index);
                 if (params->good_wt * good < params->thresh){
-                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
+                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, SIZE_MAX, params->pat_dot)){
                         destroy_buffer(pattern);
                         destroy_stack(s_base);
                         return false;
@@ -1104,7 +1104,115 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         }        
     }
     destroy_buffer(pattern);
-    destroy_stack(base_stack);
+    destroy_stack(s_base);
+    return true;
+}
+
+bool delete_patterns(struct trie *t, struct outputs *ops){
+    size_t root = 1;
+    struct stack *s_base = init_stack(16);
+    if (s_base == NULL){
+        return false;
+    }
+    struct stack *s_offset = init_stack(16);
+    if (s_offset == NULL){
+        destroy_stack(s_base);
+        return false;
+    }
+    struct stack *s_freed = init_stack(16);
+    if (s_freed == NULL){
+        destroy_stack(s_base);
+        destroy_stack(s_offset);
+        return false;
+    }
+    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+        destroy_stack(s_base);
+        destroy_stack(s_offset);
+        destroy_stack(s_freed);
+        return false;
+    }
+    size_t node, offset;
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
+        offset = get_top_value(s_offset);
+        if (offset == 255){
+            if (get_top_value(s_freed) == (size_t) true){
+                if (!set_base_used(t, root + offset, false)){
+                    destroy_stack(s_base);
+                    destroy_stack(s_offset);
+                    destroy_stack(s_freed);
+                    return false;
+                }
+            }
+            s_offset->top--;
+            s_base->top--;
+            s_freed->top--;
+            continue;
+        }
+        set_top_value(s_offset, get_top_value(s_offset) + 1);
+        node = root + offset;
+        if ((uint8_t) get_node(t, node) != offset){
+            continue;
+        }
+        if (is_utf_start_byte((uint8_t) offset)){
+            if (!link_around_bad_ouputs(ops, t, node)){
+                destroy_stack(s_base);
+                destroy_stack(s_offset);
+                destroy_stack(s_freed);
+                return false;
+            }
+            if (get_link(t, node) > 0 || get_aux(t, node) > 0 || root == 1){
+                set_top_value(s_freed, (size_t) false);
+            } else {
+                if (!deallocate_node(t, node)){
+                    destroy_stack(s_base);
+                    destroy_stack(s_offset);
+                    destroy_stack(s_freed);
+                    return false;
+                }
+            }
+        }
+        root = get_link(t, node);
+        if (root == 0){
+            continue;
+        }
+        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+            destroy_stack(s_base);
+            destroy_stack(s_offset);
+            destroy_stack(s_freed);
+            return false;
+        }        
+    }
+    destroy_stack(s_base);
+    destroy_stack(s_offset);
+    destroy_stack(s_freed);
+    return true;
+}
+
+bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index){
+    size_t op_index = get_aux(t, node);
+    size_t h = 0;
+    ops->data[0].next_op_index = op_index;
+    size_t n = ops->data[0].next_op_index;
+    while (n > 0){
+        if (ops->data[n].value == SIZE_MAX){
+            ops->data[h].next_op_index = ops->datan[n].next_op_index;
+        } else {
+            h = n;
+        }
+        n = ops->data[h].next_op_index;
+    }
+    if (!set_aux(t, t_index, ops->data[0].next_op_index)){
+        return false;
+    }
+    return true;
+}
+
+bool deallocate_node(struct trie *t, size_t t_index){
+    if (!set_links(get_aux(t->node_max + 1), t_index) || !set_links(t, t_index, t->node_max + 1) || !set_node(t, t_index, '\0')){
+        return false;
+    }
+    t->occupied--;
     return true;
 }
 
