@@ -712,7 +712,7 @@ struct output get_pattern_output(struct trie *t, struct outputs *ops, const char
     return ops->data[op_index];
 }
 
-bool set_output(struct trie *t, size_t node, struct outputs *ops, uint8_t value, size_t position){
+bool set_output(struct trie *t, size_t node, struct outputs *ops, size_t value, size_t position){
     size_t op_index;
     if (!new_trie_output(ops, t, value, position, 0, &op_index) || !set_aux(t, node, op_index)) {
         return false;
@@ -1155,7 +1155,7 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
             continue;
         }
         if (is_utf_start_byte((uint8_t) offset)){
-            if (!link_around_bad_ouputs(ops, t, node)){
+            if (!link_around_bad_outputs(ops, t, node)){
                 destroy_stack(s_base);
                 destroy_stack(s_offset);
                 destroy_stack(s_freed);
@@ -1190,13 +1190,13 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
 }
 
 bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index){
-    size_t op_index = get_aux(t, node);
+    size_t op_index = get_aux(t, t_index);
     size_t h = 0;
     ops->data[0].next_op_index = op_index;
     size_t n = ops->data[0].next_op_index;
     while (n > 0){
         if (ops->data[n].value == SIZE_MAX){
-            ops->data[h].next_op_index = ops->datan[n].next_op_index;
+            ops->data[h].next_op_index = ops->data[n].next_op_index;
         } else {
             h = n;
         }
@@ -1209,10 +1209,26 @@ bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index
 }
 
 bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(get_aux(t->node_max + 1), t_index) || !set_links(t, t_index, t->node_max + 1) || !set_node(t, t_index, '\0')){
+    if (!set_links(t, get_aux(t, t->node_max + 1), t_index) || !set_links(t, t_index, t->node_max + 1) || !set_node(t, t_index, '\0')){
         return false;
     }
     t->occupied--;
+    return true;
+}
+
+bool delete_bad_patterns(struct trie *t, struct outputs *ops){
+    size_t old_op_cnt = ops->count;
+    size_t old_trie_cnt = t->occupied;
+    if (!delete_patterns(t, ops)){
+        return false;
+    }
+    for (size_t h = 1; h <= ops->capacity; h++){
+        if (ops->data[h].value == SIZE_MAX){
+            ops->data[h].value = 0;
+            ops->count--;
+        }
+    }
+    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - t->occupied, old_op_cnt - ops->count);
     return true;
 }
 

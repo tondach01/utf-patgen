@@ -50,7 +50,7 @@ size_t traverse_trie(struct trie *t, const char *pattern);
 
 struct output
 {
-    uint8_t value;
+    size_t value;
     size_t position;
     size_t next_op_index;
 };
@@ -73,7 +73,7 @@ bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
 struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
-bool set_output(struct trie *t, size_t index, struct outputs *ops, uint8_t value, size_t position);
+bool set_output(struct trie *t, size_t index, struct outputs *ops, size_t value, size_t position);
 
 struct params {
     // global
@@ -154,6 +154,11 @@ void set_top_value(struct stack *s, size_t value);
 bool is_utf_start_byte(uint8_t byte);
 bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt);
 bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc);
+
+bool delete_bad_patterns(struct trie *t, struct outputs *ops);
+bool deallocate_node(struct trie *t, size_t t_index);
+bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index);
+bool delete_patterns(struct trie *t, struct outputs *ops);
 
 bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);
