@@ -52,31 +52,27 @@ struct output
 {
     uint8_t value;
     size_t position;
-    struct output *next;
+    size_t next_op_index;
 };
-
-struct output *new_output(uint8_t value, size_t position, struct output *next);
-void destroy_output(struct output *op);
 
 struct outputs
 {
     size_t capacity;
-    size_t max;
     size_t count;
-    struct output **data;
+    struct output *data;
 };
 
 struct outputs *init_outputs(size_t capacity);
 struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t);
 void destroy_outputs(struct outputs *ops);
 
-bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index);
-size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next);
+bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, size_t next, size_t *op_index);
+size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next);
 
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
-struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
+struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
 bool set_output(struct trie *t, size_t index, struct outputs *ops, uint8_t value, size_t position);
 
 struct params {

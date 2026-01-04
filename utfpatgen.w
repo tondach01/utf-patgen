@@ -591,20 +591,17 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     return node;
 }
 
-bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, struct output *next, size_t *op_index){
+bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, size_t next_op_index, size_t *op_index){
     if (ops->count >= ops->capacity - 1) {
         if (resize_outputs(ops, ops->capacity * 2, t) == NULL) {
             return false;
         }
     }
-    size_t hash = hash_trie_output(ops, value, position, next);
-    if (ops->data[hash] == NULL) {
+    size_t hash = hash_trie_output(ops, value, position, next_op_index);
+    if (ops->data[hash].value == 0) {
         ops->count++;
-        struct output *op = new_output(value, position, next);
-        if (op == NULL) {
-            return false;
-        }
-        ops->data[hash] = op;
+        struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
+        ops->data[hash] = new_op;
         *op_index = hash;
         return true;
     } 
@@ -612,12 +609,12 @@ bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t 
     return false;
 }
 
-size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, struct output *next){
-    size_t hash = (((next != NULL ? (size_t)next : 0) + 313*position + 361*value) % ops->capacity) + 1;
+size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next_op_index){
+    size_t hash = ((next_op_index + 313*position + 361*value) % ops->capacity) + 1;
     while (true) {
-        if (ops->data[hash] == NULL) {
+        if (ops->data[hash].value == 0) {
             return hash;
-        } else if (ops->data[hash]->value == value && ops->data[hash]->position == position && ops->data[hash]->next == next) {
+        } else if (ops->data[hash].value == value && ops->data[hash].position == position && ops->data[hash].next_op_index == next_op_index) {
             return hash;
         } else if (hash > 1) {
             hash -= 1;
@@ -702,21 +699,22 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-struct output *get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
+struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
     size_t trie_index = traverse_trie(t, pattern);
+    struct output empty = {.value = 0};
     if (trie_index == 0) {
-        return NULL;
+        return empty;
     }
     size_t op_index = get_aux(t, trie_index);
     if (op_index == 0) {
-        return NULL;
+        return empty;
     }
     return ops->data[op_index];
 }
 
 bool set_output(struct trie *t, size_t node, struct outputs *ops, uint8_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(ops, t, value, position, NULL, &op_index) || !set_aux(t, node, op_index)) {
+    if (!new_trie_output(ops, t, value, position, 0, &op_index) || !set_aux(t, node, op_index)) {
         return false;
     }
     return true;
@@ -727,34 +725,17 @@ The \texttt{output} structure is used for storing hyphenation outputs. The struc
 \begin{itemize}
     \item \textbf{value}: hyphenation value,
     \item \textbf{position}: position in the pattern,
-    \item \textbf{next}: pointer to the next output in the linked list.
+    \item \textbf{next_op_index}: index of the next output in the linked list.
 \end{itemize}
 
 Outputs are grouped together in \texttt{outputs} structure:
 \begin{itemize}
     \item \textbf{capacity}: total number of outputs allocated (but not necessarily used),
-    \item \textbf{max}: highest index of used output,
     \item \textbf{count}: number of outputs currently used,
-    \item \textbf{data}: array of pointers to \texttt{output} structures.
+    \item \textbf{data}: array of \texttt{output} structures.
 \end{itemize}
 
 @c
-struct output *new_output(uint8_t value, size_t position, struct output *next){
-    struct output *op = malloc(sizeof(struct output));
-    if (op == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    op->value = value;
-    op->position = position;
-    op->next = next;
-    return op;
-}
-
-void destroy_output(struct output *op){
-    free(op);
-}
-
 struct outputs *init_outputs(size_t capacity){
     struct outputs *ops = malloc(sizeof(struct outputs));
     if (ops == NULL) {
@@ -763,7 +744,7 @@ struct outputs *init_outputs(size_t capacity){
     }
     ops->capacity = capacity;
     ops->count = 0;
-    ops->data = calloc(capacity + 1, sizeof(struct output *));
+    ops->data = calloc(capacity + 1, sizeof(struct output));
     if (ops->data == NULL) {
         fputs("Allocation error\n", stderr);
         free(ops);
@@ -774,7 +755,7 @@ struct outputs *init_outputs(size_t capacity){
 
 // warning: computationally very expensive for larger tries!
 struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t){
-    struct output **new_data = calloc(capacity + 1, sizeof(struct output *)); 
+    struct output *new_data = calloc(capacity + 1, sizeof(struct output)); 
     if (new_data == NULL) {
         fputs("Allocation error\n", stderr);
         return NULL;
@@ -783,8 +764,8 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
     for (size_t i = 0; i < t->capacity; i++) {
         if (is_node_occupied(t, i) && get_aux(t, i) != 0) {
             size_t old_index = get_aux(t, i);
-            struct output *old_op = ops->data[old_index];
-            size_t new_index = hash_trie_output(ops, old_op->value, old_op->position, old_op->next);
+            struct output old_op = ops->data[old_index];
+            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index);
             new_data[new_index] = old_op;
         }
     }
@@ -794,11 +775,6 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
 }
 
 void destroy_outputs(struct outputs *ops){
-    for (size_t i = 0; i < ops->capacity; i++) {
-        if (ops->data[i] != NULL) {
-            destroy_output(ops->data[i]);
-        }
-    }
     free(ops->data);
     free(ops);
 }
