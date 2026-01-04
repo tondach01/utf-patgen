@@ -896,13 +896,13 @@ struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t n
         destroy_pattern_counts(pc);
         return NULL;
     }
+    pc->good = new_good;
     size_t *new_bad = realloc(pc->bad, new_capacity * sizeof(size_t));
     if (new_good == NULL){
         fprintf(stderr, "Allocation error\n");
         destroy_pattern_counts(pc);
         return NULL;
     }
-    pc->good = new_good;
     pc->bad = new_bad;
     pc->capacity = new_capacity;
     return pc;
@@ -989,17 +989,50 @@ bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outpu
     return true;
 }
 
-bool put_on_stack(size_t **stack, size_t *capacity, size_t *stack_top, size_t value){
-    if (*stack_top >= *capacity){
-        size_t *new_stack = realloc((*stack), 2*(*stack_top)*sizeof(size_t));
-        if (new_stack == NULL){
+struct stack *init_stack(size_capacity){
+    struct stack *s = malloc(sizeof(struct stack));
+    if (s == NULL) {
+        fprintf(stderr, "Allocation error\n");
+        return NULL;
+    }
+    s->data = malloc(capacity * sizeof(size_t));
+    if (s->data == NULL){
+        fprintf(stderr, "Allocation error\n");
+        free(s->data);
+        free(s);
+        return NULL;
+    }
+    s->capacity = capacity;
+    s->top = 0;
+    return s;
+}
+
+struct stack *resize_stack(struct stack *s, size_t new_capacity){
+    size_t *new_stack = realloc(s->data, new_capacity * sizeof(size_t));
+    if (new_stack == NULL){
+        fprintf(stderr, "Allocation error\n");
+        destroy_stack(s);
+        return NULL;
+    }
+    s->data = new_stack;
+    s->capacity = new_capacity;
+    return s;
+}
+
+void destroy_stack(struct stack *s){
+    free(s->data);
+    free(s);
+}
+
+bool put_on_stack(struct stack *s, size_t value){
+    if (s->top >= s->capacity){
+        size_t new_capacity = 2*(s->stack_top)*sizeof(size_t);
+        if (resize_stack(s, new_capacity) == NULL){
             return false;
         }
-        *stack = new_stack;
-        *capacity = 2*(*stack_top);
     }
-    *stack[*stack_top] = value;
-    *stack_top += 1;
+    s->data[s->top] = value;
+    s->top++;
     return true;
 }
 
@@ -1012,22 +1045,20 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         return false;
     }
 
-    size_t *base_stack = malloc(4 * params->pat_len * sizeof(size_t));
+    struct stack *base_stack = init_stack(4 * params->pat_len * sizeof(size_t));
     if (base_stack == NULL) {
         destroy_buffer(pattern);
         return false;
     }
-    size_t stack_capacity = 4 * params->pat_len * sizeof(size_t);
-    size_t stack_top = 1;
-    if (!append_char(pattern, '\0') || !put_on_stack(&base_stack, &stack_capacity, &stack_top, root)){
+    if (!append_char(pattern, '\0') || !put_on_stack(base_stack, root)){
         destroy_buffer(pattern);
-        free(base_stack);
+        destroy_stack(base_stack);
         return false;
     }
 
     size_t counts_index, node;
-    while (stack_top > 0 && pattern->size > 0){
-        root = base_stack[stack_top - 1];
+    while (base_stack->top > 0 && pattern->size > 0){
+        root = base_stack->data[base_stack->top - 1];
         c = (uint8_t) pattern->data[pattern->size - 1];
         if (c == 255){
             pattern->data[pattern->size - 1] = '\0';
@@ -1046,22 +1077,24 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                     continue;
                 }
                 size_t op_index;
-                if (params->good_wt * get_good(pc, counts_index) < params->thresh){
+                size_t good = get_good(pc, counts_index);
+                size_t bad = get_bad(pc, counts_index);
+                if (params->good_wt * good < params->thresh){
                     if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
                         destroy_buffer(pattern);
-                        free(base_stack);
+                        destroy_stack(base_stack);
                         return false;
                     }
                     ps->bad_pat_cnt++;
-                } else if (params->good_wt * get_good(pc, counts_index) - params->bad_wt * get_bad(pc, counts_index) >= params->thresh) {
+                } else if (params->good_wt * good - params->bad_wt * bad >= params->thresh) {
                     if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
                         destroy_buffer(pattern);
-                        free(base_stack);
+                        destroy_stack(base_stack);
                         return false;
                     }
                     ps->good_pat_cnt++;
-                    ps->good_cnt += get_good(pc, counts_index);
-                    ps->bad_cnt += get_bad(pc, counts_index);
+                    ps->good_cnt += good;
+                    ps->bad_cnt += bad;
                 } else {
                     ps->more_to_come = true;
                 }
@@ -1074,14 +1107,14 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         if (root == 0){
             continue;
         }
-        if (!append_char(pattern, '\0') || !put_on_stack(&base_stack, &stack_capacity, &stack_top, root)){
+        if (!append_char(pattern, '\0') || !put_on_stack(base_stack, root)){
             destroy_buffer(pattern);
-            free(base_stack);
+            destroy_stack(base_stack);
             return false;
         }        
     }
     destroy_buffer(pattern);
-    free(base_stack);
+    destroy_stack(base_stack);
     return true;
 }
 
