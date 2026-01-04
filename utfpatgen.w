@@ -965,7 +965,7 @@ bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outpu
     return true;
 }
 
-struct stack *init_stack(size_capacity){
+struct stack *init_stack(size_t capacity){
     struct stack *s = malloc(sizeof(struct stack));
     if (s == NULL) {
         fprintf(stderr, "Allocation error\n");
@@ -1002,7 +1002,7 @@ void destroy_stack(struct stack *s){
 
 bool put_on_stack(struct stack *s, size_t value){
     if (s->top >= s->capacity){
-        size_t new_capacity = 2*(s->stack_top)*sizeof(size_t);
+        size_t new_capacity = 2*(s->top)*sizeof(size_t);
         if (resize_stack(s, new_capacity) == NULL){
             return false;
         }
@@ -1010,6 +1010,20 @@ bool put_on_stack(struct stack *s, size_t value){
     s->data[s->top] = value;
     s->top++;
     return true;
+}
+
+size_t get_top_value(struct stack *s){
+    if (s->top == 0){
+        return 0;
+    }
+    return s->data[s->top - 1];
+}
+
+void set_top_value(struct stack *s, size_t value){
+    if (s->top == 0){
+        return;
+    }
+    s->data[s->top - 1] = value;
 }
 
 bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc) {
@@ -1021,25 +1035,25 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         return false;
     }
 
-    struct stack *base_stack = init_stack(4 * params->pat_len * sizeof(size_t));
-    if (base_stack == NULL) {
+    struct stack *s_base = init_stack(4 * params->pat_len * sizeof(size_t));
+    if (s_base == NULL) {
         destroy_buffer(pattern);
         return false;
     }
-    if (!append_char(pattern, '\0') || !put_on_stack(base_stack, root)){
+    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
         destroy_buffer(pattern);
-        destroy_stack(base_stack);
+        destroy_stack(s_base);
         return false;
     }
 
     size_t counts_index, node;
-    while (base_stack->top > 0 && pattern->size > 0){
-        root = base_stack->data[base_stack->top - 1];
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
         c = (uint8_t) pattern->data[pattern->size - 1];
         if (c == 255){
             pattern->data[pattern->size - 1] = '\0';
             pattern->size--;
-            stack_top--;
+            s_base->top--;
             continue;
         }
         pattern->data[pattern->size - 1] += 1;
@@ -1058,14 +1072,14 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                 if (params->good_wt * good < params->thresh){
                     if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, 0, params->pat_dot)){
                         destroy_buffer(pattern);
-                        destroy_stack(base_stack);
+                        destroy_stack(s_base);
                         return false;
                     }
                     ps->bad_pat_cnt++;
                 } else if (params->good_wt * good - params->bad_wt * bad >= params->thresh) {
                     if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
                         destroy_buffer(pattern);
-                        destroy_stack(base_stack);
+                        destroy_stack(s_base);
                         return false;
                     }
                     ps->good_pat_cnt++;
@@ -1083,9 +1097,9 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         if (root == 0){
             continue;
         }
-        if (!append_char(pattern, '\0') || !put_on_stack(base_stack, root)){
+        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
             destroy_buffer(pattern);
-            destroy_stack(base_stack);
+            destroy_stack(s_base);
             return false;
         }        
     }

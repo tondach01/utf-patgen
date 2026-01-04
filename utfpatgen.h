@@ -144,10 +144,12 @@ struct stack {
     size_t *data;
 };
 
-struct stack *init_stack(size_capacity);
+struct stack *init_stack(size_t capacity);
 struct stack *resize_stack(struct stack *s, size_t new_capacity);
 void destroy_stack(struct stack *s);
 bool put_on_stack(struct stack *s, size_t value);
+size_t get_top_value(struct stack *s);
+void set_top_value(struct stack *s, size_t value);
 
 bool is_utf_start_byte(uint8_t byte);
 bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt);
