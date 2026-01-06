@@ -84,6 +84,7 @@ struct params {
     char good_hyphen;
     uint8_t hyph_start;
     uint8_t hyph_finish;
+    uint8_t word_weight;
     // level specific
     uint8_t hyph_level;
     uint8_t pat_start;
@@ -160,8 +161,8 @@ bool deallocate_node(struct trie *t, size_t t_index);
 bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index);
 bool delete_patterns(struct trie *t, struct outputs *ops);
 
-bool output_patterns(struct trie *t, struct outputs *ops);
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index);
+bool output_patterns(struct trie *t, struct outputs *ops, FILE *pattern_file);
+void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file);
 size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position);
 
 bool read_line(FILE *stream, struct string_buffer *buf);

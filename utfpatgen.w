@@ -794,6 +794,8 @@ struct params *init_params(){
     p->bad_hyphen = '.';
     p->missed_hyphen = '-';
     p->good_hyphen = '*';
+
+    p->word_weight = 1;
     return p;
 }
 
@@ -1232,15 +1234,15 @@ bool delete_bad_patterns(struct trie *t, struct outputs *ops){
     return true;
 }
 
-bool output_patterns(struct trie *t, struct outputs *ops){
+bool output_patterns(struct trie *t, struct outputs *ops, FILE *pattern_file){
     size_t root = 1;
     uint8_t c;
-    struct string_buffer *pattern = init_buffer(4 * params->pat_len);
+    struct string_buffer *pattern = init_buffer(16);
     if (pattern == NULL){
         return false;
     }
 
-    struct stack *s_base = init_stack(4 * params->pat_len * sizeof(size_t));
+    struct stack *s_base = init_stack(16 * sizeof(size_t));
     if (s_base == NULL) {
         destroy_buffer(pattern);
         return false;
@@ -1251,7 +1253,7 @@ bool output_patterns(struct trie *t, struct outputs *ops){
         return false;
     }
 
-    size_t counts_index, node;
+    size_t node;
     while (s_base->top > 0){
         root = get_top_value(s_base);
         c = (uint8_t) pattern->data[pattern->size - 1];
@@ -1267,7 +1269,7 @@ bool output_patterns(struct trie *t, struct outputs *ops){
             continue;
         }
         if (is_utf_start_byte((uint8_t) c)){
-            output_pattern(pattern, ops, get_aux(t, node));
+            output_pattern(pattern, ops, get_aux(t, node), pattern_file);
         }
         root = get_link(t, root + c);
         if (root == 0){
@@ -1284,27 +1286,27 @@ bool output_patterns(struct trie *t, struct outputs *ops){
     return true;
 }
 
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index){
+void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file){
     if (op_index == 0){
         return;
     }
     size_t pattern_position = 0;
     size_t level;
-    for (size_t i = 0; i < pattern->size) {
+    for (size_t i = 0; i < pattern->size; i++) {
         if (is_utf_start_byte(pattern->data[i])){
             level = get_highest_level(ops, op_index, pattern_position);
             if (level > 0){
-                printf("%zu", level);
+                fprintf(pattern_file, "%zu", level);
             }
             pattern_position++;
         }
-        putc(pattern->data[i]);
+        fputc(pattern->data[i], pattern_file);
     }
     level = get_highest_level(ops, op_index, pattern_position);
     if (level > 0){
-        printf("%zu", level);
+        fprintf(pattern_file, "%zu", level);
     }
-    putc("\n");
+    fputc('\n', pattern_file);
 }
 
 size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
