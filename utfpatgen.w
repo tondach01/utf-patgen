@@ -286,7 +286,7 @@ bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet)
 
 char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter){
     size_t index = traverse_trie(mapping, letter);
-    if (index == 0 || index >= alphabet->size){
+    if (index == 0 || get_aux(mapping, index) >= alphabet->size){
         return NULL;
     }
     return alphabet->data + get_aux(mapping, index);
@@ -1337,6 +1337,7 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
     uint8_t weight = 0;
     char c;
     char *lower;
+    bool has_hyphen = false;
     for (size_t i = 0; i < word->size; i++){
         c = word->data[i];
         if (is_ascii_number(word->data[i])){
@@ -1346,7 +1347,16 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
                 weight = 0;
             }
             continue;
-        } else if (is_utf_start_byte(c)){
+        } else if (c == params->good_hyphen || c == params->missed_hyphen){
+            has_hyphen = true;
+            continue;
+        } else if (c == params->bad_hyphen) {
+            continue;
+        } else if (is_utf_start_byte(c) && letter->size > 0){
+            if (!append_char(letter, '\0')){
+                destroy_buffer(letter);
+                return false;
+            }
             lower = get_lower(mapping, alphabet, letter->data);
             if (lower == NULL) {
                 fprintf(stderr, "Character '%s' not known\n", letter->data);
@@ -1363,11 +1373,17 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
                     return false;
                 }
             }
-        } else if (c == params->good_hyphen || c == params->missed_hyphen){
-            set_top_value(out_weights, weight);
-            continue;
+            if (has_hyphen) {
+                set_top_value(out_weights, weight);
+            }
+            has_hyphen = false;
+            reset_buffer(letter);
         }
         weight = 0;
+        if (!append_char(letter, c)){
+            destroy_buffer(letter);
+            return false;
+        }
     }
     lower = get_lower(mapping, alphabet, letter->data);
     if (lower == NULL) {
@@ -1385,7 +1401,7 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
             return false;
         }
     }
-    if (!append_char(out_lower, EDGE_OF_WORD) || !put_on_stack(out_weights, 0)){
+    if (!append_char(out_lower, EDGE_OF_WORD)){
         destroy_buffer(letter);
         return false;
     }
