@@ -313,10 +313,10 @@ void test_parse_word() {
     }
 
     printf("Word weight = %d\n", params->word_weight);
-    printf("|Char| Wt |\n");
     for (size_t i = 0; i < out->size; i++){
-        printf("|%4d|%4zu|\n", (uint8_t) out->data[i], weights->data[i]);
+        printf("|%4d|%4zu", (uint8_t) out->data[i], weights->data[i]);
     }
+    printf("|\n");
 
     destroy_buffer(alphabet);
     destroy_trie(mapping);
