@@ -249,11 +249,88 @@ void test_read_translate() {
     fclose(file);
 }
 
+void test_parse_word() {
+    printf("\n---- Parse Word Test ----\n");
+    struct params *params = init_params();
+    if (params == NULL) {
+        return;
+    }
+
+    struct trie *mapping = init_trie(256);
+    if (mapping == NULL) {
+        destroy_params(params);
+        return;
+    }
+    if (!put_first_level(mapping)) {
+        destroy_trie(mapping);
+        destroy_params(params);
+        return;
+    }
+
+    struct string_buffer *alphabet = init_buffer(128);
+    if (alphabet == NULL) {
+        destroy_trie(mapping);
+        destroy_params(params);
+        return;
+    }
+    if (!append_char(alphabet, '\0')) {
+        destroy_buffer(alphabet);
+        destroy_trie(mapping);
+        destroy_params(params);
+        return;
+    }
+    if (!default_ascii_mapping(mapping, alphabet)) {
+        destroy_trie(mapping);
+        destroy_buffer(alphabet);
+        destroy_params(params);
+        return;
+    }
+    printf("Default mapping loaded successfully.\n");
+    struct string_buffer *buf = mock_buffer("7te2-S.t");
+    struct stack *weights = init_stack(2);
+    if (weights == NULL){
+        destroy_trie(mapping);
+        destroy_buffer(alphabet);
+        destroy_params(params);
+        return;
+    }
+    struct string_buffer *out = init_buffer(2);
+    if (out == NULL){
+        destroy_trie(mapping);
+        destroy_buffer(alphabet);
+        destroy_params(params);
+        destroy_stack(weights);
+        return;
+    }
+
+    if (!parse_word(buf, mapping, alphabet, params, weights, out)){
+        destroy_buffer(alphabet);
+        destroy_trie(mapping);
+        destroy_params(params);
+        destroy_stack(weights);
+        destroy_buffer(out);
+        return;
+    }
+
+    printf("Word weight = %d\n", params->word_weight);
+    printf("|Char| Wt |\n");
+    for (size_t i = 0; i < out->size; i++){
+        printf("|%4d|%4zu|\n", (uint8_t) out->data[i], weights->data[i]);
+    }
+
+    destroy_buffer(alphabet);
+    destroy_trie(mapping);
+    destroy_params(params);
+    destroy_stack(weights);
+    destroy_buffer(out);
+}
+
 int main(void) {
     test_read_line();
     test_parse_header();
     test_trie();
     test_read_letters();
     test_read_translate();
+    test_parse_word();
     return 0;
 }
