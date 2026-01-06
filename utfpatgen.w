@@ -1232,6 +1232,95 @@ bool delete_bad_patterns(struct trie *t, struct outputs *ops){
     return true;
 }
 
+bool output_patterns(struct trie *t, struct outputs *ops){
+    size_t root = 1;
+    uint8_t c;
+    struct string_buffer *pattern = init_buffer(4 * params->pat_len);
+    if (pattern == NULL){
+        return false;
+    }
+
+    struct stack *s_base = init_stack(4 * params->pat_len * sizeof(size_t));
+    if (s_base == NULL) {
+        destroy_buffer(pattern);
+        return false;
+    }
+    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+        destroy_buffer(pattern);
+        destroy_stack(s_base);
+        return false;
+    }
+
+    size_t counts_index, node;
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
+        c = (uint8_t) pattern->data[pattern->size - 1];
+        if (c == 255){
+            pattern->data[pattern->size - 1] = '\0';
+            pattern->size--;
+            s_base->top--;
+            continue;
+        }
+        pattern->data[pattern->size - 1] += 1;
+        node = root + c;
+        if ((uint8_t) get_node(t, node) != c){
+            continue;
+        }
+        if (is_utf_start_byte((uint8_t) c)){
+            output_pattern(pattern, ops, get_aux(t, node));
+        }
+        root = get_link(t, root + c);
+        if (root == 0){
+            continue;
+        }
+        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+            destroy_buffer(pattern);
+            destroy_stack(s_base);
+            return false;
+        }        
+    }
+    destroy_buffer(pattern);
+    destroy_stack(s_base);
+    return true;
+}
+
+void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index){
+    if (op_index == 0){
+        return;
+    }
+    size_t pattern_position = 0;
+    size_t level;
+    for (size_t i = 0; i < pattern->size) {
+        if (is_utf_start_byte(pattern->data[i])){
+            level = get_highest_level(ops, op_index, pattern_position);
+            if (level > 0){
+                printf("%zu", level);
+            }
+            pattern_position++;
+        }
+        putc(pattern->data[i]);
+    }
+    level = get_highest_level(ops, op_index, pattern_position);
+    if (level > 0){
+        printf("%zu", level);
+    }
+    putc("\n");
+}
+
+size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
+    size_t highest = 0;
+    size_t op_index = start_index;
+    struct output op;
+    while (op_index > 0){
+        op = ops->data[op_index];
+        if (op.position == position && op.value > highest){
+            highest = op.value;
+        }
+        op_index = op.next_op_index;
+    }
+    return highest;
+}
+
 @* Index.
 Automatically generates the list of used identifiers
 \end{document}
