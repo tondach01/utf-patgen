@@ -701,7 +701,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
 
 struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
     size_t trie_index = traverse_trie(t, pattern);
-    struct output empty = {.value = 0};
+    struct output empty = {.value = EMPTY_OP_VALUE};
     if (trie_index == 0) {
         return empty;
     }
@@ -1072,7 +1072,7 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                 size_t good = get_good(pc, counts_index);
                 size_t bad = get_bad(pc, counts_index);
                 if (params->good_wt * good < params->thresh){
-                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, SIZE_MAX, params->pat_dot)){
+                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, BAD_OP_VALUE, params->pat_dot)){
                         destroy_buffer(pattern);
                         destroy_stack(s_base);
                         return false;
@@ -1197,7 +1197,7 @@ bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index
     ops->data[0].next_op_index = op_index;
     size_t n = ops->data[0].next_op_index;
     while (n > 0){
-        if (ops->data[n].value == SIZE_MAX){
+        if (ops->data[n].value == BAD_OP_VALUE){
             ops->data[h].next_op_index = ops->data[n].next_op_index;
         } else {
             h = n;
@@ -1225,8 +1225,8 @@ bool delete_bad_patterns(struct trie *t, struct outputs *ops){
         return false;
     }
     for (size_t h = 1; h <= ops->capacity; h++){
-        if (ops->data[h].value == SIZE_MAX){
-            ops->data[h].value = 0;
+        if (ops->data[h].value == BAD_OP_VALUE){
+            ops->data[h].value = EMPTY_OP_VALUE;
             ops->count--;
         }
     }
@@ -1315,12 +1315,85 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
     struct output op;
     while (op_index > 0){
         op = ops->data[op_index];
-        if (op.position == position && op.value > highest){
+        if (op.position == position && op.value != BAD_OP_VALUE && op.value > highest){
             highest = op.value;
         }
         op_index = op.next_op_index;
     }
     return highest;
+}
+
+bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower){
+    reset_buffer(out_weights);
+    reset_buffer(out_lower);
+    string_buffer *letter = init_buffer(4);
+    if (letter == NULL) {
+        return false;
+    }
+    if (!append_char(out_lower, EDGE_OF_WORD) || !put_on_stack(out_weights, 0)){
+        destroy_buffer(letter);
+        return false;
+    }
+    uint8_t weight = 0;
+    char c;
+    char *lower;
+    for (size_t i = 0; i < word->size; i++){
+        c = word->data[i];
+        if (is_ascii_number(word->data[i])){
+            weight = (uint8_t) (c - '0');
+            if (i == 0){
+                params->word_weight = weight;
+                weight = 0;
+            }
+            continue;
+        } else if (is_utf_start_byte(c)){
+            lower = get_lower(mapping, alphabet, letter);
+            if (lower == NULL) {
+                fprintf(stderr, "Character '%s' not known\n", letter);
+                destroy_buffer(letter);
+                return false;
+            }
+            if (!append_string(out_lower, lower)){
+                destroy_buffer(letter);
+                return false;
+            }
+            for (size_t j = 0; j < strlen(lower); j++){
+                if (!put_on_stack(out_weights,0)){
+                    destroy_buffer(letter);
+                    return false;
+                }
+            }
+        } else if (c == params->good_hyphen || c == params->missed_hyphen){
+            set_top_value(out_weights, weight);
+            continue;
+        }
+        weight = 0;
+    }
+    lower = get_lower(mapping, alphabet, letter);
+    if (lower == NULL) {
+        fprintf(stderr, "Character '%s' not known\n", letter);
+        destroy_buffer(letter);
+        return false;
+    }
+    if (!append_string(out_lower, lower)){
+        destroy_buffer(letter);
+        return false;
+    }
+    for (size_t j = 0; j < strlen(lower); j++){
+        if (!put_on_stack(out_weights,0)){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    if (!append_char(out_lower, EDGE_OF_WORD) || !put_on_stack(out_weights, 0)){
+        destroy_buffer(letter);
+        return false;
+    }
+    return true;
+}
+
+bool is_ascii_number(char c){
+    return c >= '0' && c <= '9';
 }
 
 @* Index.

@@ -152,6 +152,8 @@ bool put_on_stack(struct stack *s, size_t value);
 size_t get_top_value(struct stack *s);
 void set_top_value(struct stack *s, size_t value);
 
+size_t BAD_OP_VALUE = SIZE_MAX;
+size_t EMPTY_OP_VALUE = 0;
 bool is_utf_start_byte(uint8_t byte);
 bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt);
 bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc);
@@ -176,8 +178,9 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
 bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet);
 char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter);
 
+char EDGE_OF_WORD = 0xff;  // not used in UTF-8
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
-bool parse_word(struct string_buffer *buf);  // TODO will need trie
+bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
 
 void generate_patterns();
 void clean(); // if necessary
