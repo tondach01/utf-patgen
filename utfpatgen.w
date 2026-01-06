@@ -1324,9 +1324,9 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
 }
 
 bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower){
-    reset_buffer(out_weights);
+    out_weights->top = 0;
     reset_buffer(out_lower);
-    string_buffer *letter = init_buffer(4);
+    struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
         return false;
     }
@@ -1347,13 +1347,13 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
             }
             continue;
         } else if (is_utf_start_byte(c)){
-            lower = get_lower(mapping, alphabet, letter);
+            lower = get_lower(mapping, alphabet, letter->data);
             if (lower == NULL) {
-                fprintf(stderr, "Character '%s' not known\n", letter);
+                fprintf(stderr, "Character '%s' not known\n", letter->data);
                 destroy_buffer(letter);
                 return false;
             }
-            if (!append_string(out_lower, lower)){
+            if (!append_string(out_lower, lower, strlen(lower))){
                 destroy_buffer(letter);
                 return false;
             }
@@ -1369,13 +1369,13 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
         }
         weight = 0;
     }
-    lower = get_lower(mapping, alphabet, letter);
+    lower = get_lower(mapping, alphabet, letter->data);
     if (lower == NULL) {
-        fprintf(stderr, "Character '%s' not known\n", letter);
+        fprintf(stderr, "Character '%s' not known\n", letter->data);
         destroy_buffer(letter);
         return false;
     }
-    if (!append_string(out_lower, lower)){
+    if (!append_string(out_lower, lower, strlen(lower))){
         destroy_buffer(letter);
         return false;
     }

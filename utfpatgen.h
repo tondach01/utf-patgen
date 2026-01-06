@@ -180,6 +180,7 @@ char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char
 
 char EDGE_OF_WORD = 0xff;  // not used in UTF-8
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
+bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
 
 void generate_patterns();
