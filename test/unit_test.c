@@ -3,6 +3,7 @@
 #include "../utfpatgen.h"
 
 void test_read_line() {
+    printf("---- Read Line Test ----\n");
     FILE *file = fopen("test/read_line_test.txt", "r");
     if (file == NULL) {
         fputs("Could not open read_line_test.txt\n", stderr);
@@ -46,16 +47,16 @@ void print_buffer(struct string_buffer *buf) {
 
 void print_outputs(struct outputs *ops) {
     for (size_t i = 1; i < ops->capacity+1; i++) {
-        struct output *op = ops->data[i];
-        if (op != NULL) {
-            printf("Output %zu: value=%d, position=%zu\n", i, op->value, op->position);
+        struct output op = ops->data[i];
+        if (op.value != EMPTY_OP_VALUE) {
+            printf("Output %zu: value=%zu, position=%zu\n", i, op.value, op.position);
         }
     }
-    printf("Count: %zu, Max: %zu, Capacity: %zu\n", ops->count, ops->max, ops->capacity);
+    printf("Count: %zu, Capacity: %zu\n", ops->count, ops->capacity);
 }
 
 void test_parse_header(){
-    
+    printf("\n---- Parse Header Test ----\n");
     struct params *params = init_params();
     if (params == NULL) {
         return;
@@ -90,6 +91,7 @@ void print_trie(struct trie *t) {
 }
 
 void test_trie() {
+    printf("\n---- Trie Test ----\n");
     struct trie *t = init_trie(4);
     if (t == NULL) {
         return;
@@ -114,11 +116,11 @@ void test_trie() {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
         }
     }
-    struct output *retrieved_op;
+    struct output retrieved_op;
     for (size_t i = 0; i < 3; i++){
         retrieved_op = get_pattern_output(t, ops, patterns[i]);
-        if (retrieved_op != NULL) {
-            printf("Retrieved output for pattern '%s': value=%d, position=%zu\n", patterns[i], retrieved_op->value, retrieved_op->position);
+        if (retrieved_op.value != EMPTY_OP_VALUE) {
+            printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n", patterns[i], retrieved_op.value, retrieved_op.position);
         } else {
             printf("No output found for pattern '%s'.\n", patterns[i]);
         }
@@ -129,6 +131,7 @@ void test_trie() {
 }
 
 void test_read_letters() {
+    printf("\n---- Read Letters Test ----\n");
     struct string_buffer *buf = mock_buffer(" a A Á ˇA  ");
     struct trie *mapping = init_trie(128);
     if (mapping == NULL) {
@@ -183,6 +186,7 @@ void test_read_letters() {
 }
 
 void test_read_translate() {
+    printf("\n---- Read Translate Test ----\n");
     FILE *file = fopen("test/german.tr", "r");
     if (file == NULL) {
         fputs("Could not open german.tr\n", stderr);
@@ -246,15 +250,10 @@ void test_read_translate() {
 }
 
 int main(void) {
-    printf("---- Read Line Test ----\n");
     test_read_line();
-    printf("\n---- Parse Header Test ----\n");
     test_parse_header();
-    printf("\n---- Trie Test ----\n");
     test_trie();
-    printf("\n---- Read Letters Test ----\n");
     test_read_letters();
-    printf("\n---- Read Translate Test ----\n");
     test_read_translate();
     return 0;
 }
