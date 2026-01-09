@@ -219,7 +219,7 @@ bool parse_header(struct string_buffer *buf, struct params *params){
 Parses the letter mappings from the translate file. Returns true on success, false on failure.
 
 @c
-bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet){
+bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
     if (buf->size == 0){
         fprintf(stderr, "Empty line in translate file\n");
         return false;
@@ -228,7 +228,7 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
     if (buf->size > 1 && buf->data[1] == separator){  // a comment, not forbidden
         return true;
     }
-    size_t alphabet_index = alphabet->size;
+    size_t alphabet_index = tt->alphabet->size;
     size_t out_index;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
@@ -245,12 +245,12 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
             if (letter->size == 0){
                 break;  // end of line
             }
-            if (!append_char(letter, '\0') || !insert_pattern(mapping, letter->data, &out_index) || !set_aux(mapping, out_index, alphabet_index)) {
+            if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
                 destroy_buffer(letter);
                 return false;
             }
             if (lower) {
-                if (!append_string(alphabet, letter->data, letter->size)) {
+                if (!append_string(tt->alphabet, letter->data, letter->size)) {
                     destroy_buffer(letter);
                     return false;
                 }
@@ -267,29 +267,29 @@ bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct strin
     return true;
 }
 
-bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet){
+bool default_ascii_mapping(struct translate_table *tt){
     size_t out_index;
     size_t alphabet_index;
     char upper;
     for (char c = 'a'; c <= 'z'; c++){
-        alphabet_index = alphabet->size;
+        alphabet_index = tt->alphabet->size;
         upper = c - ('a' - 'A');
-        if (!insert_pattern(mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(mapping, out_index, alphabet_index) || !append_string(alphabet, (const char[]){c, '\0'}, 2)) {
+        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'}, 2)) {
             return false;
         }
-        if (!insert_pattern(mapping, (const char[]){upper, '\0'}, &out_index) || !set_aux(mapping, out_index, alphabet_index)) {
+        if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
             return false;
         }
     }
     return true;
 }
 
-char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter){
-    size_t index = traverse_trie(mapping, letter);
-    if (index == 0 || get_aux(mapping, index) >= alphabet->size){
+char *get_lower(struct translate_table *tt, const char *letter){
+    size_t index = traverse_trie(tt->mapping, letter);
+    if (index == 0 || get_aux(tt->mapping, index) >= tt->alphabet->size){
         return NULL;
     }
-    return alphabet->data + get_aux(mapping, index);
+    return tt->alphabet->data + get_aux(tt->mapping, index);
 }
 
 @* Trie structure.
@@ -811,7 +811,7 @@ void destroy_params(struct params *p){
     free(p);
 }
 
-bool read_translate(FILE *translate, struct params *params, struct trie *mapping, struct string_buffer *alphabet){
+bool read_translate(FILE *translate, struct params *params, struct translate_table *tt){
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL) {
         return false;
@@ -821,7 +821,7 @@ bool read_translate(FILE *translate, struct params *params, struct trie *mapping
         return false;
     }
     if (buf->eof) {
-        bool default_mapping = default_ascii_mapping(mapping, alphabet);
+        bool default_mapping = default_ascii_mapping(tt);
         destroy_buffer(buf);
         return default_mapping;
     }
@@ -829,7 +829,7 @@ bool read_translate(FILE *translate, struct params *params, struct trie *mapping
     while (!buf->eof) {
         if (first_line && parse_header(buf, params)) {
             // header parsed successfully
-        } else if (!parse_letters(buf, mapping, alphabet)) {
+        } else if (!parse_letters(buf, tt)) {
             destroy_buffer(buf);
             return false;
         }
@@ -1323,7 +1323,7 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
     return highest;
 }
 
-bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_hyphens, struct string_buffer *out_lower){
+bool parse_word(struct string_buffer *word, struct translate_table *tt, struct params *params, struct stack *out_hyphens, struct string_buffer *out_lower){
     out_hyphens->top = 0;
     reset_buffer(out_lower);
     struct string_buffer *letter = init_buffer(4);
@@ -1356,7 +1356,7 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
                 destroy_buffer(letter);
                 return false;
             }
-            lower = get_lower(mapping, alphabet, letter->data);
+            lower = get_lower(tt, letter->data);
             if (lower == NULL) {
                 fprintf(stderr, "Character '%s' not known\n", letter->data);
                 destroy_buffer(letter);
@@ -1386,7 +1386,7 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
             return false;
         }
     }
-    lower = get_lower(mapping, alphabet, letter->data);
+    lower = get_lower(tt, letter->data);
     if (lower == NULL) {
         fprintf(stderr, "Character '%s' not known\n", letter->data);
         destroy_buffer(letter);

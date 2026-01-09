@@ -177,12 +177,16 @@ bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);
 bool append_string(struct string_buffer *buf, const char *str, size_t len);
 
-bool parse_input(int argc, char *argv[], struct params *params);
-bool read_translate(FILE *translate, struct params *params, struct trie *mapping, struct string_buffer *alphabet);
+struct translate_table {
+    struct trie *mapping;
+    struct string_buffer *alphabet;
+};
+
+bool read_translate(FILE *translate, struct params *params, struct translate_table *tt);
 bool parse_header(struct string_buffer *buf, struct params *params);
-bool parse_letters(struct string_buffer *buf, struct trie *mapping, struct string_buffer *alphabet);
-bool default_ascii_mapping(struct trie *mapping, struct string_buffer *alphabet);
-char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char *letter);
+bool parse_letters(struct string_buffer *buf, struct translate_table *tt);
+bool default_ascii_mapping(struct translate_table *tt);
+char *get_lower(struct translate_table *tt, const char *letter);
 
 #ifndef EDGE_OF_WORD
 // not used in UTF-8
@@ -190,11 +194,12 @@ char *get_lower(struct trie *mapping, struct string_buffer *alphabet, const char
 #endif
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool is_ascii_number(char c);
-bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
+bool parse_word(struct string_buffer *word, struct translate_table *tt, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
 
 bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens);
 void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps);
 void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct stack *true_hyphens, struct string_buffer *found_hyphens, struct params *params);
 
+bool parse_input(int argc, char *argv[], struct params *params);
 void generate_patterns();
 void clean(); // if necessary
