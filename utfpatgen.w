@@ -1323,18 +1323,18 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
     return highest;
 }
 
-bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower){
-    out_weights->top = 0;
+bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_hyphens, struct string_buffer *out_lower){
+    out_hyphens->top = 0;
     reset_buffer(out_lower);
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
         return false;
     }
-    if (!append_char(out_lower, EDGE_OF_WORD) || !put_on_stack(out_weights, 0)){
+    if (!append_char(out_lower, EDGE_OF_WORD) || !put_on_stack(out_hyphens, 0)){
         destroy_buffer(letter);
         return false;
     }
-    uint8_t weight = 0;
+    uint8_t weight = params->word_weight;
     char c;
     char *lower;
     bool has_hyphen = false;
@@ -1344,7 +1344,6 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
             weight = (uint8_t) (c - '0');
             if (i == 0){
                 params->word_weight = weight;
-                weight = 0;
             }
             continue;
         } else if (c == params->good_hyphen || c == params->missed_hyphen){
@@ -1368,18 +1367,20 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
                 return false;
             }
             for (size_t j = 0; j < strlen(lower); j++){
-                if (!put_on_stack(out_weights,0)){
+                if (!put_on_stack(out_hyphens,0)){
                     destroy_buffer(letter);
                     return false;
                 }
             }
             if (has_hyphen) {
-                set_top_value(out_weights, weight);
+                set_top_value(out_hyphens, 3 * weight); // a bit of magic, parity = presence of hyphen, value = weight
+            } else {
+                set_top_value(out_hyphens, 2 * weight);
             }
             has_hyphen = false;
             reset_buffer(letter);
         }
-        weight = 0;
+        weight = params->word_weight;
         if (!append_char(letter, c)){
             destroy_buffer(letter);
             return false;
@@ -1396,7 +1397,7 @@ bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_
         return false;
     }
     for (size_t j = 0; j < strlen(lower); j++){
-        if (!put_on_stack(out_weights,0)){
+        if (!put_on_stack(out_hyphens,0)){
             destroy_buffer(letter);
             return false;
         }
