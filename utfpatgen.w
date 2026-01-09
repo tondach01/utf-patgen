@@ -811,6 +811,34 @@ void destroy_params(struct params *p){
     free(p);
 }
 
+struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity){
+    struct translate_table *tt = malloc(sizeof(struct translate_table));
+    if (tt == NULL){
+        fprintf(stderr, "Allocation error\n");
+        return NULL;
+    }
+    struct trie *mapping = init_trie(mapping_capacity);
+    if (mapping == NULL){
+        free(tt);
+        return NULL;
+    }
+    struct string_buffer *alphabet = init_buffer(alphabet_capacity);
+    if (alphabet == NULL){
+        destroy_trie(mapping);
+        free(tt);
+        return NULL;
+    }
+    tt->mapping = mapping;
+    tt->alphabet = alphabet;
+    return tt;
+}
+
+void destroy_tr_table(struct translate_table *tt){
+    destroy_trie(tt->mapping);
+    destroy_buffer(tt->alphabet);
+    free(tt);
+}
+
 bool read_translate(FILE *translate, struct params *params, struct translate_table *tt){
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL) {

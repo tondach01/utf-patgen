@@ -182,6 +182,9 @@ struct translate_table {
     struct string_buffer *alphabet;
 };
 
+struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity);
+void destroy_tr_table(struct translate_table *tt);
+
 bool read_translate(FILE *translate, struct params *params, struct translate_table *tt);
 bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt);
