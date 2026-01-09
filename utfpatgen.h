@@ -192,5 +192,9 @@ bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *word, struct trie *mapping, struct string_buffer *alphabet, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
 
+bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens);
+void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps);
+void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct stack *true_hyphens, struct string_buffer *found_hyphens, struct params *params);
+
 void generate_patterns();
 void clean(); // if necessary

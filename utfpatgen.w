@@ -1413,6 +1413,117 @@ bool is_ascii_number(char c){
     return c >= '0' && c <= '9';
 }
 
+bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens){
+    bool *no_more = malloc(word->size * sizeof(bool));
+    if (no_more == NULL){
+        return false;
+    }
+    memset(no_more, false, word->size);
+    if (out_hyphens->capacity < word->size && !resize_buffer(out_hyphens, word->size)){
+        free(no_more);
+        return false;
+    }
+    memset(out_hyphens, 0, out_hyphens->capacity);
+    out_hyphens->size = word->size;
+    size_t t_index, j, op_index, dot_index, current_len;
+    struct output op;
+    for (size_t i = 0; i < word->size - 1; i++){
+        if (!is_utf_start_byte(word->data[i])){
+            continue;
+        }
+        current_len = 1;
+        j = i + 1;
+        t_index = 1 + (uint8_t) word->data[j];
+        while (j < word->size) {
+            if (is_utf_start_byte(word->data[j])) {
+                current_len++;
+            }
+            op_index = get_aux(t, t_index);
+            while (op_index > 0){
+                op = ops->data[op_index];
+                dot_index = op.position + i;
+                if (op.value < BAD_OP_VALUE && op.value > out_hyphens->data[dot_index]){
+                    out_hyphens->data[dot_index] = op.value;
+                }
+                if (op.value >= params->hyph_level && current_len < params->pat_len){
+                    no_more[dot_index] = true;
+                }
+                op_index = op.next_op_index;
+            }
+            t_index = get_link(t, t_index);
+            if (t_index == 0){
+                break;
+            }
+            j++;
+            t_index += (uint8_t) word->data[j];
+        }
+    }
+    return true;
+}
+
+void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps){
+    uint8_t found_level;
+    size_t hyphenation_value, weight;
+    for (size_t i = 0; i < found_hyphens->size; i++){
+        found_level = (uint8_t) found_hyphens->data[i];
+        hyphenation_value = true_hyphens->data[i];
+        if (hyphenation_value == 0){ // not an intercharacter position
+            continue;
+        } else if (hyphenation_value % 2 == 0) { // position without a hyphen
+            weight = hyphenation_value / 2;
+            if (found_level % 2 == 1) {
+                ps->bad_cnt += weight;
+            }
+        } else { // position with a hyphen
+            weight = hyphenation_value / 3;
+            if (found_level % 2 == 1) {
+                ps->good_cnt += weight;
+            } else {
+                ps->miss_cnt += weight;
+            }
+        }
+    }
+}
+
+void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct stack *true_hyphens, struct string_buffer *found_hyphens, struct params *params){
+    if (params->word_weight > 1){
+        fprintf(pattmp, "%d", params->word_weight);
+    }
+    char c;
+    size_t weight;
+    bool has_hyphen, found_hyphen;
+    for (size_t i = 0; i < word->size; i++){
+        has_hyphen = false;
+        found_hyphen = ((uint8_t) found_hyphens->data[i] % 2 == 1 );
+        c = word->data[i];
+        if (c == EDGE_OF_WORD){
+            continue;
+        }
+        fputc(c, pattmp);
+        weight = true_hyphens->data[i];
+        if (weight == 0){
+            continue;
+        }
+        if (weight % 2 == 0) {
+            weight /= 2;
+        } else {
+            weight /= 3;
+            has_hyphen = true;
+        }
+        if (weight != params->word_weight){
+            fprintf(pattmp, "%zu", weight);
+        }
+        if (found_hyphen && has_hyphen){
+            fputc((char) params->good_hyphen, pattmp);
+        } else if (found_hyphen && !has_hyphen){
+            fputc((char) params->bad_hyphen, pattmp);
+        } else if (!found_hyphen && has_hyphen){
+            fputc((char) params->missed_hyphen, pattmp);
+        }
+    }
+    fputc('\n', pattmp);
+}
+
 @* Index.
 Automatically generates the list of used identifiers
 \end{document}
