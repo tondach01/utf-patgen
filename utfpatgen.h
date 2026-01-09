@@ -106,6 +106,7 @@ struct pass_stats {
     size_t bad_pat_cnt;
     size_t good_cnt;
     size_t bad_cnt;
+    size_t miss_cnt;
     bool more_to_come;
 };
 
