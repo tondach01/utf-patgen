@@ -771,6 +771,10 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
             struct output old_op = ops->data[old_index];
             size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index);
             new_data[new_index] = old_op;
+            if (!set_aux(t, i, new_index)){
+                free(new_data);
+                return NULL;
+            }
         }
     }
     free(ops->data);
