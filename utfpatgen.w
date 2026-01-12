@@ -830,6 +830,12 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
     }
     tt->mapping = mapping;
     tt->alphabet = alphabet;
+    if (!put_first_level(tt->mapping) || !append_char(tt->alphabet, '\0')){
+        destroy_trie(tt->mapping);
+        destroy_buffer(tt->alphabet);
+        free(tt);
+        return NULL;
+    }
     return tt;
 }
 

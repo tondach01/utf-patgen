@@ -133,56 +133,39 @@ void test_trie() {
 void test_read_letters() {
     printf("\n---- Read Letters Test ----\n");
     struct string_buffer *buf = mock_buffer(" a A Á ˇA  ");
-    struct trie *mapping = init_trie(128);
-    if (mapping == NULL) {
+    struct translate_table *tt = init_tr_table(16, 16);
+    if (tt == NULL){
         return;
     }
-    if (!put_first_level(mapping)) {
-        destroy_trie(mapping);
-        return;
-    }
-    struct string_buffer *alphabet = init_buffer(64);
-    if (alphabet == NULL) {
-        destroy_trie(mapping);
-        return;
-    }
-    if (!append_char(alphabet, '\0')) {
-        destroy_trie(mapping);
-        destroy_buffer(alphabet);
-        return;
-    }
-
-    if (!default_ascii_mapping(mapping, alphabet)) {
-        destroy_trie(mapping);
-        destroy_buffer(alphabet);
+    if (!default_ascii_mapping(tt)) {
+        destroy_tr_table(tt);
         return;
     }
     printf("Default mapping loaded successfully.\n");
 
-    size_t index = 0;
+    char *lower;
     char *letters[] = {"F", "ˇA", "ř"};
     for (size_t i = 0; i < 3; i++) {
-        if ((index = traverse_trie(mapping, letters[i])) != 0) {
-            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], alphabet->data + get_aux(mapping, index));
+        if ((lower = get_lower(tt, letters[i])) != 0) {
+            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], lower);
         } else {
             printf("Letter '%s' not found in trie.\n", letters[i]);
         }
     }
     
-    if (parse_letters(buf, mapping, alphabet)) {
+    if (parse_letters(buf, tt)) {
         printf("Parsed line '%s' successfully.\n", buf->data);
     } else {
         printf("Failed to parse line '%s'.\n", buf->data);
     }
 
-    if ((index = traverse_trie(mapping, letters[1])) != 0) {
-        printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[1], alphabet->data + get_aux(mapping, index));
+    if ((lower = get_lower(tt, letters[1])) != 0) {
+        printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[1], lower);
     } else {
         printf("Letter '%s' not found in trie.\n", letters[1]);
     }
 
-    destroy_trie(mapping);
-    destroy_buffer(alphabet);
+    destroy_tr_table(tt);
 }
 
 void test_read_translate() {
@@ -199,52 +182,37 @@ void test_read_translate() {
         return;
     }
 
-    struct trie *mapping = init_trie(256);
-    if (mapping == NULL) {
+    struct translate_table *tt = init_tr_table(16, 16);
+    if (tt == NULL){
         destroy_params(params);
         fclose(file);
         return;
     }
-    if (!put_first_level(mapping)) {
-        destroy_trie(mapping);
+    if (!default_ascii_mapping(tt)) {
+        destroy_tr_table(tt);
         destroy_params(params);
         fclose(file);
         return;
     }
+    printf("Default mapping loaded successfully.\n");
 
-    struct string_buffer *alphabet = init_buffer(128);
-    if (alphabet == NULL) {
-        destroy_trie(mapping);
-        destroy_params(params);
-        fclose(file);
-        return;
-    }
-    if (!append_char(alphabet, '\0')) {
-        destroy_buffer(alphabet);
-        destroy_trie(mapping);
-        destroy_params(params);
-        fclose(file);
-        return;
-    }
-
-    if (read_translate(file, params, mapping, alphabet)) {
+    if (read_translate(file, params, tt)) {
         printf("Translate file read successfully.\n");
     } else {
         printf("Failed to read translate file.\n");
     }
 
     char *letters[] = {"X", "ê", "ř", "ß", "Œ"};
-    size_t index = 0;
+    char *lower;
     for (size_t i = 0; i < 5; i++) {
-        if ((index = traverse_trie(mapping, letters[i])) != 0) {
-            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], alphabet->data + get_aux(mapping, index));
+        if ((lower = get_lower(tt, letters[i])) != 0) {
+            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], lower);
         } else {
             printf("Letter '%s' not found in trie.\n", letters[i]);
         }
     }
 
-    destroy_buffer(alphabet);
-    destroy_trie(mapping);
+    destroy_tr_table(tt);
     destroy_params(params);
     fclose(file);
 }
@@ -255,33 +223,13 @@ void test_parse_word() {
     if (params == NULL) {
         return;
     }
-
-    struct trie *mapping = init_trie(256);
-    if (mapping == NULL) {
+    struct translate_table *tt = init_tr_table(16, 16);
+    if (tt == NULL){
         destroy_params(params);
         return;
     }
-    if (!put_first_level(mapping)) {
-        destroy_trie(mapping);
-        destroy_params(params);
-        return;
-    }
-
-    struct string_buffer *alphabet = init_buffer(128);
-    if (alphabet == NULL) {
-        destroy_trie(mapping);
-        destroy_params(params);
-        return;
-    }
-    if (!append_char(alphabet, '\0')) {
-        destroy_buffer(alphabet);
-        destroy_trie(mapping);
-        destroy_params(params);
-        return;
-    }
-    if (!default_ascii_mapping(mapping, alphabet)) {
-        destroy_trie(mapping);
-        destroy_buffer(alphabet);
+    if (!default_ascii_mapping(tt)) {
+        destroy_tr_table(tt);
         destroy_params(params);
         return;
     }
@@ -289,23 +237,20 @@ void test_parse_word() {
     struct string_buffer *buf = mock_buffer("7te2-S.t");
     struct stack *weights = init_stack(2);
     if (weights == NULL){
-        destroy_trie(mapping);
-        destroy_buffer(alphabet);
+        destroy_tr_table(tt);
         destroy_params(params);
         return;
     }
     struct string_buffer *out = init_buffer(2);
     if (out == NULL){
-        destroy_trie(mapping);
-        destroy_buffer(alphabet);
+        destroy_tr_table(tt);
         destroy_params(params);
         destroy_stack(weights);
         return;
     }
 
-    if (!parse_word(buf, mapping, alphabet, params, weights, out)){
-        destroy_buffer(alphabet);
-        destroy_trie(mapping);
+    if (!parse_word(buf, tt, params, weights, out)){
+        destroy_tr_table(tt);
         destroy_params(params);
         destroy_stack(weights);
         destroy_buffer(out);
@@ -318,8 +263,7 @@ void test_parse_word() {
     }
     printf("|\n");
 
-    destroy_buffer(alphabet);
-    destroy_trie(mapping);
+    destroy_tr_table(tt);
     destroy_params(params);
     destroy_stack(weights);
     destroy_buffer(out);
