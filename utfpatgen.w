@@ -375,6 +375,12 @@ struct trie *resize_trie(struct trie *t, size_t new_capacity){
     t->links = new_links;
     t->aux = new_aux;
     t->taken = new_taken;
+
+    memset(t->nodes + t->capacity, 0, (new_capacity - t->capacity) * sizeof(char));
+    memset(t->links + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
+    memset(t->aux + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
+    memset(t->taken + ((t->capacity / 8) + 1), 0, ((new_capacity - t->capacity) / 8) * sizeof(char));
+
     t->capacity = new_capacity;
 
     return t;
