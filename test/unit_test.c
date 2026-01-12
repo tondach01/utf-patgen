@@ -269,6 +269,69 @@ void test_parse_word() {
     destroy_buffer(out);
 }
 
+void test_hyphenate(){
+    printf("\n---- Hyphenate Test ----\n");
+    struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-'};
+    struct string_buffer *word = mock_buffer("\xfftesting\xff");
+
+    struct trie *t = init_trie(256);
+    if (t == NULL){
+        return;
+    }
+    if (!put_first_level(t)){
+        destroy_trie(t);
+        return;
+    }
+
+    struct outputs *ops = init_outputs(2);
+    if (ops == NULL){
+        destroy_trie(t);
+        return;
+    }
+
+    const char *patterns[4] = {"\xffte", "ing\xff", "tex", "ti"};
+    size_t positions[4] = {2, 0, 2, 1};
+    uint8_t values[4] = {2, 1, 2, 3};
+    size_t index;
+    for (size_t i = 0; i < 4; i++) {
+        if (!insert_pattern(t, patterns[i], &index) || index == 0 || !set_output(t, index, ops, values[i], positions[i])){
+            destroy_trie(t);
+            destroy_outputs(ops);
+            return;
+        }
+    }
+    printf("Patterns inserted successfully.\n");
+
+    struct string_buffer *out_hyphens = mock_buffer("xxxxxxxxxx");
+    if (!hyphenate(word, t, ops, &params, out_hyphens)){
+        destroy_trie(t);
+        destroy_outputs(ops);
+        return;
+    }
+
+    struct stack *true_hyphens = init_stack(9);
+    if (true_hyphens == NULL){
+        destroy_trie(t);
+        destroy_outputs(ops);
+        return;
+    }
+    size_t data[] = {0,2,2,2,3,2,2,0};
+    // TODO change weighing to 2*w and 2*w+1
+    for (size_t i = 0; i < 8; i++){
+        if (!put_on_stack(true_hyphens, data[i])){
+            destroy_trie(t);
+            destroy_outputs(ops);
+            destroy_stack(true_hyphens);
+            return;
+        }
+    }
+
+    printf("Hyphenated word: ");
+    output_hyphenated_word(stdout, word, true_hyphens, out_hyphens, &params);
+    destroy_trie(t);
+    destroy_outputs(ops);
+}
+
 int main(void) {
     test_read_line();
     test_parse_header();
@@ -276,5 +339,6 @@ int main(void) {
     test_read_letters();
     test_read_translate();
     test_parse_word();
+    test_hyphenate();
     return 0;
 }
