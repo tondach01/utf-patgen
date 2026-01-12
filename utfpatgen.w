@@ -1253,7 +1253,7 @@ bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index
 }
 
 bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, get_aux(t, t->node_max + 1), t_index) || !set_links(t, t_index, t->node_max + 1) || !set_node(t, t_index, '\0')){
+    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, '\0')){
         return false;
     }
     t->occupied--;
