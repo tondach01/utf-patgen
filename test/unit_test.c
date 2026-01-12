@@ -315,8 +315,7 @@ void test_hyphenate(){
         destroy_outputs(ops);
         return;
     }
-    size_t data[] = {0,2,2,2,3,2,2,0};
-    // TODO change weighing to 2*w and 2*w+1
+    size_t data[] = {0,4,2,2,3,2,2,0};
     for (size_t i = 0; i < 8; i++){
         if (!put_on_stack(true_hyphens, data[i])){
             destroy_trie(t);
