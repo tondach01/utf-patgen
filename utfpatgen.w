@@ -1415,7 +1415,7 @@ bool parse_word(struct string_buffer *word, struct translate_table *tt, struct p
                 }
             }
             if (has_hyphen) {
-                set_top_value(out_hyphens, 3 * weight); // a bit of magic, parity = presence of hyphen, value = weight
+                set_top_value(out_hyphens, (2 * weight) + 1); // a bit of magic, parity = presence of hyphen, value = weight
             } else {
                 set_top_value(out_hyphens, 2 * weight);
             }
@@ -1522,7 +1522,7 @@ void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens,
                 ps->bad_cnt += weight;
             }
         } else { // position with a hyphen
-            weight = hyphenation_value / 3;
+            weight = hyphenation_value / 2;
             if (found_level % 2 == 1) {
                 ps->good_cnt += weight;
             } else {
