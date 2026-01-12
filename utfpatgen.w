@@ -608,12 +608,10 @@ bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t 
         ops->count++;
         struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
         ops->data[hash] = new_op;
+    } 
         *op_index = hash;
         return true;
     } 
-    *op_index = hash;
-    return false;
-}
 
 size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next_op_index){
     size_t hash = ((next_op_index + 313*position + 361*value) % ops->capacity) + 1;
