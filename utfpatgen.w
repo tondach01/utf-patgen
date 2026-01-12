@@ -111,7 +111,7 @@ Reads a line from the given stream into the provided string buffer. Returns true
 bool read_line(FILE *stream, struct string_buffer *buf){
     char c;
     while ((c = fgetc(stream)) != EOF) {
-        if (buf->size >= buf->capacity) {
+        if (buf->size >= buf->capacity - 1) {
             if (resize_buffer(buf, 2*buf->capacity) == NULL) {
                 return false;
             }
