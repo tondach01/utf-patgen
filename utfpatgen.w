@@ -1465,25 +1465,39 @@ bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, 
         free(no_more);
         return false;
     }
-    memset(out_hyphens, 0, out_hyphens->capacity);
+    memset(out_hyphens->data, 0, out_hyphens->capacity);
     out_hyphens->size = word->size;
-    size_t t_index, j, op_index, dot_index, current_len;
-    struct output op;
+    size_t t_index, op_index, current_len;
     for (size_t i = 0; i < word->size - 1; i++){
         if (!is_utf_start_byte(word->data[i])){
             continue;
         }
         current_len = 1;
-        j = i + 1;
-        t_index = 1 + (uint8_t) word->data[j];
-        while (j < word->size) {
+        t_index = 1 + (uint8_t) word->data[i];
+        op_index = get_aux(t, t_index);
+        process_outputs(ops, op_index, i, current_len, no_more, params, out_hyphens);
+        for (size_t j = i+1; j < word->size; j++) {
+            t_index = get_link(t, t_index);
+            if (t_index == 0){
+                break;
+            }
+            t_index += (uint8_t) word->data[j];
             if (is_utf_start_byte(word->data[j])) {
                 current_len++;
             }
             op_index = get_aux(t, t_index);
+            process_outputs(ops, op_index, i, current_len, no_more, params, out_hyphens);
+        }
+    }
+    return true;
+}
+
+void process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, bool *no_more, struct params *params, struct string_buffer *out_hyphens){
+    size_t dot_index;
+    struct output op;
             while (op_index > 0){
                 op = ops->data[op_index];
-                dot_index = op.position + i;
+        dot_index = op.position + offset - 1;
                 if (op.value < BAD_OP_VALUE && op.value > out_hyphens->data[dot_index]){
                     out_hyphens->data[dot_index] = op.value;
                 }
@@ -1492,15 +1506,6 @@ bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, 
                 }
                 op_index = op.next_op_index;
             }
-            t_index = get_link(t, t_index);
-            if (t_index == 0){
-                break;
-            }
-            j++;
-            t_index += (uint8_t) word->data[j];
-        }
-    }
-    return true;
 }
 
 void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps){
