@@ -110,7 +110,7 @@ void test_trie() {
         return;
     }
     for (size_t i = 0; i < 2; i++){
-        if (insert_pattern(t, patterns[i], &op_index) && set_output(t, op_index, ops, (uint8_t)(i), i + 1)) {
+        if (insert_pattern(t, patterns[i], &op_index) && set_output(t, op_index, ops, (uint8_t)(i+1), i + 1)) {
             printf("Pattern '%s' inserted successfully.\n", patterns[i]);
         } else {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
