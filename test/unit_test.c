@@ -10,7 +10,7 @@ void test_read_line() {
         return;
     }
 
-    struct string_buffer *buf = init_buffer(128);
+    struct string_buffer *buf = init_buffer(8);
     
     if (buf == NULL) {
         fclose(file);
