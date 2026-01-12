@@ -609,9 +609,9 @@ bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t 
         struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
         ops->data[hash] = new_op;
     } 
-        *op_index = hash;
-        return true;
-    } 
+    *op_index = hash;
+    return true;
+}
 
 size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next_op_index){
     size_t hash = ((next_op_index + 313*position + 361*value) % ops->capacity) + 1;
@@ -1495,17 +1495,17 @@ bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, 
 void process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, bool *no_more, struct params *params, struct string_buffer *out_hyphens){
     size_t dot_index;
     struct output op;
-            while (op_index > 0){
-                op = ops->data[op_index];
+    while (op_index > 0){
+        op = ops->data[op_index];
         dot_index = op.position + offset - 1;
-                if (op.value < BAD_OP_VALUE && op.value > out_hyphens->data[dot_index]){
-                    out_hyphens->data[dot_index] = op.value;
-                }
-                if (op.value >= params->hyph_level && current_len < params->pat_len){
-                    no_more[dot_index] = true;
-                }
-                op_index = op.next_op_index;
-            }
+        if (op.value < BAD_OP_VALUE && op.value > out_hyphens->data[dot_index]){
+            out_hyphens->data[dot_index] = op.value;
+        }
+        if (op.value >= params->hyph_level && current_len < params->pat_len){
+            no_more[dot_index] = true;
+        }
+        op_index = op.next_op_index;
+    }
 }
 
 void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps){
