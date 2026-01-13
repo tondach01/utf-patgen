@@ -75,6 +75,13 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char val
 struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern);
 bool set_output(struct trie *t, size_t index, struct outputs *ops, size_t value, size_t position);
 
+enum hyphen_class { // 2-bit logic: upper = hyphen was found, lower = hyphen is present
+    NO_HYF = 0,
+    MISS_HYF = 1,
+    BAD_HYF = 2,
+    GOOD_HYF = 3,
+};
+
 struct params {
     // global
     uint8_t left_hyphen_min;
@@ -92,6 +99,8 @@ struct params {
     uint8_t good_wt;
     uint8_t bad_wt;
     uint8_t thresh;
+    enum hyphen_class good_dot;
+    enum hyphen_class bad_dot;
     // pass specific
     uint8_t pat_len;
     uint8_t pat_dot;
@@ -195,6 +204,7 @@ char *get_lower(struct translate_table *tt, const char *letter);
 // not used in UTF-8
 #define EDGE_OF_WORD (char) 0xff
 #endif
+
 bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *word, struct translate_table *tt, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
