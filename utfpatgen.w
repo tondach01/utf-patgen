@@ -1455,14 +1455,14 @@ bool is_ascii_number(char c){
     return c >= '0' && c <= '9';
 }
 
-bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens){
-    bool *no_more = malloc(word->size * sizeof(bool));
-    if (no_more == NULL){
+bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens, bool *no_more){
+    bool *new_no_more = realloc(no_more, word->size * sizeof(bool));
+    if (new_no_more == NULL){
         return false;
     }
+    no_more = new_no_more;
     memset(no_more, false, word->size);
     if (out_hyphens->capacity < word->size && !resize_buffer(out_hyphens, word->size)){
-        free(no_more);
         return false;
     }
     memset(out_hyphens->data, 0, out_hyphens->capacity);
@@ -1477,11 +1477,10 @@ bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, 
         op_index = get_aux(t, t_index);
         process_outputs(ops, op_index, i, current_len, no_more, params, out_hyphens);
         for (size_t j = i+1; j < word->size; j++) {
-            t_index = get_link(t, t_index);
-            if (t_index == 0){
+            t_index = get_link(t, t_index) + word->data[j];
+            if (get_node(t, t_index) != word->data[j]){
                 break;
             }
-            t_index += (uint8_t) word->data[j];
             if (is_utf_start_byte(word->data[j])) {
                 current_len++;
             }
@@ -1570,6 +1569,69 @@ void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct sta
         }
     }
     fputc('\n', pattmp);
+}
+
+bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *no_more, struct trie *counts, struct pattern_counts *pc, struct params *params){
+    size_t end_index, dot_index, weight, node;
+    bool good_pattern;
+    enum hyphen_class hyf;
+    for (size_t start_index = 0; start_index < word->size - 1; start_index++){
+        if (!is_utf_start_byte(word->data[start_index])){
+            continue;
+        }
+        if (!end_of_pattern(word, params->pat_dot, start_index, &dot_index) || dot_index == 0){
+            continue;
+        }
+        dot_index--;
+        if (no_more[dot_index]){
+            continue;
+        }
+        hyf = true_hyphens->data[dot_index] % 4;
+        if (hyf == params->good_dot){
+            good_pattern = true;
+        } else if (hyf == params->bad_dot){
+            good_pattern = false;
+        } else {
+            continue;
+        }
+        if (!end_of_pattern(word, params->pat_len, start_index, &end_index)){
+            continue;
+        }
+        if (!insert_substring(counts, word->data, end_index, end_index - start_index, &node)){
+            return false;
+        }
+        weight = true_hyphens->data[dot_index] / 4;
+        if (good_pattern){
+            pc->good[node] += weight;
+        } else {
+            pc->bad[node] += weight;
+        }
+    }
+    return true;
+}
+
+bool end_of_pattern(struct string_buffer *word, size_t pattern_len, size_t start_index, size_t *out_end_index){
+    if (start_index >= word->size){
+        return false;
+    }
+    size_t i = start_index;
+    char c;
+    size_t current_len = 0;
+    while (current_len < pattern_len && i < word->size){
+        c = word->data[i];
+        if (is_utf_start_byte(c)){
+            current_len++;
+        }
+        i++;
+    }
+    if (i == word->size) {
+        current_len++;
+    }
+    if (current_len == pattern_len){
+        *out_end_index = i;
+        return true;
+    }
+    return false;
 }
 
 @* Index.

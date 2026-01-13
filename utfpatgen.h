@@ -209,10 +209,13 @@ bool read_dictionary(FILE *dictionary);  // TODO will need trie
 bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *word, struct translate_table *tt, struct params *params, struct stack *out_weights, struct string_buffer *out_lower);
 
-bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens);
+bool hyphenate(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_hyphens, bool *no_more);
 void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps);
 void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct stack *true_hyphens, struct string_buffer *found_hyphens, struct params *params);
 void process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, bool *no_more, struct params *params, struct string_buffer *out_hyphens);
+
+bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *no_more, struct trie *counts, struct pattern_counts *pc, struct params *params);
+bool end_of_pattern(struct string_buffer *word, size_t pattern_len, size_t start_index, size_t *out_end_index);
 
 bool parse_input(int argc, char *argv[], struct params *params);
 void generate_patterns();
