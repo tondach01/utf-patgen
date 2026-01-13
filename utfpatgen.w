@@ -1379,7 +1379,7 @@ bool parse_word(struct string_buffer *word, struct translate_table *tt, struct p
     uint8_t weight = params->word_weight;
     char c;
     char *lower;
-    bool has_hyphen = false;
+    enum hyphen_class hyf = NO_HYF;
     for (size_t i = 0; i < word->size; i++){
         c = word->data[i];
         if (is_ascii_number(word->data[i])){
@@ -1388,10 +1388,14 @@ bool parse_word(struct string_buffer *word, struct translate_table *tt, struct p
                 params->word_weight = weight;
             }
             continue;
-        } else if (c == params->good_hyphen || c == params->missed_hyphen){
-            has_hyphen = true;
+        } else if (c == params->good_hyphen) {
+            hyf = GOOD_HYF;
+            continue;
+        } else if (c == params->missed_hyphen){
+            hyf = MISS_HYF;
             continue;
         } else if (c == params->bad_hyphen) {
+            hyf = BAD_HYF;
             continue;
         } else if (is_utf_start_byte(c) && letter->size > 0){
             if (!append_char(letter, '\0')){
@@ -1414,12 +1418,8 @@ bool parse_word(struct string_buffer *word, struct translate_table *tt, struct p
                     return false;
                 }
             }
-            if (has_hyphen) {
-                set_top_value(out_hyphens, (2 * weight) + 1); // a bit of magic, parity = presence of hyphen, value = weight
-            } else {
-                set_top_value(out_hyphens, 2 * weight);
-            }
-            has_hyphen = false;
+            set_top_value(out_hyphens, 4 * weight + hyf);
+            hyf = NO_HYF;
             reset_buffer(letter);
         }
         weight = params->word_weight;
@@ -1509,21 +1509,22 @@ void process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t
 }
 
 void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps){
-    uint8_t found_level;
+    bool odd_level;
     size_t hyphenation_value, weight;
+    enum hyphen_class hyf;
     for (size_t i = 0; i < found_hyphens->size; i++){
-        found_level = (uint8_t) found_hyphens->data[i];
+        odd_level = ((uint8_t) found_hyphens->data[i] % 2 == 1);
         hyphenation_value = true_hyphens->data[i];
+        weight = hyphenation_value / 4;
+        hyf = hyphenation_value % 4;
         if (hyphenation_value == 0){ // not an intercharacter position
             continue;
-        } else if (hyphenation_value % 2 == 0) { // position without a hyphen
-            weight = hyphenation_value / 2;
-            if (found_level % 2 == 1) {
+        } else if (hyf % 2 == 0) { // position without a hyphen
+            if (odd_level) {
                 ps->bad_cnt += weight;
             }
         } else { // position with a hyphen
-            weight = hyphenation_value / 2;
-            if (found_level % 2 == 1) {
+            if (odd_level) {
                 ps->good_cnt += weight;
             } else {
                 ps->miss_cnt += weight;
