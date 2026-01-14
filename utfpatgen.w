@@ -1380,9 +1380,9 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
     char c;
     char *lower;
     enum hyphen_class hyf = NO_HYF;
-    for (size_t i = 0; i < word->size; i++){
-        c = word->data[i];
-        if (is_ascii_number(word->data[i])){
+    for (size_t i = 0; i < buf->size; i++){
+        c = buf->data[i];
+        if (is_ascii_number(buf->data[i])){
             weight = (uint8_t) (c - '0');
             if (i == 0){
                 params->word_weight = weight;
