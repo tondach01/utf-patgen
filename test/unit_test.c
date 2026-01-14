@@ -278,8 +278,8 @@ void test_parse_word() {
     destroy_buffer(buf);
 }
 
-void test_hyphenate(){
-    printf("\n---- Hyphenate Test ----\n");
+void test_hyphenate_word(){
+    printf("\n---- Hyphenate Word Test ----\n");
     struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-'};
     struct string_buffer *word = mock_buffer("\xfftesting\xff");
 
@@ -324,7 +324,7 @@ void test_hyphenate(){
     }
 
     struct string_buffer *out_hyphens = mock_buffer("xxxxxxxxxx");
-    if (!hyphenate(word, t, ops, &params, out_hyphens, no_more)){
+    if (!hyphenate_word(word, t, ops, &params, out_hyphens, no_more)){
         destroy_trie(t);
         destroy_outputs(ops);
         free(no_more);
@@ -371,6 +371,6 @@ int main(void) {
     test_read_letters();
     test_read_translate();
     test_parse_word();
-    test_hyphenate();
+    test_hyphenate_word();
     return 0;
 }
