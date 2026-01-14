@@ -386,17 +386,6 @@ struct trie *resize_trie(struct trie *t, size_t new_capacity){
     return t;
 }
 
-void reset_trie(struct trie *t){
-    t->node_max = 0;
-    t->base_max = 0;
-    t->occupied = 0;
-    t->pattern_count = 0;
-    memset(t->nodes, 0, t->capacity * sizeof(char));
-    memset(t->links, 0, t->capacity * sizeof(size_t));
-    memset(t->aux, 0, t->capacity * sizeof(size_t));
-    memset(t->taken, 0, (t->capacity / 8 + 1) * sizeof(char));
-}
-
 void destroy_trie(struct trie *t){
     free(t->nodes);
     free(t->links);
@@ -597,17 +586,17 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     return node;
 }
 
-bool new_trie_output(struct outputs *ops, struct trie *t, uint8_t value, size_t position, size_t next_op_index, size_t *op_index){
-    if (ops->count >= ops->capacity - 1) {
-        if (resize_outputs(ops, ops->capacity * 2, t) == NULL) {
+bool new_trie_output(struct pattern_trie *pt, uint8_t value, size_t position, size_t next_op_index, size_t *op_index){
+    if (pt->ops->count >= pt->ops->capacity - 1) {
+        if (resize_outputs(pt->ops, pt->ops->capacity * 2, pt->t) == NULL) {
             return false;
         }
     }
-    size_t hash = hash_trie_output(ops, value, position, next_op_index);
-    if (ops->data[hash].value == 0) {
-        ops->count++;
+    size_t hash = hash_trie_output(pt->ops, value, position, next_op_index);
+    if (pt->ops->data[hash].value == 0) {
+        pt->ops->count++;
         struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
-        ops->data[hash] = new_op;
+        pt->ops->data[hash] = new_op;
     } 
     *op_index = hash;
     return true;
@@ -703,22 +692,22 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-struct output get_pattern_output(struct trie *t, struct outputs *ops, const char *pattern){
-    size_t trie_index = traverse_trie(t, pattern);
+struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
+    size_t trie_index = traverse_trie(pt->t, pattern);
     struct output empty = {.value = EMPTY_OP_VALUE};
     if (trie_index == 0) {
         return empty;
     }
-    size_t op_index = get_aux(t, trie_index);
+    size_t op_index = get_aux(pt->t, trie_index);
     if (op_index == 0) {
         return empty;
     }
-    return ops->data[op_index];
+    return pt->ops->data[op_index];
 }
 
-bool set_output(struct trie *t, size_t node, struct outputs *ops, size_t value, size_t position){
+bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(ops, t, value, position, 0, &op_index) || !set_aux(t, node, op_index)) {
+    if (!new_trie_output(pt, value, position, 0, &op_index) || !set_aux(pt->t, node, op_index)) {
         return false;
     }
     return true;
@@ -785,6 +774,36 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
 void destroy_outputs(struct outputs *ops){
     free(ops->data);
     free(ops);
+}
+
+struct pattern_trie *init_pattern_trie(size_t trie_capacity, size_t outputs_capacity){
+    struct pattern_trie *pt = malloc(sizeof(struct pattern_trie));
+    if (pt == NULL){
+        return NULL;
+    }
+    pt->t = init_trie(trie_capacity);
+    if (pt->t == NULL){
+        free(pt);
+        return NULL;
+    }
+    if (!put_first_level(pt->t)){
+        free(pt->t);
+        free(pt);
+        return NULL;
+    }
+    pt->ops = init_outputs(outputs_capacity);
+    if (pt->ops == NULL){
+        free(pt->t);
+        free(pt);
+        return NULL;
+    }
+    return pt;
+}
+
+void destroy_pattern_trie(struct pattern_trie *pt){
+    destroy_trie(pt->t);
+    destroy_outputs(pt->ops);
+    free(pt);
 }
 
 @* Translate file parsing.
@@ -976,11 +995,41 @@ bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
     return true;
 }
 
+struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity){
+    struct count_trie *ct = malloc(sizeof(struct count_trie));
+    if (ct == NULL){
+        return NULL;
+    }
+    ct->t = init_trie(trie_capacity);
+    if (ct->t == NULL){
+        free(ct);
+        return NULL;
+    }
+    if (!put_first_level(ct->t)){
+        free(ct->t);
+        free(ct);
+        return NULL;
+    }
+    ct->cnts = init_pattern_counts(counts_capacity);
+    if (ct->cnts == NULL){
+        free(ct->t);
+        free(ct);
+        return NULL;
+    }
+    return ct;
+}
+
+void destroy_count_trie(struct count_trie *ct){
+    destroy_trie(ct->t);
+    destroy_pattern_counts(ct->cnts);
+    free(ct);
+}
+
 bool is_utf_start_byte(uint8_t byte){
     return (byte & 0xc0) != 0x80;
 }
 
-bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outputs *ops, struct params *params, struct pattern_counts *pc, size_t *level_pattern_cnt){
+bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, size_t *level_pattern_cnt){
     double bad_eff = (double) params->thresh / (double) params->good_wt;
     struct pass_stats ps = {
         .good_pat_cnt = 0,
@@ -989,7 +1038,7 @@ bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outpu
         .bad_cnt = 0,
         .more_to_come = false
     };
-    if (!traverse_count_trie(counts, patterns, params, &ps, ops, pc)){
+    if (!traverse_count_trie(ct, pt, params, &ps)){
         return false;
     }
     printf("%zu good and %zu bad patterns added", ps.good_pat_cnt, ps.bad_pat_cnt);
@@ -1005,7 +1054,7 @@ bool collect_count_trie(struct trie *counts, struct trie *patterns, struct outpu
     } else {
         printf("\n");
     }
-    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", patterns->occupied, patterns->node_max, ops->count);
+    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
     return true;
 }
 
@@ -1070,7 +1119,7 @@ void set_top_value(struct stack *s, size_t value){
     s->data[s->top - 1] = value;
 }
 
-bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct params *params, struct pass_stats *ps, struct outputs *ops, struct pattern_counts *pc) {
+bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps) {
     size_t root = 1;
     size_t current_len = 0;
     uint8_t c;
@@ -1102,26 +1151,26 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
         }
         pattern->data[pattern->size - 1] += 1;
         node = root + c;
-        if ((uint8_t) get_node(counts, node) != c){
+        if ((uint8_t) get_node(ct->t, node) != c){
             continue;
         }
         if (is_utf_start_byte((uint8_t) c)){
             if (current_len >= params->pat_len){
-                if ((counts_index = get_aux(counts, node)) == 0){
+                if ((counts_index = get_aux(ct->t, node)) == 0){
                     continue;
                 }
                 size_t op_index;
-                size_t good = get_good(pc, counts_index);
-                size_t bad = get_bad(pc, counts_index);
+                size_t good = get_good(ct->cnts, counts_index);
+                size_t bad = get_bad(ct->cnts, counts_index);
                 if (params->good_wt * good < params->thresh){
-                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, BAD_OP_VALUE, params->pat_dot)){
+                    if (!insert_pattern(pt->t, pattern->data, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
                         destroy_buffer(pattern);
                         destroy_stack(s_base);
                         return false;
                     }
                     ps->bad_pat_cnt++;
                 } else if (params->good_wt * good - params->bad_wt * bad >= params->thresh) {
-                    if (!insert_pattern(patterns, pattern->data, &op_index) || !set_output(patterns, op_index, ops, params->hyph_level, params->pat_dot)){
+                    if (!insert_pattern(pt->t, pattern->data, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
                         destroy_buffer(pattern);
                         destroy_stack(s_base);
                         return false;
@@ -1137,7 +1186,7 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
                 current_len++;
             }
         }
-        root = get_link(counts, root + c);
+        root = get_link(ct->t, root + c);
         if (root == 0){
             continue;
         }
@@ -1152,7 +1201,7 @@ bool traverse_count_trie(struct trie *counts, struct trie *patterns, struct para
     return true;
 }
 
-bool delete_patterns(struct trie *t, struct outputs *ops){
+bool delete_patterns(struct pattern_trie *pt){
     size_t root = 1;
     struct stack *s_base = init_stack(16);
     if (s_base == NULL){
@@ -1181,7 +1230,7 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
         offset = get_top_value(s_offset);
         if (offset == 255){
             if (get_top_value(s_freed) == (size_t) true){
-                if (!set_base_used(t, root + offset, false)){
+                if (!set_base_used(pt->t, root + offset, false)){
                     destroy_stack(s_base);
                     destroy_stack(s_offset);
                     destroy_stack(s_freed);
@@ -1195,20 +1244,20 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
         }
         set_top_value(s_offset, get_top_value(s_offset) + 1);
         node = root + offset;
-        if ((uint8_t) get_node(t, node) != offset){
+        if ((uint8_t) get_node(pt->t, node) != offset){
             continue;
         }
         if (is_utf_start_byte((uint8_t) offset)){
-            if (!link_around_bad_outputs(ops, t, node)){
+            if (!link_around_bad_outputs(pt, node)){
                 destroy_stack(s_base);
                 destroy_stack(s_offset);
                 destroy_stack(s_freed);
                 return false;
             }
-            if (get_link(t, node) > 0 || get_aux(t, node) > 0 || root == 1){
+            if (get_link(pt->t, node) > 0 || get_aux(pt->t, node) > 0 || root == 1){
                 set_top_value(s_freed, (size_t) false);
             } else {
-                if (!deallocate_node(t, node)){
+                if (!deallocate_node(pt->t, node)){
                     destroy_stack(s_base);
                     destroy_stack(s_offset);
                     destroy_stack(s_freed);
@@ -1216,7 +1265,7 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
                 }
             }
         }
-        root = get_link(t, node);
+        root = get_link(pt->t, node);
         if (root == 0){
             continue;
         }
@@ -1233,20 +1282,20 @@ bool delete_patterns(struct trie *t, struct outputs *ops){
     return true;
 }
 
-bool link_around_bad_outputs(struct outputs *ops, struct trie *t, size_t t_index){
-    size_t op_index = get_aux(t, t_index);
+bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
+    size_t op_index = get_aux(pt->t, t_index);
     size_t h = 0;
-    ops->data[0].next_op_index = op_index;
-    size_t n = ops->data[0].next_op_index;
+    pt->ops->data[0].next_op_index = op_index;
+    size_t n = pt->ops->data[0].next_op_index;
     while (n > 0){
-        if (ops->data[n].value == BAD_OP_VALUE){
-            ops->data[h].next_op_index = ops->data[n].next_op_index;
+        if (pt->ops->data[n].value == BAD_OP_VALUE){
+            pt->ops->data[h].next_op_index = pt->ops->data[n].next_op_index;
         } else {
             h = n;
         }
-        n = ops->data[h].next_op_index;
+        n = pt->ops->data[h].next_op_index;
     }
-    if (!set_aux(t, t_index, ops->data[0].next_op_index)){
+    if (!set_aux(pt->t, t_index, pt->ops->data[0].next_op_index)){
         return false;
     }
     return true;
@@ -1260,23 +1309,23 @@ bool deallocate_node(struct trie *t, size_t t_index){
     return true;
 }
 
-bool delete_bad_patterns(struct trie *t, struct outputs *ops){
-    size_t old_op_cnt = ops->count;
-    size_t old_trie_cnt = t->occupied;
-    if (!delete_patterns(t, ops)){
+bool delete_bad_patterns(struct pattern_trie *pt){
+    size_t old_op_cnt = pt->ops->count;
+    size_t old_trie_cnt = pt->t->occupied;
+    if (!delete_patterns(pt)){
         return false;
     }
-    for (size_t h = 1; h <= ops->capacity; h++){
-        if (ops->data[h].value == BAD_OP_VALUE){
-            ops->data[h].value = EMPTY_OP_VALUE;
-            ops->count--;
+    for (size_t h = 1; h <= pt->ops->capacity; h++){
+        if (pt->ops->data[h].value == BAD_OP_VALUE){
+            pt->ops->data[h].value = EMPTY_OP_VALUE;
+            pt->ops->count--;
         }
     }
-    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - t->occupied, old_op_cnt - ops->count);
+    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
     return true;
 }
 
-bool output_patterns(struct trie *t, struct outputs *ops, FILE *pattern_file){
+bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
     size_t root = 1;
     uint8_t c;
     struct string_buffer *pattern = init_buffer(16);
@@ -1307,13 +1356,13 @@ bool output_patterns(struct trie *t, struct outputs *ops, FILE *pattern_file){
         }
         pattern->data[pattern->size - 1] += 1;
         node = root + c;
-        if ((uint8_t) get_node(t, node) != c){
+        if ((uint8_t) get_node(pt->t, node) != c){
             continue;
         }
         if (is_utf_start_byte((uint8_t) c)){
-            output_pattern(pattern, ops, get_aux(t, node), pattern_file);
+            output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
         }
-        root = get_link(t, root + c);
+        root = get_link(pt->t, root + c);
         if (root == 0){
             continue;
         }
@@ -1455,7 +1504,7 @@ bool is_ascii_number(char c){
     return c >= '0' && c <= '9';
 }
 
-bool hyphenate_word(struct string_buffer *word, struct trie *t, struct outputs *ops, struct params *params, struct string_buffer *out_found_hyphens, bool *no_more){
+bool hyphenate_word(struct string_buffer *word, struct pattern_trie *pt, struct params *params, struct string_buffer *out_found_hyphens, bool *no_more){
     bool *new_no_more = realloc(no_more, word->size * sizeof(bool));
     if (new_no_more == NULL){
         return false;
@@ -1474,18 +1523,18 @@ bool hyphenate_word(struct string_buffer *word, struct trie *t, struct outputs *
         }
         current_len = 1;
         t_index = 1 + (uint8_t) word->data[i];
-        op_index = get_aux(t, t_index);
-        process_outputs(ops, op_index, i, current_len, no_more, params, out_found_hyphens);
+        op_index = get_aux(pt->t, t_index);
+        process_outputs(pt->ops, op_index, i, current_len, no_more, params, out_found_hyphens);
         for (size_t j = i+1; j < word->size; j++) {
-            t_index = get_link(t, t_index) + word->data[j];
-            if (get_node(t, t_index) != word->data[j]){
+            t_index = get_link(pt->t, t_index) + word->data[j];
+            if (get_node(pt->t, t_index) != word->data[j]){
                 break;
             }
             if (is_utf_start_byte(word->data[j])) {
                 current_len++;
             }
-            op_index = get_aux(t, t_index);
-            process_outputs(ops, op_index, i, current_len, no_more, params, out_found_hyphens);
+            op_index = get_aux(pt->t, t_index);
+            process_outputs(pt->ops, op_index, i, current_len, no_more, params, out_found_hyphens);
         }
     }
     return true;
@@ -1571,7 +1620,7 @@ void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct sta
     fputc('\n', pattmp);
 }
 
-bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *no_more, struct trie *counts, struct pattern_counts *pc, struct params *params){
+bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *no_more, struct count_trie *ct, struct params *params){
     size_t end_index, dot_index, weight, node;
     bool good_pattern;
     enum hyphen_class hyf;
@@ -1597,15 +1646,14 @@ bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *
         if (!end_of_pattern(word, params->pat_len, start_index, &end_index)){
             continue;
         }
-        if (!insert_substring(counts, word->data, end_index, end_index - start_index, &node)){
+        if (!insert_substring(ct->t, word->data, end_index, end_index - start_index, &node)){
             return false;
         }
-        counts->pattern_count++;
         weight = true_hyphens->data[dot_index] / 4;
         if (good_pattern){
-            pc->good[node] += weight;
+            ct->cnts->good[node] += weight;
         } else {
-            pc->bad[node] += weight;
+            ct->cnts->bad[node] += weight;
         }
     }
     return true;
@@ -1721,20 +1769,18 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
     struct stack *true_hyphens;
     struct string_buffer *word;
     bool *no_more;
-    struct trie *t;
-    struct outputs *ops;
+    struct pattern_trie *pt;
     struct string_buffer *found_hyphens;
     struct pass_stats *ps;
     FILE *pattmp;
-    struct trie *counts;
-    struct pattern_counts *pc;
+    struct count_trie *ct;
 
     if (!read_line(dictionary, buf)){
         destroy_buffer(buf);
         return false;
     }
     while (!buf->eof){
-        if (!parse_word(buf, tt, params, true_hyphens, word) || !hyphenate_word(word, t, ops, params, found_hyphens, no_more)){
+        if (!parse_word(buf, tt, params, true_hyphens, word) || !hyphenate_word(word, pt, params, found_hyphens, no_more)){
             // destroy
         }
         count_dots(true_hyphens, found_hyphens, ps);
@@ -1742,7 +1788,7 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
             output_hyphenated_word(pattmp, word, true_hyphens, found_hyphens, params);
         }
         if (process){
-            if (!process_word(word, true_hyphens, no_more, counts, pc, params)){
+            if (!process_word(word, true_hyphens, no_more, ct, params)){
                 // destroy
             }
         }

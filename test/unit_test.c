@@ -94,25 +94,15 @@ void print_trie(struct trie *t) {
 
 void test_trie() {
     printf("\n---- Trie Test ----\n");
-    struct trie *t = init_trie(4);
-    if (t == NULL) {
-        return;
-    }
-
-    if (!put_first_level(t)){
-        destroy_trie(t);
+    struct pattern_trie *pt = init_pattern_trie(4, 2);
+    if (pt == NULL) {
         return;
     }
 
     const char *patterns[] = {"test", "tea", "text"};
     size_t op_index;
-    struct outputs *ops = init_outputs(2);
-    if (ops == NULL) {
-        destroy_trie(t);
-        return;
-    }
     for (size_t i = 0; i < 2; i++){
-        if (insert_pattern(t, patterns[i], &op_index) && set_output(t, op_index, ops, (uint8_t)(i+1), i + 1)) {
+        if (insert_pattern(pt->t, patterns[i], &op_index) && set_output(pt, op_index, (uint8_t)(i+1), i + 1)) {
             printf("Pattern '%s' inserted successfully.\n", patterns[i]);
         } else {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
@@ -120,7 +110,7 @@ void test_trie() {
     }
     struct output retrieved_op;
     for (size_t i = 0; i < 3; i++){
-        retrieved_op = get_pattern_output(t, ops, patterns[i]);
+        retrieved_op = get_pattern_output(pt, patterns[i]);
         if (retrieved_op.value != EMPTY_OP_VALUE) {
             printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n", patterns[i], retrieved_op.value, retrieved_op.position);
         } else {
@@ -128,8 +118,7 @@ void test_trie() {
         }
     }
     
-    destroy_outputs(ops);
-    destroy_trie(t);
+    destroy_pattern_trie(pt);
 }
 
 void test_read_letters() {
@@ -283,20 +272,8 @@ void test_hyphenate_word(){
     struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-'};
     struct string_buffer *word = mock_buffer("\xfftesting\xff");
 
-    struct trie *t = init_trie(256);
-    if (t == NULL){
-        destroy_buffer(word);
-        return;
-    }
-    if (!put_first_level(t)){
-        destroy_trie(t);
-        destroy_buffer(word);
-        return;
-    }
-
-    struct outputs *ops = init_outputs(2);
-    if (ops == NULL){
-        destroy_trie(t);
+    struct pattern_trie *pt = init_pattern_trie(256, 2);
+    if (pt == NULL){
         destroy_buffer(word);
         return;
     }
@@ -306,9 +283,8 @@ void test_hyphenate_word(){
     uint8_t values[4] = {2, 1, 2, 3};
     size_t index;
     for (size_t i = 0; i < 4; i++) {
-        if (!insert_pattern(t, patterns[i], &index) || index == 0 || !set_output(t, index, ops, values[i], positions[i])){
-            destroy_trie(t);
-            destroy_outputs(ops);
+        if (!insert_pattern(pt->t, patterns[i], &index) || index == 0 || !set_output(pt, index, values[i], positions[i])){
+            destroy_pattern_trie(pt);
             destroy_buffer(word);
             return;
         }
@@ -317,16 +293,14 @@ void test_hyphenate_word(){
 
     bool *no_more = malloc(10 * sizeof(bool));
     if (no_more == NULL){
-        destroy_trie(t);
-        destroy_outputs(ops);
+        destroy_pattern_trie(pt);
         destroy_buffer(word);
         return;
     }
 
     struct string_buffer *out_hyphens = mock_buffer("xxxxxxxxxx");
-    if (!hyphenate_word(word, t, ops, &params, out_hyphens, no_more)){
-        destroy_trie(t);
-        destroy_outputs(ops);
+    if (!hyphenate_word(word, pt, &params, out_hyphens, no_more)){
+        destroy_pattern_trie(pt);
         free(no_more);
         destroy_buffer(out_hyphens);
         destroy_buffer(word);
@@ -335,8 +309,7 @@ void test_hyphenate_word(){
 
     struct stack *true_hyphens = init_stack(9);
     if (true_hyphens == NULL){
-        destroy_trie(t);
-        destroy_outputs(ops);
+        destroy_pattern_trie(pt);
         free(no_more);
         destroy_buffer(out_hyphens);
         destroy_buffer(word);
@@ -345,8 +318,7 @@ void test_hyphenate_word(){
     size_t data[] = {0,4,2,2,3,2,2,0};
     for (size_t i = 0; i < 8; i++){
         if (!put_on_stack(true_hyphens, data[i])){
-            destroy_trie(t);
-            destroy_outputs(ops);
+            destroy_pattern_trie(pt);
             destroy_stack(true_hyphens);
             free(no_more);
             destroy_buffer(out_hyphens);
@@ -357,8 +329,7 @@ void test_hyphenate_word(){
 
     printf("Hyphenated word: ");
     output_hyphenated_word(stdout, word, true_hyphens, out_hyphens, &params);
-    destroy_trie(t);
-    destroy_outputs(ops);
+    destroy_pattern_trie(pt);
     free(no_more);
     destroy_buffer(out_hyphens);
     destroy_buffer(word);
