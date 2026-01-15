@@ -173,6 +173,34 @@ bool put_on_stack(struct stack *s, size_t value);
 size_t get_top_value(struct stack *s);
 void set_top_value(struct stack *s, size_t value);
 
+struct word {
+    size_t capacity;
+    size_t length;
+    char *lowercase;
+    size_t *true_hyphens;
+    uint8_t *found_hyphens;
+    bool *no_more;
+};
+
+struct word *init_word(size_t capacity);
+struct word *resize_word(struct word *word, size_t new_capacity);
+void reset_word(struct word *word);
+void destroy_word(struct word *word);
+
+bool append_char_to_word(struct word *word, char c);
+bool append_string_to_word(struct word *word, char *s, size_t length);
+
+char get_char(struct word *word, size_t index);
+
+size_t get_true_hyphen(struct word *word, size_t index);
+bool set_true_hyphen(struct word *word, size_t index, size_t value);
+
+uint8_t get_found_hyphen(struct word *word, size_t index);
+bool set_found_hyphen(struct word *word, size_t index, uint8_t value);
+
+bool get_no_more(struct word *word, size_t index);
+bool set_no_more(struct word *word, size_t index, bool value);
+
 #ifndef BAD_OP_VALUE
 #define BAD_OP_VALUE (size_t) SIZE_MAX
 #endif
@@ -216,17 +244,21 @@ char *get_lower(struct translate_table *tt, const char *letter);
 #define EDGE_OF_WORD (char) 0xff
 #endif
 
-bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, bool process, bool hyphenate);
 bool is_ascii_number(char c);
-bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct stack *out_true_hyphens, struct string_buffer *out_word);
+bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word);
 
-bool hyphenate_word(struct string_buffer *word, struct pattern_trie *pt, struct params *params, struct string_buffer *out_found_hyphens, bool *no_more);
-void count_dots(struct stack *true_hyphens, struct string_buffer *found_hyphens, struct pass_stats *ps);
-void output_hyphenated_word(FILE *pattmp, struct string_buffer *word, struct stack *true_hyphens, struct string_buffer *found_hyphens, struct params *params);
-void process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, bool *no_more, struct params *params, struct string_buffer *out_found_hyphens);
+bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
+void count_dots(struct word *word, struct pass_stats *ps);
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
+bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, struct word *word, struct params *params);
 
-bool process_word(struct string_buffer *word, struct stack *true_hyphens, bool *no_more, struct count_trie *ct, struct params *params);
-bool end_of_pattern(struct string_buffer *word, size_t pattern_len, size_t start_index, size_t *out_end_index);
+bool process_word(struct word *word, struct count_trie *ct, struct params *params);
+bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, size_t *out_end_index);
+
+bool process_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
+bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
+bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
+bool hyphenate_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp);
 
 bool parse_input(int argc, char *argv[], struct params *params);
 void generate_patterns();
