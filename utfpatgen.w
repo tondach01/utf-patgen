@@ -1829,115 +1829,132 @@ bool process_dictionary(FILE *dictionary, struct params *params, struct translat
     ps->bad_cnt = 0;
     ps->miss_cnt = 0;
     params->word_weight = 1;
-    struct trie *counts = NULL;
-    struct pattern_counts *pc = NULL;
-    FILE *pattmp = NULL;
-    char *filename = NULL;
-    // prepare to read dictionary
-    if (process){
-        if (params->hyph_level % 2 == 1){
-            params->good_dot = MISS_HYF;
-            params->bad_dot = NO_HYF;
-        } else {
-            params->good_dot = BAD_HYF;
-            params->bad_dot = GOOD_HYF;
-        }
-        counts = init_trie(256);
-        if (counts == NULL){
-            return false;
-        }
-        if (!put_first_level(counts)){
-            destroy_trie(counts);
-            return false;
-        }
-        pc = init_pattern_counts(256);
-        if (pc == NULL) {
-            destroy_trie(counts);
-            return false;
-        }
-        printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
+    if (params->hyph_level % 2 == 1){
+        params->good_dot = MISS_HYF;
+        params->bad_dot = NO_HYF;
+    } else {
+        params->good_dot = BAD_HYF;
+        params->bad_dot = GOOD_HYF;
     }
-    if (hyphenate){
-        filename = malloc(11 * sizeof(char));
-        if (filename == NULL){
-            if (counts != NULL){
-                destroy_trie(counts);
-            }
-            if (pc != NULL){
-                destroy_pattern_counts(pc);
-            }
-            return false;
-        }
-        sprintf(filename, "pattmp.%u", params->hyph_level);
-        pattmp = fopen(filename, "w");
-        if (pattmp == NULL){
-            if (counts != NULL){
-                destroy_trie(counts);
-            }
-            if (pc != NULL){
-                destroy_pattern_counts(pc);
-            }
-            free(filename);
-            return false;
-        }
-        printf("writing %s\n", filename);
-        free(filename);
+    struct count_trie *ct = init_count_trie(256, 256);
+    if (ct == NULL){
+        return false;
     }
-    // process words
+    printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
+    if (!process_all_words(dictionary, params, tt, pt, ps, ct)){
+        destroy_count_trie(ct);
+        return false;
+    }
     printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
     if (ps->good_cnt + ps->miss_cnt > 0){
         printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->good_cnt/ (float) (ps->bad_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
     }
-    if (process){
-        printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", counts->pattern_count, counts->occupied, counts->node_max);
-    }
-    if (counts != NULL){
-        destroy_trie(counts);
-    }
-    if (pc != NULL) {
-        destroy_pattern_counts(pc);
-    }
-    if (pattmp != NULL) {
-        fclose(pattmp);
-    }
+    printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
+    destroy_count_trie(ct);
+    return true;
 }
 
-bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, bool process, bool hyphenate){
+bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL){
         return false;
     }
-    struct stack *true_hyphens;
-    struct string_buffer *word;
-    bool *no_more;
-    struct pattern_trie *pt;
-    struct string_buffer *found_hyphens;
-    struct pass_stats *ps;
-    FILE *pattmp;
-    struct count_trie *ct;
-
-    if (!read_line(dictionary, buf)){
+    struct word *word = init_word(16);
+    if (word == NULL){
         destroy_buffer(buf);
         return false;
     }
+
+    if (!read_line(dictionary, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
     while (!buf->eof){
-        if (!parse_word(buf, tt, params, true_hyphens, word) || !hyphenate_word(word, pt, params, found_hyphens, no_more)){
-            // destroy
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
         }
-        count_dots(true_hyphens, found_hyphens, ps);
-        if (hyphenate){
-            output_hyphenated_word(pattmp, word, true_hyphens, found_hyphens, params);
-        }
-        if (process){
-            if (!process_word(word, true_hyphens, no_more, ct, params)){
-                // destroy
-            }
+        count_dots(word, ps);
+        if (!process_word(word, ct, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
         }
         if (!read_line(dictionary, buf)){
             destroy_buffer(buf);
+            destroy_word(word);
             return false;
         }
     }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
+}
+
+bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+    ps->good_cnt = 0;
+    ps->bad_cnt = 0;
+    ps->miss_cnt = 0;
+    params->word_weight = 1;
+     char *filename = malloc(11 * sizeof(char));
+    if (filename == NULL){
+        return false;
+    }
+    sprintf(filename, "pattmp.%u", params->hyph_level);
+    FILE *pattmp = fopen(filename, "w");
+    if (pattmp == NULL){
+        free(filename);
+        return false;
+    }
+    printf("writing %s\n", filename);
+    free(filename);
+    if (!hyphenate_all_words(dictionary, params, tt, pt, ps, pattmp)){
+        fclose(pattmp);
+        return false;
+    }
+    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
+    if (ps->good_cnt + ps->miss_cnt > 0){
+        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->good_cnt/ (float) (ps->bad_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
+    }
+    fclose(pattmp);
+    return true;
+}
+
+bool hyphenate_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL){
+        return false;
+    }
+    struct word *word = init_word(16);
+    if (word == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+
+    if (!read_line(dictionary, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
+    while (!buf->eof){
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+        count_dots(word, ps);
+        output_hyphenated_word(pattmp, word, params);
+        if (!read_line(dictionary, buf)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
 }
 
 @* Index.
