@@ -310,6 +310,67 @@ void test_hyphenate_word(){
     destroy_word(word);
 }
 
+void test_patterns(){
+    printf("\n---- Patterns Test ----\n");
+    struct string_buffer *buf = mock_buffer("\x65\x73\xfe\x10\x74\xff");
+    if (buf == NULL){
+        return;
+    }
+    struct translate_table * tt = init_tr_table(256, 256);
+    if (tt == NULL){
+        destroy_buffer(buf);
+        return;
+    }
+    if (!default_ascii_mapping(tt)){
+        destroy_tr_table(tt);
+        destroy_buffer(buf);
+        return;
+    }
+    printf("Default mapping inserted succesfully.\n");
+    struct pattern *pat = init_pattern(16);
+    if (pat == NULL){
+        destroy_tr_table(tt);
+        destroy_buffer(buf);
+        return;
+    }
+    struct pattern_trie *pt = init_pattern_trie(256, 2);
+    if (pt == NULL){
+        destroy_pattern(pat);
+        destroy_tr_table(tt);
+        destroy_buffer(buf); 
+        return;
+    }
+
+    if (!parse_pattern(buf, pat, tt)){
+        destroy_pattern_trie(pt);
+        destroy_pattern(pat);
+        destroy_tr_table(tt);
+        destroy_buffer(buf); 
+        return;   
+    }
+    printf("Pattern %s parsed.\n", buf->data);
+    struct pass_stats ps = {};
+    if (!insert_new_pattern(pat, pt, &ps)){
+        destroy_pattern_trie(pt);
+        destroy_pattern(pat);
+        destroy_tr_table(tt);
+        destroy_buffer(buf); 
+        return;
+    }
+    printf("Pattern inserted successfully.\n");
+    struct output retrieved_op = get_pattern_output(pt, pat->text);
+    if (retrieved_op.value != EMPTY_OP_VALUE) {
+        printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n", pat->text, retrieved_op.value, retrieved_op.position);
+    } else {
+        printf("No output found for pattern '%s'.\n", pat->text);
+    }
+
+    destroy_pattern_trie(pt);
+    destroy_pattern(pat);
+    destroy_tr_table(tt);
+    destroy_buffer(buf);
+}
+
 int main(void) {
     test_read_line();
     test_parse_header();
@@ -318,5 +379,6 @@ int main(void) {
     test_read_translate();
     test_parse_word();
     test_hyphenate_word();
+    test_patterns();
     return 0;
 }
