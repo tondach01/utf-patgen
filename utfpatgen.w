@@ -707,7 +707,7 @@ struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
 
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(pt, value, position, 0, &op_index) || !set_aux(pt->t, node, op_index)) {
+    if (!new_trie_output(pt, value, position, get_aux(pt->t, node), &op_index) || !set_aux(pt->t, node, op_index)) {
         return false;
     }
     return true;
