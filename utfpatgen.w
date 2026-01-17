@@ -1212,7 +1212,7 @@ bool append_string_to_word(struct word *word, char *s, size_t length){
             return false;
         }
     }
-    strcpy(word->lowercase + word->length, s);
+    strcpy(&word->lowercase[word->length], s);
     word->length += length;
     return true;
 }
