@@ -145,6 +145,8 @@ struct pass_stats {
     size_t good_cnt;
     size_t bad_cnt;
     size_t miss_cnt;
+    size_t level_pattern_cnt;
+    uint8_t max_level;
     bool more_to_come;
 };
 
@@ -209,7 +211,7 @@ bool set_no_more(struct word *word, size_t index, bool value);
 #define EMPTY_OP_VALUE (size_t) 0
 #endif
 bool is_utf_start_byte(uint8_t byte);
-bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, size_t *level_pattern_cnt);
+bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 
 bool delete_bad_patterns(struct pattern_trie *pt);
