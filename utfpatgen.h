@@ -262,6 +262,33 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
 bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
 bool hyphenate_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp);
 
+struct pattern {
+    size_t capacity;
+    size_t length;
+    char *text;
+    uint8_t *hyphens;
+};
+
+#ifndef HYPHEN_FLAG
+// not used in UTF-8
+#define HYPHEN_FLAG (char) 0xfe
+#endif
+
+struct pattern *init_pattern(size_t capacity);
+struct pattern *resize_pattern(struct pattern *pat, size_t new_capacity);
+void reset_pattern(struct pattern *pat);
+void destroy_pattern(struct pattern *pat);
+
+bool append_char_to_pattern(struct pattern *pat, char c);
+bool append_string_to_pattern(struct pattern *pat, char *s, size_t length);
+
+uint8_t get_hyphen(struct pattern *pat, size_t index);
+bool set_hyphen(struct pattern *pat, size_t index, uint8_t value);
+
+bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps);
+bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt);
+bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps);
+
 bool parse_input(int argc, char *argv[], struct params *params);
 void generate_patterns();
 void clean(); // if necessary

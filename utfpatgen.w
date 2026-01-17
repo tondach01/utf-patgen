@@ -1971,6 +1971,236 @@ bool hyphenate_all_words(FILE *dictionary, struct params *params, struct transla
     return true;
 }
 
+struct pattern *init_pattern(size_t capacity){
+    struct pattern *pat = malloc(sizeof(struct pattern));
+    if(pat == NULL){
+        return NULL;
+    }
+    pat->text = calloc(capacity, sizeof(char));
+    if(pat->text == NULL){
+        free(pat);
+        return NULL;
+    }
+    pat->hyphens = calloc(capacity, sizeof(uint8_t));
+    if(pat->hyphens == NULL){
+        free(pat->text);
+        free(pat);
+        return NULL;
+    }
+
+    pat->length = 0;
+    pat->capacity = capacity;
+    return pat;
+}
+
+struct pattern *resize_pattern(struct pattern *pat, size_t new_capacity){
+    char* new_text = realloc(pat->text, new_capacity*sizeof(char));
+    uint8_t* new_hyphens= realloc(pat->hyphens, new_capacity*sizeof(uint8_t));
+
+    if (new_text == NULL || new_hyphens == NULL){
+        fprintf(stderr,"Allocation error\n");
+        return NULL;
+    }
+
+    pat->text= new_text;
+    pat->hyphens= new_hyphens;
+
+    memset(pat->text + pat->capacity, '\0', (new_capacity - pat->capacity)*sizeof(char));
+    memset(pat->hyphens + pat->capacity, 0, (new_capacity - pat->capacity)*sizeof(uint8_t));
+
+    pat->capacity= new_capacity;
+    return pat;
+}
+
+void reset_pattern(struct pattern *pat){
+    pat->length = 0;
+    memset(pat->text, '\0', pat->capacity * sizeof(char));
+    memset(pat->hyphens, 0, pat->capacity * sizeof(uint8_t));
+}
+
+void destroy_pattern(struct pattern *pat){
+    free(pat->text);
+    free(pat->hyphens);
+    free(pat);
+}
+
+bool append_char_to_pattern(struct pattern *pat, char c){
+    if(pat->length >= pat->capacity - 1){
+        if(!resize_pattern(pat, 2*pat->capacity)){
+            return false;
+        }
+    }
+    pat->text[pat->length]= c;
+    pat->length++;
+    return true;
+}
+
+bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
+    if(pat->length >= pat->capacity - length){
+        if(!resize_pattern(pat, 2*(pat->capacity + length))){
+            return false;
+        }
+    }
+    strcpy(&pat->text[pat->length], s);
+    pat->length += length;
+    return true;
+}
+
+uint8_t get_hyphen(struct pattern *pat, size_t index){
+    if (index >= pat->capacity){
+        return 0;
+    }
+    return pat->hyphens[index];
+}
+
+bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
+    if (index >= pat->capacity){
+        return false;
+    }
+    pat->hyphens[index] = value;
+    return true;
+}
+
+bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
+    ps->level_pattern_cnt = 0;
+    ps->max_level = 0;
+    struct string_buffer *buf = init_buffer(16);
+    if (buf == NULL){
+        return false;
+    }
+    struct pattern *pat = init_pattern(16);
+    if (pat == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+    if (!read_line(pattern_file, buf)){
+        destroy_pattern(pat);
+        destroy_buffer(buf);
+        return false;
+    }
+    while (!buf->eof){
+        ps->level_pattern_cnt++;
+        if (!parse_pattern(buf, pat, tt)){
+            destroy_pattern(pat);
+            destroy_buffer(buf);
+            return false;
+        }
+        // insert pattern
+        if (!read_line(pattern_file, buf)){
+            destroy_pattern(pat);
+            destroy_buffer(buf);
+            return false;
+        }
+    }
+    printf("%zu patterns read in\n", ps->level_pattern_cnt);
+    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
+    destroy_pattern(pat);
+    destroy_buffer(buf);
+    return true;
+}
+
+bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
+    reset_pattern(out_pattern);
+    char c;
+    char *lower;
+    bool next_hyphen = false;
+    struct string_buffer *letter = init_buffer(4);
+    if (letter == NULL){
+        return false;
+    }
+    for (size_t i = 0; i < buf->size; i++) {
+        c = buf->data[i];
+        if (c == EDGE_OF_WORD && i != 0 && i != buf->size - 1){
+            fprintf(stderr, "Edge of word found inside a pattern.\n");
+            destroy_buffer(letter);
+            return false;
+        }
+        if (next_hyphen){
+            if (!set_hyphen(out_pattern, out_pattern->length, (uint8_t) c)){
+                destroy_buffer(letter);
+                return false;
+            }
+            next_hyphen = false;
+            continue;
+        }
+        if (is_utf_start_byte(c) && letter->size > 0){
+            if (!append_char(letter, '\0')){
+                destroy_buffer(letter);
+                return false;
+            }
+            lower = get_lower(tt, letter->data);
+            if (lower == 0){
+                fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
+                destroy_buffer(letter);
+                return false;
+            }
+            if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+                destroy_buffer(letter);
+                return false;
+            }
+            reset_buffer(letter);
+        }
+        if (c == HYPHEN_FLAG){
+            next_hyphen = true;
+        } else if (!append_char(letter, c)){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    if (next_hyphen){
+        if (!set_hyphen(out_pattern, out_pattern->length, (uint8_t) c)){
+            destroy_buffer(letter);
+            return false;
+        }
+    } else if (letter->size > 0){
+        if (!append_char(letter, '\0')){
+            destroy_buffer(letter);
+            return false;
+        }
+        lower = get_lower(tt, letter->data);
+        if (lower == 0){
+            fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
+            destroy_buffer(letter);
+            return false;
+        }
+        if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    destroy_buffer(letter);
+    return true;
+}
+
+bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps){
+    size_t hyphenation_value, node;
+    size_t current_len = 0;
+    if (!insert_pattern(pt->t, pat->text, &node)){
+        return false;
+    }
+    for (size_t i = 0; i < pat->length; i++){
+        hyphenation_value = get_hyphen(pat, i);
+        if (hyphenation_value != 0){
+            if (!set_output(pt, node, hyphenation_value, current_len)){
+                return false;
+            }
+            if (hyphenation_value > ps->max_level){
+                ps->max_level = hyphenation_value;
+            }
+        }
+        if (is_utf_start_byte(pat->text[i])){
+            current_len++;
+        }
+    }
+    hyphenation_value = get_hyphen(pat, pat->length);
+    if (hyphenation_value > 0){
+        if (!set_output(pt, node, hyphenation_value, current_len)){
+            return false;
+        }
+    }
+    return true;
+}
+
 @* Index.
 Automatically generates the list of used identifiers
 \end{document}
