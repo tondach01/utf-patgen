@@ -281,6 +281,10 @@ bool default_ascii_mapping(struct translate_table *tt){
             return false;
         }
     }
+    alphabet_index = tt->alphabet->size;
+    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'}, 2)) {
+        return false;
+    }
     return true;
 }
 
