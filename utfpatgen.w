@@ -362,27 +362,39 @@ bool put_first_level(struct trie *t){
 
 struct trie *resize_trie(struct trie *t, size_t new_capacity){
     void *new_nodes = realloc(t->nodes, new_capacity * sizeof(char));
-    size_t *new_links = realloc(t->links, new_capacity * sizeof(size_t));
-    size_t *new_aux = realloc(t->aux, new_capacity * sizeof(size_t));
-    char *new_taken = realloc(t->taken, (new_capacity / 8 + 1) * sizeof(char));
-
-    if (new_nodes == NULL || new_links == NULL || new_aux == NULL || new_taken == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
+    if (new_nodes == NULL) {
+        fputs("Allocation error\n", stderr); return NULL;
     }
-
     t->nodes = new_nodes;
-    t->links = new_links;
+    
+    size_t *new_links = realloc(t->links, new_capacity * sizeof(size_t));
+    if (new_links == NULL) {
+        fputs("Allocation error\n", stderr); return NULL;
+    }
+    t->links = new_links; 
+
+    size_t *new_aux = realloc(t->aux, new_capacity * sizeof(size_t));
+    if (new_aux == NULL) {
+        fputs("Allocation error\n", stderr); return NULL;
+    }
     t->aux = new_aux;
+
+    size_t old_taken_bytes = (t->capacity / 8) + 1;
+    size_t new_taken_bytes = (new_capacity / 8) + 1;
+    char *new_taken = realloc(t->taken, new_taken_bytes * sizeof(char));
+    if (new_taken == NULL) {
+        fputs("Allocation error\n", stderr); return NULL;
+    }
     t->taken = new_taken;
 
+    if (new_taken_bytes > old_taken_bytes) {
+        memset(t->taken + old_taken_bytes, 0, (new_taken_bytes - old_taken_bytes));
+    }
     memset(t->nodes + t->capacity, 0, (new_capacity - t->capacity) * sizeof(char));
     memset(t->links + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
     memset(t->aux + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
-    memset(t->taken + ((t->capacity / 8) + 1), 0, ((new_capacity - t->capacity) / 8) * sizeof(char));
 
     t->capacity = new_capacity;
-
     return t;
 }
 
