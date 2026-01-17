@@ -466,7 +466,7 @@ bool get_base_used(struct trie *t, size_t index){
 
 bool set_base_used(struct trie *t, size_t index, bool used){
     if (index >= t->capacity) {
-        if (resize_trie(t, index) == NULL) {
+        if (resize_trie(t, index + 1) == NULL) {
             return false;
         }
     }
