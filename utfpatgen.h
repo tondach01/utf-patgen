@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef UTFPATGEN_VERSION
+#define UTFPATGEN_VERSION "0.1"
+#endif
+
 struct trie {
     size_t capacity;
     size_t occupied;
@@ -289,6 +293,8 @@ bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt);
 bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps);
 
-bool parse_input(int argc, char *argv[], struct params *params);
+bool parse_input(char *argv[], int argc, struct params *params);
+void print_help();
+void print_version();
 void generate_patterns();
 void clean(); // if necessary

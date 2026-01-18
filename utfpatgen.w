@@ -12,21 +12,40 @@ This is \texttt{utf-patgen} - reimplementation of the classic \texttt{patgen} pr
 
 # ifndef TEST
 int main(int argc, char *argv[]) {
-    @<Greetings@>;
-    return 0;
+    @<Initialization sequence@>;
+    return EXIT_SUCCESS;
 }
 # endif
 
 @* Implementation.
+Main body of the program.
 
 @<Library includes@>=
 #include "utfpatgen.h"
 #include <string.h>
 
-@ Demo code.
+@ Initialization sequence
+Parse the passed parameters and store them into program internal structure.
 
-@<Greetings@>=
-printf("Hello world, it works!\n");
+@<Initialization sequence@>=
+struct params *params = init_params();
+if (params == NULL){
+    return EXIT_FAILURE;
+}
+for (size_t i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            print_help();
+            return EXIT_SUCCESS;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return EXIT_SUCCESS;
+        }
+    }
+print_version();
+if (!parse_input(argv, argc, params)){
+    free(params);
+    return EXIT_FAILURE;
+}
 
 @* Requirements.
 To ensure that the new implementation behaves in similar manner to the old one, we should specify desired behavior.
@@ -2199,6 +2218,27 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
         }
     }
     return true;
+}
+
+bool parse_input(char *argv[], int argc, struct params *params){
+    if (argc != 5){
+        fprintf(stderr, "UTF-patgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
+        return false;
+    }
+    // TODO
+    return true;
+}
+
+void print_help(){
+    printf("Usage: utfpatgen [OPTION]... DICTIONARY PATTERNS OUTPUT TRANSLATE\n");
+    printf("\tGenerate the OUTPUT hyphenation file for use with TeX\n");
+    printf("\tfrom the DICTIONARY, PATTERNS, and TRANSLATE files.\n");
+    printf("\n--help        print this help and exit\n");
+    printf("--version     output version information and exit\n");
+}
+
+void print_version(){
+    printf("This is UTF-patgen version %s\n", UTFPATGEN_VERSION);
 }
 
 @* Index.
