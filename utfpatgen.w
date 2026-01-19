@@ -12,7 +12,19 @@ This is \texttt{utf-patgen} - reimplementation of the classic \texttt{patgen} pr
 
 # ifndef TEST
 int main(int argc, char *argv[]) {
+    for (size_t i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            print_help();
+            return EXIT_SUCCESS;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return EXIT_SUCCESS;
+        }
+    }
+    print_version();
     @<Initialization sequence@>;
+    @<Level range specification@>;
+    @<Pattern generation@>;
     return EXIT_SUCCESS;
 }
 # endif
@@ -32,20 +44,97 @@ struct params *params = init_params();
 if (params == NULL){
     return EXIT_FAILURE;
 }
-for (size_t i = 0; i < argc; i++) {
-        if (strcmp(argv[i], "--help") == 0) {
-            print_help();
-            return EXIT_SUCCESS;
-        } else if (strcmp(argv[i], "--version") == 0) {
-            print_version();
-            return EXIT_SUCCESS;
-        }
-    }
-print_version();
 if (!parse_input(argv, argc, params)){
-    free(params);
+    destroy_params(params);
     return EXIT_FAILURE;
 }
+struct translate_table *tt = init_tr_table(256, 128);
+if (tt == NULL){
+    destroy_params(params);
+    return EXIT_FAILURE;
+}
+if (!read_translate(params, tt)){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    return EXIT_FAILURE;
+}
+struct pattern_trie *pt = init_pattern_trie(256, 128);
+if (pt == NULL){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    return EXIT_FAILURE;
+}
+struct pass_stats ps = {};
+if (!read_patterns(params, pt, tt, &ps)){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    destroy_pattern_trie(pt);
+    return EXIT_FAILURE;
+}
+
+@ Level range specification
+Read the values for hyphenation level range from standard input, parse them, and feed in if acceptable.
+
+@<Level range specification@>=
+printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
+size_t hyph_start, hyph_finish;
+while (true){
+    if (scanf("%zu %zu", &hyph_start, &hyph_finish) < 2 || hyph_start < 1 || hyph_start > 254 || hyph_finish < 1 || hyph_finish > 254){
+        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
+    } else {
+        break;
+    }
+}
+params->hyph_start = (uint8_t) hyph_start;
+if (hyph_start > hyph_finish){
+    params->hyph_finish = ps.max_level;
+    printf("Warning: hyph_start > hyph_finish, using hyph_finish = %u\n", ps.max_level);
+} else {
+    params->hyph_finish = (uint8_t) hyph_finish;
+}
+
+@ Pattern generation
+Run the algorithm for every level in specified range. Read and parse hyperparameters and proceed to the generation itself.
+
+@<Pattern generation@>=
+size_t pat_start, pat_finish, good_wt, bad_wt, thresh;
+for (params->hyph_level = params->hyph_start; params->hyph_level <= params->hyph_finish; params->hyph_level++){
+    ps.level_pattern_cnt = 0;
+    if (params->hyph_level > params->hyph_start) {
+        printf("\n");
+    }
+    if (params->hyph_start <= ps.max_level) {
+        printf("Warning: Largest hyphenation value %u in patterns should be less than hyph_start\n", ps.max_level);
+    }
+    @<Hyperparameters input@>;
+}
+
+@ Hyperparamters input
+Read and parse the level-specific hyper parameters pat_start, pat_finish, good_wt, bad_wt, thresh.
+
+@<Hyperparameters input@>=
+printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
+while (true){
+    if (scanf("%zu %zu", &pat_start, &pat_finish) < 2 || pat_start < 1 || pat_finish < 1 || pat_start > pat_finish || pat_start > 255 || pat_finish > 255){
+        printf("Error: Specify 1 <= pat_start <= pat_finish <= 255! Insert again: ");
+    } else {
+        break;
+    }
+}
+params->pat_start = (uint8_t) pat_start;
+params->pat_finish = (uint8_t) pat_finish;
+
+printf("good_wt (good -), bad_wt (bad pattern weight), threshold: ");
+while (true){
+    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 0){
+        printf("Error: Specify 1 <= good_wt, bad_wt, threshold <= 255! Insert again: ");
+    } else {
+        break;
+    }
+}
+params->good_wt = (uint8_t) good_wt;
+params->bad_wt = (uint8_t) bad_wt;
+params->thresh = (uint8_t) thresh;
 
 @* Requirements.
 To ensure that the new implementation behaves in similar manner to the old one, we should specify desired behavior.
@@ -858,6 +947,11 @@ struct params *init_params(){
     p->good_hyphen = '*';
 
     p->word_weight = 1;
+
+    p->dictionary_file = NULL;
+    p->pattern_file = NULL;
+    p->output_file = NULL;
+    p->translate_file = NULL;
     return p;
 }
 
@@ -870,6 +964,18 @@ void reset_params(struct params *p){
 }
 
 void destroy_params(struct params *p){
+    if (p->dictionary_file != NULL){
+        fclose(p->dictionary_file);
+    }
+    if (p->pattern_file != NULL){
+        fclose(p->pattern_file);
+    }
+    if (p->output_file != NULL){
+        fclose(p->output_file);
+    }
+    if (p->translate_file != NULL){
+        fclose(p->translate_file);
+    }
     free(p);
 }
 
@@ -2225,7 +2331,36 @@ bool parse_input(char *argv[], int argc, struct params *params){
         fprintf(stderr, "UTF-patgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
         return false;
     }
-    // TODO
+    FILE *dictionary_file = fopen(argv[1], "rb");
+    if (dictionary_file == NULL){
+        fprintf(stderr, "Could not open dictionary file '%s'.\n", argv[1]);
+        return false;
+    }
+    FILE *pattern_file = fopen(argv[2], "rb");
+    if (pattern_file == NULL){
+        fprintf(stderr, "Could not open pattern file '%s'.\n", argv[2]);
+        fclose(dictionary_file);
+        return false;
+    }
+    FILE *output_file = fopen(argv[3], "wb");
+    if (output_file == NULL){
+        fprintf(stderr, "Could not open output file '%s'.\n", argv[3]);
+        fclose(dictionary_file);
+        fclose(pattern_file);
+        return false;
+    }
+    FILE *translate_file = fopen(argv[4], "rb");
+    if (translate_file == NULL){
+        fprintf(stderr, "Could not open translate file '%s'.\n", argv[4]);
+        fclose(dictionary_file);
+        fclose(pattern_file);
+        fclose(output_file);
+        return false;
+    }
+    params->dictionary_file = dictionary_file;
+    params->pattern_file = pattern_file;
+    params->output_file = output_file;
+    params->translate_file = translate_file;
     return true;
 }
 
