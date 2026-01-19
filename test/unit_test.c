@@ -175,22 +175,21 @@ void test_read_translate() {
         fclose(file);
         return;
     }
+    params->translate_file = file;
 
     struct translate_table *tt = init_tr_table(16, 16);
     if (tt == NULL){
         destroy_params(params);
-        fclose(file);
         return;
     }
     if (!default_ascii_mapping(tt)) {
         destroy_tr_table(tt);
         destroy_params(params);
-        fclose(file);
         return;
     }
     printf("Default mapping loaded successfully.\n");
 
-    if (read_translate(file, params, tt)) {
+    if (read_translate(params, tt)) {
         printf("Translate file read successfully.\n");
     } else {
         printf("Failed to read translate file.\n");
@@ -208,7 +207,6 @@ void test_read_translate() {
 
     destroy_tr_table(tt);
     destroy_params(params);
-    fclose(file);
 }
 
 void test_parse_word() {
