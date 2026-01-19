@@ -907,12 +907,13 @@ void destroy_tr_table(struct translate_table *tt){
     free(tt);
 }
 
-bool read_translate(FILE *translate, struct params *params, struct translate_table *tt){
+bool read_translate(struct params *params, struct translate_table *tt){
+    rewind(params->translate_file);
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL) {
         return false;
     }
-    if (!read_line(translate, buf)) {
+    if (!read_line(params->translate_file, buf)) {
         destroy_buffer(buf);
         return false;
     }
@@ -931,7 +932,7 @@ bool read_translate(FILE *translate, struct params *params, struct translate_tab
         }
         first_line = false;
         reset_buffer(buf);
-        if (!read_line(translate, buf)) {
+        if (!read_line(params->translate_file, buf)) {
             destroy_buffer(buf);
             return false;
         }
@@ -2080,7 +2081,7 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
     return true;
 }
 
-bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
+bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
     ps->level_pattern_cnt = 0;
     ps->max_level = 0;
     struct string_buffer *buf = init_buffer(16);
@@ -2092,20 +2093,19 @@ bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate
         destroy_buffer(buf);
         return false;
     }
-    if (!read_line(pattern_file, buf)){
+    if (!read_line(params->pattern_file, buf)){
         destroy_pattern(pat);
         destroy_buffer(buf);
         return false;
     }
     while (!buf->eof){
         ps->level_pattern_cnt++;
-        if (!parse_pattern(buf, pat, tt)){
+        if (!parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps)){
             destroy_pattern(pat);
             destroy_buffer(buf);
             return false;
         }
-        // insert pattern
-        if (!read_line(pattern_file, buf)){
+        if (!read_line(params->pattern_file, buf)){
             destroy_pattern(pat);
             destroy_buffer(buf);
             return false;

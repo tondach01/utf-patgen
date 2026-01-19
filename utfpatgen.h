@@ -125,6 +125,10 @@ struct params {
     uint8_t hyph_start;
     uint8_t hyph_finish;
     uint8_t word_weight;
+    FILE *dictionary_file;
+    FILE *pattern_file;
+    FILE *output_file;
+    FILE *translate_file;
     // level specific
     uint8_t hyph_level;
     uint8_t pat_start;
@@ -239,7 +243,7 @@ struct translate_table {
 struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity);
 void destroy_tr_table(struct translate_table *tt);
 
-bool read_translate(FILE *translate, struct params *params, struct translate_table *tt);
+bool read_translate(struct params *params, struct translate_table *tt);
 bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt);
 bool default_ascii_mapping(struct translate_table *tt);
@@ -289,7 +293,7 @@ bool append_string_to_pattern(struct pattern *pat, char *s, size_t length);
 uint8_t get_hyphen(struct pattern *pat, size_t index);
 bool set_hyphen(struct pattern *pat, size_t index, uint8_t value);
 
-bool read_patterns(FILE *pattern_file, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps);
+bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps);
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt);
 bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps);
 
