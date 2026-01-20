@@ -1964,7 +1964,7 @@ bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, s
     return false;
 }
 
-bool process_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
     ps->good_cnt = 0;
     ps->bad_cnt = 0;
     ps->miss_cnt = 0;
@@ -1981,7 +1981,7 @@ bool process_dictionary(FILE *dictionary, struct params *params, struct translat
         return false;
     }
     printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
-    if (!process_all_words(dictionary, params, tt, pt, ps, ct)){
+    if (!process_all_words(params, tt, pt, ps, ct)){
         destroy_count_trie(ct);
         return false;
     }
@@ -1990,11 +1990,16 @@ bool process_dictionary(FILE *dictionary, struct params *params, struct translat
         printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->good_cnt/ (float) (ps->bad_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
     }
     printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
+    if (!collect_count_trie(ct, pt, params, ps)){
+        destroy_count_trie(ct);
+        return false;
+    }
     destroy_count_trie(ct);
     return true;
 }
 
-bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
+bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
+    rewind(params->dictionary_file);
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL){
         return false;
@@ -2005,7 +2010,7 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
         return false;
     }
 
-    if (!read_line(dictionary, buf)){
+    if (!read_line(params->dictionary_file, buf)){
         destroy_buffer(buf);
         destroy_word(word);
         return false;
@@ -2022,7 +2027,7 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
             destroy_word(word);
             return false;
         }
-        if (!read_line(dictionary, buf)){
+        if (!read_line(params->dictionary_file, buf)){
             destroy_buffer(buf);
             destroy_word(word);
             return false;
@@ -2033,7 +2038,7 @@ bool process_all_words(FILE *dictionary, struct params *params, struct translate
     return true;
 }
 
-bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
     ps->good_cnt = 0;
     ps->bad_cnt = 0;
     ps->miss_cnt = 0;
@@ -2050,7 +2055,7 @@ bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct transl
     }
     printf("writing %s\n", filename);
     free(filename);
-    if (!hyphenate_all_words(dictionary, params, tt, pt, ps, pattmp)){
+    if (!hyphenate_all_words(params, tt, pt, ps, pattmp)){
         fclose(pattmp);
         return false;
     }
@@ -2062,7 +2067,8 @@ bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct transl
     return true;
 }
 
-bool hyphenate_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
+bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
+    rewind(params->dictionary_file);
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL){
         return false;
@@ -2073,7 +2079,7 @@ bool hyphenate_all_words(FILE *dictionary, struct params *params, struct transla
         return false;
     }
 
-    if (!read_line(dictionary, buf)){
+    if (!read_line(params->dictionary_file, buf)){
         destroy_buffer(buf);
         destroy_word(word);
         return false;
@@ -2086,7 +2092,7 @@ bool hyphenate_all_words(FILE *dictionary, struct params *params, struct transla
         }
         count_dots(word, ps);
         output_hyphenated_word(pattmp, word, params);
-        if (!read_line(dictionary, buf)){
+        if (!read_line(params->dictionary_file, buf)){
             destroy_buffer(buf);
             destroy_word(word);
             return false;

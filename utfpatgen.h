@@ -265,10 +265,10 @@ bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t
 bool process_word(struct word *word, struct count_trie *ct, struct params *params);
 bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, size_t *out_end_index);
 
-bool process_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
-bool process_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
-bool hyphenate_dictionary(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
-bool hyphenate_all_words(FILE *dictionary, struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp);
+bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
+bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
+bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
+bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp);
 
 struct pattern {
     size_t capacity;
