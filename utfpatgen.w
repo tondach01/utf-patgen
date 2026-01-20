@@ -25,6 +25,10 @@ int main(int argc, char *argv[]) {
     @<Initialization sequence@>;
     @<Level range specification@>;
     @<Pattern generation@>;
+    @<Final pass@>;
+    destroy_params(params);
+    destroy_tr_table(tt);
+    destroy_pattern_trie(pt);
     return EXIT_SUCCESS;
 }
 # endif
@@ -107,6 +111,20 @@ for (params->hyph_level = params->hyph_start; params->hyph_level <= params->hyph
         printf("Warning: Largest hyphenation value %u in patterns should be less than hyph_start\n", ps.max_level);
     }
     @<Hyperparameters input@>;
+    @<Level generation@>;
+    if (!delete_bad_patterns(pt)){
+        destroy_params(params);
+        destroy_tr_table(tt);
+        destroy_pattern_trie(pt);
+        return EXIT_FAILURE;
+    }
+}
+printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);
+if (!output_patterns(pt, params->output_file)){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    destroy_pattern_trie(pt);
+    return EXIT_FAILURE;
 }
 
 @ Hyperparamters input
@@ -135,6 +153,61 @@ while (true){
 params->good_wt = (uint8_t) good_wt;
 params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
+
+@ Level generation
+Do single pass through the dictionary.
+
+@<Level generation@>=
+uint8_t aux_dot;
+bool more_this_level[256];
+for (size_t i = 0; i < 256; i++){
+    more_this_level[i] = true;
+}
+for (params->pat_len = params->pat_start; params->pat_len <= params->pat_finish; params->pat_len++) {
+    params->pat_dot = params->pat_len / 2;
+    aux_dot = params->pat_dot * 2;
+    while (params->pat_dot != params->pat_len) {
+        params->pat_dot = aux_dot - params->pat_dot;
+        aux_dot = params->pat_len * 2 - 1;
+        if (more_this_level[params->pat_dot]){
+            if (!process_dictionary(params, tt, pt, &ps)){
+                destroy_params(params);
+                destroy_tr_table(tt);
+                destroy_pattern_trie(pt);
+                return EXIT_FAILURE;
+            }
+            more_this_level[params->pat_dot] = ps.more_to_come;
+        }
+    }
+    for (size_t i = 255; i > 0; i--){
+        if (!more_this_level[i-1]){
+            more_this_level[i] = false;
+        }
+    }
+}
+
+
+@ Final pass
+If the user wants, distionary is tranversed one last time and hyphenated according to found patterns. The output is stored in file 'pattmp.X'.
+
+@<Final pass@>=
+char c;
+printf("hyphenate word list? (y/n): ");
+if (scanf("%c%*s", &c) < 1){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    destroy_pattern_trie(pt);
+    return EXIT_FAILURE;
+}
+if (c == 'y' || c == 'Y'){
+    if (!hyphenate_dictionary(params, tt, pt, &ps)){
+        destroy_params(params);
+        destroy_tr_table(tt);
+        destroy_pattern_trie(pt);
+        return EXIT_FAILURE;
+    }
+}
+
 
 @* Requirements.
 To ensure that the new implementation behaves in similar manner to the old one, we should specify desired behavior.
