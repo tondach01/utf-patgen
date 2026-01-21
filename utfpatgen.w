@@ -144,7 +144,7 @@ params->pat_finish = (uint8_t) pat_finish;
 
 printf("good_wt (good -), bad_wt (bad pattern weight), threshold: ");
 while (true){
-    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 0){
+    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 255){
         printf("Error: Specify 1 <= good_wt, bad_wt, threshold <= 255! Insert again: ");
     } else {
         break;
@@ -290,6 +290,7 @@ Reads a line from the given stream into the provided string buffer. Returns true
 
 @c
 bool read_line(FILE *stream, struct string_buffer *buf){
+    reset_buffer(buf);
     char c;
     while ((c = fgetc(stream)) != EOF) {
         if (buf->size >= buf->capacity - 1) {
@@ -950,21 +951,22 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
         fputs("Allocation error\n", stderr);
         return NULL;
     }
+    struct output *old_data = ops->data;
+    ops->data = new_data;
     ops->capacity = capacity;
     for (size_t i = 0; i < t->capacity; i++) {
         if (is_node_occupied(t, i) && get_aux(t, i) != 0) {
             size_t old_index = get_aux(t, i);
-            struct output old_op = ops->data[old_index];
-            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index);
-            new_data[new_index] = old_op;
+            struct output old_op = old_data[old_index];
+            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index); // !!! old_op_index is invalid
+            ops->data[new_index] = old_op;
             if (!set_aux(t, i, new_index)){
-                free(new_data);
+                free(old_data);
                 return NULL;
             }
         }
     }
-    free(ops->data);
-    ops->data = new_data;
+    free(old_data);
     return ops;
 }
 
@@ -1147,17 +1149,18 @@ struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t n
     size_t *new_good = realloc(pc->good, new_capacity * sizeof(size_t));
     if (new_good == NULL){
         fprintf(stderr, "Allocation error\n");
-        destroy_pattern_counts(pc);
         return NULL;
     }
     pc->good = new_good;
     size_t *new_bad = realloc(pc->bad, new_capacity * sizeof(size_t));
-    if (new_good == NULL){
+    if (new_bad == NULL){
         fprintf(stderr, "Allocation error\n");
-        destroy_pattern_counts(pc);
         return NULL;
     }
     pc->bad = new_bad;
+    size_t diff = new_capacity - pc->capacity;
+    memset(pc->good + pc->capacity, 0, diff * sizeof(size_t));
+    memset(pc->bad + pc->capacity, 0, diff * sizeof(size_t));
     pc->capacity = new_capacity;
     return pc;
 }
@@ -1844,6 +1847,10 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
             destroy_buffer(letter);
             return false;
         }
+    }
+    if (!append_char(letter, '\0')){
+        destroy_buffer(letter);
+        return false;
     }
     lower = get_lower(tt, letter->data);
     if (lower == NULL) {
