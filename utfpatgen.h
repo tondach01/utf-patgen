@@ -21,6 +21,7 @@ struct trie {
 
 struct trie *init_trie(size_t capacity);
 struct trie *resize_trie(struct trie *t, size_t new_capacity);
+void relink_trie(struct trie *t);
 void destroy_trie(struct trie *t);
 
 bool put_first_level(struct trie *t);

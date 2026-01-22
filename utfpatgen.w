@@ -521,6 +521,7 @@ struct trie *init_trie(size_t capacity){
     t->base_max = 0;
     t->occupied = 0;
     t->pattern_count = 0;
+    relink_trie(t);
     
     return t;
 }
@@ -529,8 +530,8 @@ bool put_first_level(struct trie *t){
     size_t root = 1;
     size_t n_bytes = 256;
     size_t last_byte = 255;
-    for (size_t i = 0; i <= last_byte; i++) {
-        if (!set_node(t, root + i, (uint8_t) i)){
+    for (size_t i = 1; i <= last_byte; i++) {
+        if (!set_node(t, root + i, (uint8_t) i) || !set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
             return false;
         }
     }
@@ -577,10 +578,8 @@ struct trie *resize_trie(struct trie *t, size_t new_capacity){
         memset(t->taken + old_taken_bytes, 0, (new_taken_bytes - old_taken_bytes));
     }
     memset(t->nodes + t->capacity, 0, (new_capacity - t->capacity) * sizeof(char));
-    memset(t->links + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
-    memset(t->aux + t->capacity, 0, (new_capacity - t->capacity) * sizeof(size_t));
-
     t->capacity = new_capacity;
+    relink_trie(t);
     return t;
 }
 
@@ -590,6 +589,17 @@ void destroy_trie(struct trie *t){
     free(t->aux);
     free(t->taken);
     free(t);
+}
+
+void relink_trie(struct trie *t){
+    size_t last_free = 0;
+    for (size_t node = 2; node < t->capacity; node++){
+        if (!is_node_occupied(t, node)) {
+            set_links(t, last_free, node);
+            last_free = node;
+        }
+    }
+    set_links(t, last_free, 0);
 }
 
 char get_node(struct trie *t, size_t index){
@@ -737,10 +747,11 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) get_node(q, q_index);
-        if (!set_links(t, get_aux(t, t_index), get_link(t, t_index)) || !copy_node(q, q_index, t, t_index)) {
+        if (/*!set_links(t, get_aux(t, t_index), get_link(t, t_index)) ||*/ !copy_node(q, q_index, t, t_index)) {
             return false;
         }
     }
+    relink_trie(t);
     if (!set_base_used(t, base, true)){
         return false;
     }
@@ -750,15 +761,16 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
 
 bool unpack(struct trie *from, size_t base, struct trie *to){
     to->node_max = 1;
-    for (size_t i = 0; i < 256; i++){
+    for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) get_node(from, from_index) == i) {
-            if (!copy_node(from, from_index, to, to->node_max) || !set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index) || !set_node(from, from_index, 0)) {
+            if (!copy_node(from, from_index, to, to->node_max) /*|| !set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index)*/ || !set_node(from, from_index, 0)) {
                 return false;
             }
             to->node_max++;
         }
     }
+    relink_trie(from);
     if (!set_base_used(from, base, false)) {
         return false;
     }
@@ -1593,7 +1605,7 @@ bool delete_patterns(struct pattern_trie *pt){
         destroy_stack(s_offset);
         return false;
     }
-    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 1) || !put_on_stack(s_freed, (size_t) true)){
         destroy_stack(s_base);
         destroy_stack(s_offset);
         destroy_stack(s_freed);
@@ -1644,7 +1656,7 @@ bool delete_patterns(struct pattern_trie *pt){
         if (root == 0){
             continue;
         }
-        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 1) || !put_on_stack(s_freed, (size_t) true)){
             destroy_stack(s_base);
             destroy_stack(s_offset);
             destroy_stack(s_freed);
@@ -1677,7 +1689,7 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
 }
 
 bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, '\0')){
+    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
         return false;
     }
     t->occupied--;
