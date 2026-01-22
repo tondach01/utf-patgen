@@ -2023,6 +2023,14 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
             return false;
         }
+        if (node >= ct->cnts->capacity) {
+            size_t new_capacity = ct->t->capacity;
+            if (new_capacity <= node) new_capacity = node + 1;
+            
+            if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
+                return false;
+            }
+        }
         weight = get_true_hyphen(word, dot_index) / 4;
         if (good_pattern){
             ct->cnts->good[node] += weight;
