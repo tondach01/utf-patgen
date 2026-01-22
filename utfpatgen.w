@@ -1385,27 +1385,28 @@ struct word *init_word(size_t capacity){
 
 struct word *resize_word(struct word *word, size_t new_capacity){
     char *new_lowercase = realloc(word->lowercase, new_capacity * sizeof(char));
+    if (new_lowercase == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->lowercase = new_lowercase; // UPDATE IMMEDIATELY
+
     size_t *new_true_hyphens = realloc(word->true_hyphens, new_capacity * sizeof(size_t));
+    if (new_true_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->true_hyphens = new_true_hyphens; // UPDATE IMMEDIATELY
+
     uint8_t *new_found_hyphens = realloc(word->found_hyphens, new_capacity * sizeof(uint8_t));
+    if (new_found_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->found_hyphens = new_found_hyphens; // UPDATE IMMEDIATELY
+
     bool *new_no_more = realloc(word->no_more, new_capacity * sizeof(bool));
+    if (new_no_more == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->no_more = new_no_more; // UPDATE IMMEDIATELY
 
-    if (new_lowercase == NULL || new_true_hyphens == NULL || new_found_hyphens == NULL || new_no_more == NULL) {
-        fprintf(stderr, "Allocation error\n");
-        return NULL;
-    }
-
-    word->lowercase = new_lowercase;
-    word->true_hyphens = new_true_hyphens;
-    word->found_hyphens = new_found_hyphens;
-    word->no_more = new_no_more;
-
-    memset(word->lowercase + word->capacity, '\0', (new_capacity - word->capacity) * sizeof(char));
-    memset(word->true_hyphens + word->capacity, 0, (new_capacity - word->capacity) * sizeof(size_t));
-    memset(word->found_hyphens + word->capacity, 0, (new_capacity - word->capacity) * sizeof(uint8_t));
-    memset(word->no_more + word->capacity, false, new_capacity - word->capacity * sizeof(bool));
+    size_t diff = new_capacity - word->capacity;
+    memset(word->lowercase + word->capacity, '\0', diff * sizeof(char));
+    memset(word->true_hyphens + word->capacity, 0, diff * sizeof(size_t));
+    memset(word->found_hyphens + word->capacity, 0, diff * sizeof(uint8_t));
+    memset(word->no_more + word->capacity, false, diff * sizeof(bool));
 
     word->capacity = new_capacity;
-
     return word;
 }
 
