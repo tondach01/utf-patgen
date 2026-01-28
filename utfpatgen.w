@@ -1550,7 +1550,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         return false;
     }
 
-    size_t counts_index, node;
+    size_t node, utf_bytes_to_end = 0;
     while (s_base->top > 0){
         root = get_top_value(s_base);
         c = (uint8_t) pattern->data[pattern->size - 1];
@@ -1558,6 +1558,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             pattern->data[pattern->size - 1] = '\0';
             pattern->size--;
             s_base->top--;
+            current_len--;
             continue;
         }
         pattern->data[pattern->size - 1] += 1;
@@ -1565,40 +1566,52 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         if ((uint8_t) get_node(ct->t, node) != c){
             continue;
         }
-        if (is_utf_start_byte((uint8_t) c)){
-            if (current_len >= params->pat_len){
-                if ((counts_index = get_aux(ct->t, node)) == 0){
-                    continue;
-                }
-                size_t op_index;
-                size_t good = get_good(ct->cnts, counts_index);
-                size_t bad = get_bad(ct->cnts, counts_index);
-                if (params->good_wt * good < params->thresh){
-                    if (!insert_pattern(pt->t, pattern->data, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
-                        destroy_buffer(pattern);
-                        destroy_stack(s_base);
-                        return false;
-                    }
-                    ps->bad_pat_cnt++;
-                } else if (params->good_wt * good - params->bad_wt * bad >= params->thresh) {
-                    if (!insert_pattern(pt->t, pattern->data, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
-                        destroy_buffer(pattern);
-                        destroy_stack(s_base);
-                        return false;
-                    }
-                    ps->good_pat_cnt++;
-                    ps->good_cnt += good;
-                    ps->bad_cnt += bad;
-                } else {
-                    ps->more_to_come = true;
+        if (is_utf_start_byte(c)) {
+            current_len++;
+            utf_bytes_to_end = n_utf_following_bytes((uint8_t) c);
+        } else {
+            utf_bytes_to_end -= 1;
+        }
+        if (current_len == params->pat_len && utf_bytes_to_end == 0){
+            size_t op_index;
+            size_t good = get_good(ct->cnts, node);
+            size_t bad = get_bad(ct->cnts, node);
+            if (good == 0 && bad == 0) {
+                if (is_utf_start_byte(c)) {
+                    current_len--;
                 }
                 continue;
-            } else {
-                current_len++;
             }
+            if (params->good_wt * good < params->thresh){
+                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
+                    destroy_buffer(pattern);
+                    destroy_stack(s_base);
+                    return false;
+                }
+                ps->bad_pat_cnt++;
+            } else if (params->good_wt * good >= params->thresh + params->bad_wt * bad) {
+                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
+                    destroy_buffer(pattern);
+                    destroy_stack(s_base);
+                    return false;
+                }
+                ps->good_pat_cnt++;
+                ps->good_cnt += good;
+                ps->bad_cnt += bad;
+            } else {
+                ps->more_to_come = true;
+            }
+            if (is_utf_start_byte(c)) {
+                current_len--;
+            }
+            continue;
         }
-        root = get_link(ct->t, root + c);
+        
+        root = get_link(ct->t, node);
         if (root == 0){
+            if (is_utf_start_byte(c)) {
+                current_len--;
+            }
             continue;
         }
         if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
@@ -1909,51 +1922,65 @@ bool is_ascii_number(char c){
 }
 
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
-    size_t t_index, op_index, current_len;
-    for (size_t i = 0; i < word->length - 1; i++){
-        if (!is_utf_start_byte(get_char(word, i))){
-            continue;
+    size_t current_index = word->size;
+    size_t current_pos = word->length;
+    size_t node, base, dot_index, end_index, op_index, dot_pos, end_pos;
+    struct output op;
+    if (word->length < params->right_hyphen_min + 1){ // no hyphenation needed
+        return true;
+    }
+    size_t start_pos = word->length - params->right_hyphen_min - 1;
+    for (size_t i = 0; i < word->length - params->right_hyphen_min - 1; i++) {
+        start_pos--;
+        while (current_pos > start_pos) {
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))) {
+                current_pos--;
+            }
         }
-        current_len = 1;
-        t_index = 1 + (uint8_t) get_char(word, i);
-        op_index = get_aux(pt->t, t_index);
-        if (!process_outputs(pt->ops, op_index, i, current_len, word, params)){
-            return false;
-        }
-        for (size_t j = i+1; j < word->length; j++) {
-            t_index = get_link(pt->t, t_index) + (uint8_t) get_char(word, j);
-            if (get_node(pt->t, t_index) != get_char(word, j)){
+        end_index = current_index;
+        end_pos = 0;
+        node = 1 + get_char(word, current_index);
+        while (get_node(pt->t, node) == get_char(word, end_index)){
+            if (is_utf_start_byte(get_char(word, end_index))){
+                end_pos++;
+            }
+            op_index = get_aux(pt->t, node);
+            while (op_index > 0){
+                if (op_index > pt->ops->capacity){
+                    fprintf(stderr, "Output index %zu out of bounds\n", op_index);
+                    return false;
+                }
+                op = pt->ops->data[op_index];
+                dot_pos = start_pos;
+                dot_index = current_index - 1; // the should be no pattern starting with . and position == 0
+                while (dot_pos < start_pos + op.position){
+                    if (is_utf_start_byte(get_char(word, current_index))){
+                        dot_pos++;
+                    }
+                    dot_index++;
+                }
+                if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
+                    if (!set_found_hyphen(word, dot_index, op.value)){
+                        return false;
+                    }
+                }
+                if (op.value >= params->hyph_level){
+                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
+                        if (!set_no_more(word, dot_index, true)){
+                            return false;
+                        }
+                    }
+                }
+                op_index = op.next_op_index;
+            }
+            base = get_link(pt->t, node);
+            if (base == 0){
                 break;
             }
-            if (is_utf_start_byte(get_char(word, j))) {
-                current_len++;
-            }
-            op_index = get_aux(pt->t, t_index);
-            if (!process_outputs(pt->ops, op_index, i, current_len, word, params)){
-                return false;
-            }
+            end_index++;
+            node = base + (uint8_t) get_char(word, end_index);
         }
-    }
-    return true;
-}
-
-bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, struct word *word, struct params *params){
-    size_t dot_index;
-    struct output op;
-    while (op_index > 0){
-        op = ops->data[op_index];
-        dot_index = op.position + offset - 1;
-        if (op.value < BAD_OP_VALUE && op.value > get_found_hyphen(word, dot_index)){
-            if (!set_found_hyphen(word, dot_index, op.value)){
-                return false;
-            }
-        }
-        if (op.value >= params->hyph_level && current_len < params->pat_len){
-            if (!set_no_more(word, dot_index, true)){
-                return false;
-            }
-        }
-        op_index = op.next_op_index;
     }
     return true;
 }
@@ -2034,17 +2061,43 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
 }
 
 bool process_word(struct word *word, struct count_trie *ct, struct params *params){
-    size_t end_index, dot_index, weight, node;
+    uint8_t dot_min = params->pat_dot;
+    uint8_t dot_max = params->pat_len - params->pat_dot;
+    if (dot_min < params->left_hyphen_min + 1){
+        dot_min = params->left_hyphen_min + 1;
+    }
+    if (dot_max < params->right_hyphen_min + 1){
+        dot_max = params->right_hyphen_min + 1;
+    }
+    size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight;
+    size_t current_pos = word->length;
+    size_t current_index = word->size;
     bool good_pattern;
     enum hyphen_class hyf;
-    for (size_t start_index = 0; start_index < word->length - 1; start_index++){
-        if (!is_utf_start_byte(get_char(word, start_index))){
-            continue;
+    for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
+        while (current_pos > dot_pos){
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))){
+                current_pos--;
+            }
         }
-        if (!end_of_pattern(word, params->pat_dot, start_index, &dot_index) || dot_index == 0){
-            continue;
+        dot_index = current_index - 1;
+        start_pos = dot_pos;
+        start_index = current_index;
+        while (start_pos > dot_pos - params->pat_dot){
+            start_index--;
+            if (is_utf_start_byte(get_char(word, start_index))){
+                start_pos--;
+            }
         }
-        dot_index--;
+        end_pos = dot_pos;
+        end_index = current_index;
+        while (end_pos < start_pos + params->pat_len){
+            end_index++;
+            if (is_utf_start_byte(get_char(word, end_index))){
+                end_pos++;
+            }
+        }
         if (get_no_more(word, dot_index)){
             continue;
         }
@@ -2056,16 +2109,11 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         } else {
             continue;
         }
-        if (!end_of_pattern(word, params->pat_len, start_index, &end_index)){
-            continue;
-        }
         if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
             return false;
         }
         if (node >= ct->cnts->capacity) {
             size_t new_capacity = ct->t->capacity;
-            if (new_capacity <= node) new_capacity = node + 1;
-            
             if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
                 return false;
             }

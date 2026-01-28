@@ -221,6 +221,7 @@ bool set_no_more(struct word *word, size_t index, bool value);
 #define EMPTY_OP_VALUE (size_t) 0
 #endif
 bool is_utf_start_byte(uint8_t byte);
+uint8_t n_utf_following_bytes(uint8_t c);
 bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 
