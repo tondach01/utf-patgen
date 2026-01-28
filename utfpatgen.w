@@ -1567,10 +1567,11 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         pattern->data[pattern->size - 1] += 1;
         c = (uint8_t) pattern->data[pattern->size - 1];
         if (c == 0){ // overflow, is this safe?
-            pattern->data[pattern->size - 1] = '\0';
             pattern->size--;
             s_base->top--;
-            current_len--;
+            if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
+                current_len--;
+            }
             continue;
         }
         node = root + c;
@@ -1590,6 +1591,8 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             if (good == 0 && bad == 0) {
                 if (is_utf_start_byte(c)) {
                     current_len--;
+                } else {
+                    utf_bytes_to_end++;
                 }
                 continue;
             }
@@ -1614,6 +1617,8 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             }
             if (is_utf_start_byte(c)) {
                 current_len--;
+            } else {
+                utf_bytes_to_end++;
             }
             continue;
         }
