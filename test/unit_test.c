@@ -257,7 +257,7 @@ void test_parse_word() {
 
 void test_hyphenate_word(){
     printf("\n---- Hyphenate Word Test ----\n");
-    struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-'};
+    struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-', .right_hyphen_min = 1};
     struct word *word = init_word(11);
     if (word == NULL){
         return;
