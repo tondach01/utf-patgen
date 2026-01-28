@@ -2212,7 +2212,7 @@ bool process_all_words(struct params *params, struct translate_table *tt, struct
             destroy_word(word);
             return false;
         }
-        count_dots(word, ps);
+        count_dots(word, params, ps);
         if (!process_word(word, ct, params)){
             destroy_buffer(buf);
             destroy_word(word);
@@ -2284,8 +2284,10 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
             destroy_word(word);
             return false;
         }
-        count_dots(word, ps);
-        output_hyphenated_word(pattmp, word, params);
+        count_dots(word, params, ps);
+        if (word->length > 2){
+            output_hyphenated_word(pattmp, word, params);
+        }
         if (!read_line(params->dictionary_file, buf)){
             destroy_buffer(buf);
             destroy_word(word);
