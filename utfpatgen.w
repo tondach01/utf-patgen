@@ -1190,7 +1190,7 @@ void destroy_pattern_counts(struct pattern_counts *pc){
 }
 
 size_t get_good(struct pattern_counts *pc, size_t index){
-    if (index >= pc->size){
+    if (index >= pc->capacity){
         return 0;
     }
     return pc->good[index];
@@ -1208,7 +1208,7 @@ bool set_good(struct pattern_counts *pc, size_t index, size_t value){
 }
 
 size_t get_bad(struct pattern_counts *pc, size_t index){
-    if (index >= pc->size){
+    if (index >= pc->capacity){
         return 0;
     }
     return pc->bad[index];
@@ -1378,6 +1378,7 @@ struct word *init_word(size_t capacity){
         free(word);
         return NULL;
     }
+    word->size = 0;
     word->length = 0;
     word->capacity = capacity;
     return word;
@@ -1412,6 +1413,7 @@ struct word *resize_word(struct word *word, size_t new_capacity){
 
 void reset_word(struct word *word){
     word->length = 0;
+    word->size = 0;
     memset(word->lowercase, 0, word->capacity*sizeof(char));
     memset(word->true_hyphens, 0, word->capacity*sizeof(size_t));
     memset(word->found_hyphens, 0, word->capacity*sizeof(uint8_t));
@@ -1427,46 +1429,54 @@ void destroy_word(struct word *word){
 }
 
 bool append_char_to_word(struct word *word, char c){
-    if (word->length >= word->capacity - 1){
+    if (word->size >= word->capacity - 1){
         if (!resize_word(word, 2 * word->capacity)){
             return false;
         }
     }
-    word->lowercase[word->length] = c;
-    word->length++;
+    word->lowercase[word->size] = c;
+    word->size++;
+    if (is_utf_start_byte(c)){
+        word->length++;
+    }
     return true;
 }
 
 bool append_string_to_word(struct word *word, char *s, size_t length){
-    if (word->length >= word->capacity - length){
+    if (word->size >= word->capacity - length){
         if (!resize_word(word, 2 * (word->capacity + length))){
             return false;
         }
     }
-    strcpy(&word->lowercase[word->length], s);
-    word->length += length;
+    for (size_t i = 0; i < length; i++) {
+        if (is_utf_start_byte(s[i])){
+            word->length++;
+        }
+        word->lowercase[word->size] = s[i];
+        word->size++;
+    }
     return true;
 }
 
 char get_char(struct word *word, size_t index){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return '\0';
     }
     return word->lowercase[index];
 }
 
 size_t get_true_hyphen(struct word *word, size_t index){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return 0;
     }
     return word->true_hyphens[index];
 }
 
 bool set_true_hyphen(struct word *word, size_t index, size_t value){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->true_hyphens[index] = value;
@@ -1474,16 +1484,16 @@ bool set_true_hyphen(struct word *word, size_t index, size_t value){
 }
 
 uint8_t get_found_hyphen(struct word *word, size_t index){
-    if (index >= word->length) {
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size) {
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return 0;
     }
     return word->found_hyphens[index];    
 }
 
 bool set_found_hyphen(struct word *word, size_t index, uint8_t value){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->found_hyphens[index] = value;
@@ -1491,20 +1501,32 @@ bool set_found_hyphen(struct word *word, size_t index, uint8_t value){
 }
 
 bool get_no_more(struct word *word, size_t index){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     return word->no_more[index];
 }
 
 bool set_no_more(struct word *word, size_t index, bool value){
-    if (index >= word->length){
-        fprintf(stderr, "Index %zu out of bounds of the word", index);
+    if (index >= word->size){
+        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->no_more[index] = value;
     return true;
+}
+
+uint8_t n_utf_following_bytes(uint8_t c){
+    if (c < 128){
+        return 0;
+    } else if (c < 208){
+        return 1;
+    } else if (c < 216){
+        return 2;
+    } else {
+        return 3;
+    }
 }
 
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps) {
@@ -1848,7 +1870,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
                 destroy_buffer(letter);
                 return false;
             }
-            if (!set_true_hyphen(out_word, out_word->length-1, 4 * weight + hyf)){
+            if (!set_true_hyphen(out_word, out_word->size-1, 4 * weight + hyf)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -1964,7 +1986,7 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
     char c;
     size_t weight;
     bool has_hyphen, found_hyphen;
-    for (size_t i = 0; i < word->length; i++){
+    for (size_t i = 0; i < word->size; i++){
         has_hyphen = false;
         found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
         c = get_char(word, i);
@@ -2042,20 +2064,20 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 }
 
 bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, size_t *out_end_index){
-    if (start_index >= word->length){
+    if (start_index >= word->size){
         return false;
     }
     size_t i = start_index;
     char c;
     size_t current_len = 0;
-    while (current_len < pattern_len && i < word->length){
+    while (current_len < pattern_len && i < word->size){
         c = get_char(word, i);
         if (is_utf_start_byte(c)){
             current_len++;
         }
         i++;
     }
-    if (i == word->length) {
+    if (i == word->size) {
         current_len++;
     }
     if (current_len == pattern_len){
@@ -2222,6 +2244,7 @@ struct pattern *init_pattern(size_t capacity){
     }
 
     pat->length = 0;
+    pat->size = 0;
     pat->capacity = capacity;
     return pat;
 }
@@ -2247,6 +2270,7 @@ struct pattern *resize_pattern(struct pattern *pat, size_t new_capacity){
 
 void reset_pattern(struct pattern *pat){
     pat->length = 0;
+    pat->size = 0;
     memset(pat->text, '\0', pat->capacity * sizeof(char));
     memset(pat->hyphens, 0, pat->capacity * sizeof(uint8_t));
 }
@@ -2258,24 +2282,32 @@ void destroy_pattern(struct pattern *pat){
 }
 
 bool append_char_to_pattern(struct pattern *pat, char c){
-    if(pat->length >= pat->capacity - 1){
+    if(pat->size >= pat->capacity - 1){
         if(!resize_pattern(pat, 2*pat->capacity)){
             return false;
         }
     }
-    pat->text[pat->length]= c;
-    pat->length++;
+    pat->text[pat->size]= c;
+    pat->size++;
+    if (is_utf_start_byte(c)){
+        pat->length++;
+    }
     return true;
 }
 
 bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
-    if(pat->length >= pat->capacity - length){
+    if(pat->size >= pat->capacity - length){
         if(!resize_pattern(pat, 2*(pat->capacity + length))){
             return false;
         }
     }
-    strcpy(&pat->text[pat->length], s);
-    pat->length += length;
+    for (size_t i = 0; i < length; i++) {
+        if (is_utf_start_byte(s[i])){
+            pat->length++;
+        }
+        pat->text[pat->size] = s[i];
+        pat->size++;
+    }
     return true;
 }
 
@@ -2348,7 +2380,7 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
             return false;
         }
         if (next_hyphen){
-            if (!set_hyphen(out_pattern, out_pattern->length, (uint8_t) c)){
+            if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -2380,7 +2412,7 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
         }
     }
     if (next_hyphen){
-        if (!set_hyphen(out_pattern, out_pattern->length, (uint8_t) c)){
+        if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
             destroy_buffer(letter);
             return false;
         }
@@ -2410,7 +2442,7 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
     if (!insert_pattern(pt->t, pat->text, &node)){
         return false;
     }
-    for (size_t i = 0; i < pat->length; i++){
+    for (size_t i = 0; i < pat->size; i++){
         hyphenation_value = get_hyphen(pat, i);
         if (hyphenation_value != 0){
             if (!set_output(pt, node, hyphenation_value, current_len)){
@@ -2424,7 +2456,7 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
             current_len++;
         }
     }
-    hyphenation_value = get_hyphen(pat, pat->length);
+    hyphenation_value = get_hyphen(pat, pat->size);
     if (hyphenation_value > 0){
         if (!set_output(pt, node, hyphenation_value, current_len)){
             return false;

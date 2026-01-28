@@ -186,6 +186,7 @@ void set_top_value(struct stack *s, size_t value);
 
 struct word {
     size_t capacity;
+    size_t size;
     size_t length;
     char *lowercase;
     size_t *true_hyphens;
@@ -273,6 +274,7 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
 
 struct pattern {
     size_t capacity;
+    size_t size;
     size_t length;
     char *text;
     uint8_t *hyphens;

@@ -244,7 +244,7 @@ void test_parse_word() {
     }
 
     printf("Word weight = %d\n", params->word_weight);
-    for (size_t i = 0; i < word->length; i++){
+    for (size_t i = 0; i < word->size; i++){
         printf("| %c (%d) | %zu (%zu) ", get_char(word, i), (uint8_t) get_char(word, i), get_true_hyphen(word, i)/4, get_true_hyphen(word, i)%4);
     }
     printf("|\n");
