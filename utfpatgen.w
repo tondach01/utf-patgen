@@ -845,9 +845,11 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     if (q == NULL) {
         return false;
     }
+    bool new_pattern = false;
     while (index < end && base > 0) {
         base += (uint8_t) pattern[index];
         if (get_node(t, base) != pattern[index]) {
+            new_pattern = true;
             if (get_node(t, base) == 0) {
                 if (!set_links(t, get_aux(t, base), get_link(t, base)) || !set_node(t, base, pattern[index]) || !set_aux(t, base, 0) || !set_link(t, base, 0)) {
                     destroy_trie(q);
@@ -882,9 +884,12 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         node = base + (uint8_t) pattern[index];
         t->occupied++;
         index++;
+        new_pattern = true;
     }
     *out_op_index = node;
-    t->pattern_count++;
+    if (new_pattern){
+        t->pattern_count++;
+    }
     destroy_trie(q);
     return true;
 }
