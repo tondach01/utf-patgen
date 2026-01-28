@@ -260,7 +260,7 @@ bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word);
 
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
-void count_dots(struct word *word, struct pass_stats *ps);
+void count_dots(struct word *word, struct params *params, struct pass_stats *ps);
 void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
 bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, struct word *word, struct params *params);
 

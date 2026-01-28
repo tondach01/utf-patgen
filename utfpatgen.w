@@ -1958,16 +1958,29 @@ bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t
     return true;
 }
 
-void count_dots(struct word *word, struct pass_stats *ps){
+void count_dots(struct word *word, struct params *params, struct pass_stats *ps){
+    if (word->length < params->right_hyphen_min + 1){ // no counting needed
+        return;
+    }
+    size_t current_index = word->size;
+    size_t current_pos = word->length;
     bool odd_level;
-    size_t hyphenation_value, weight;
+    size_t dot_index, hyphenation_value, weight;
     enum hyphen_class hyf;
-    for (size_t i = 0; i < word->length; i++){
-        odd_level = (get_found_hyphen(word, i) % 2 == 1);
-        hyphenation_value = get_true_hyphen(word, i);
+    for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= params->left_hyphen_min + 1; dot_pos--){
+        while (current_pos > dot_pos){
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))) {
+                current_pos--;
+            }
+        }
+        dot_index = current_index - 1;
+        odd_level = (get_found_hyphen(word, dot_index) % 2 == 1);
+        hyphenation_value = get_true_hyphen(word, dot_index);
         weight = hyphenation_value / 4;
         hyf = hyphenation_value % 4;
         if (hyphenation_value == 0){ // not an intercharacter position
+            fprintf(stderr, "Code I hoped unreachable was reached\n");
             continue;
         } else if (hyf % 2 == 0) { // position without a hyphen
             if (odd_level) {
