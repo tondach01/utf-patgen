@@ -797,7 +797,7 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     return node;
 }
 
-bool new_trie_output(struct pattern_trie *pt, uint8_t value, size_t position, size_t next_op_index, size_t *op_index){
+bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next_op_index, size_t *op_index){
     if (pt->ops->count >= pt->ops->capacity - 1) {
         if (resize_outputs(pt->ops, pt->ops->capacity * 2, pt->t) == NULL) {
             return false;
@@ -813,7 +813,7 @@ bool new_trie_output(struct pattern_trie *pt, uint8_t value, size_t position, si
     return true;
 }
 
-size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next_op_index){
+size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
     size_t hash = ((next_op_index + 313*position + 361*value) % ops->capacity) + 1;
     while (true) {
         if (ops->data[hash].value == 0) {
