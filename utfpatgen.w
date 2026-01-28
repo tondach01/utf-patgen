@@ -1946,7 +1946,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
         return true;
     }
     size_t start_pos = word->length - params->right_hyphen_min - 1;
-    for (size_t i = 0; i < word->length - params->right_hyphen_min - 1; i++) {
+    for (size_t i = 0; i <= word->length - params->right_hyphen_min - 1; i++) {
         start_pos--;
         while (current_pos > start_pos) {
             current_index--;
@@ -2044,7 +2044,7 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
         fprintf(pattmp, "%d", params->word_weight);
     }
     char c;
-    size_t weight;
+    size_t weight, dot_pos = 0;
     bool has_hyphen, found_hyphen;
     for (size_t i = 0; i < word->size; i++){
         has_hyphen = false;
@@ -2053,9 +2053,12 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
         if (c == EDGE_OF_WORD){
             continue;
         }
+        if (is_utf_start_byte(c)){
+            dot_pos++;
+        }
         fputc(c, pattmp);
         weight = get_true_hyphen(word, i);
-        if (weight == 0){
+        if (weight == 0 || dot_pos < params->left_hyphen_min || dot_pos >= word->length - params->right_hyphen_min - 1){
             continue;
         }
         if (weight % 2 == 1) {
