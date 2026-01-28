@@ -510,7 +510,7 @@ struct trie *init_trie(size_t capacity){
     t->aux = calloc(capacity, sizeof(size_t));
     t->taken = calloc((capacity / 8 ) + 1, sizeof(char));  // bit array
 
-    if (t->nodes == NULL || t->links == NULL || t->aux == NULL || t->taken == NULL) {
+    if (t->nodes == NULL || t->links == NULL || t->aux == NULL || t->taken == NULL || !set_base_used(t, 1, true)) {
         fputs("Allocation error\n", stderr);
         free(t->nodes);
         free(t->links);
@@ -754,7 +754,7 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) get_node(q, q_index);
-        if (/*!set_links(t, get_aux(t, t_index), get_link(t, t_index)) ||*/ !copy_node(q, q_index, t, t_index)) {
+        if (!copy_node(q, q_index, t, t_index)) {
             return false;
         }
     }
@@ -771,7 +771,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) get_node(from, from_index) == i) {
-            if (!copy_node(from, from_index, to, to->node_max) /*|| !set_links(from, from_index, get_link(from, 0)) || !set_links(from, 0, from_index)*/ || !set_node(from, from_index, 0)) {
+            if (!copy_node(from, from_index, to, to->node_max) || !set_node(from, from_index, 0)) {
                 return false;
             }
             to->node_max++;
@@ -832,7 +832,7 @@ size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size
             hash = ops->capacity;
         }
     }
-    return 0; // should not reach here
+    return 0;
 }
 
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
@@ -982,7 +982,7 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie
         if (is_node_occupied(t, i) && get_aux(t, i) != 0) {
             size_t old_index = get_aux(t, i);
             struct output old_op = old_data[old_index];
-            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index); // !!! old_op_index is invalid
+            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index); // !!! old\_op\_index is invalid
             ops->data[new_index] = old_op;
             if (!set_aux(t, i, new_index)){
                 free(old_data);
@@ -1097,7 +1097,7 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
     }
     tt->mapping = mapping;
     tt->alphabet = alphabet;
-    if (!put_first_level(tt->mapping) || !append_char(tt->alphabet, '\0')){
+    if (!append_char(tt->alphabet, '\0')){
         destroy_trie(tt->mapping);
         destroy_buffer(tt->alphabet);
         free(tt);
@@ -1550,8 +1550,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
     if (pattern == NULL){
         return false;
     }
-
-    struct stack *s_base = init_stack(4 * params->pat_len * sizeof(size_t));
+    struct stack *s_base = init_stack(4 * params->pat_len);
     if (s_base == NULL) {
         destroy_buffer(pattern);
         return false;
@@ -1798,7 +1797,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
         if (is_utf_start_byte((uint8_t) c)){
             output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
         }
-        root = get_link(pt->t, root + c);
+        root = get_link(pt->t, node);
         if (root == 0){
             continue;
         }
