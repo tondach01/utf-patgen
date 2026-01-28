@@ -127,8 +127,9 @@ if (!output_patterns(pt, params->output_file)){
     return EXIT_FAILURE;
 }
 
-@ Hyperparamters input
-Read and parse the level-specific hyper parameters pat_start, pat_finish, good_wt, bad_wt, thresh.
+
+@ Hyperparameters input
+Read and parse the level-specific hyper parameters pat\_start, pat\_finish, good\_wt, bad\_wt, thresh.
 
 @<Hyperparameters input@>=
 printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
@@ -928,7 +929,7 @@ The \texttt{output} structure is used for storing hyphenation outputs. The struc
 \begin{itemize}
     \item \textbf{value}: hyphenation value,
     \item \textbf{position}: position in the pattern,
-    \item \textbf{next_op_index}: index of the next output in the linked list.
+    \item \textbf{next\_op\_index}: index of the next output in the linked list.
 \end{itemize}
 
 Outputs are grouped together in \texttt{outputs} structure:
@@ -1824,6 +1825,9 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
     return highest;
 }
 
+@ Break
+
+@c
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
     reset_word(out_word);
     struct string_buffer *letter = init_buffer(4);
@@ -2190,6 +2194,9 @@ bool hyphenate_dictionary(struct params *params, struct translate_table *tt, str
     return true;
 }
 
+@ Break
+
+@c
 bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
     rewind(params->dictionary_file);
     struct string_buffer *buf = init_buffer(64);
@@ -2363,6 +2370,9 @@ bool read_patterns(struct params *params, struct pattern_trie *pt, struct transl
     return true;
 }
 
+@ Break
+
+@c
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
     reset_pattern(out_pattern);
     char c;
@@ -2503,6 +2513,9 @@ bool parse_input(char *argv[], int argc, struct params *params){
     return true;
 }
 
+@ Break
+
+@c
 void print_help(){
     printf("Usage: utfpatgen [OPTION]... DICTIONARY PATTERNS OUTPUT TRANSLATE\n");
     printf("\tGenerate the OUTPUT hyphenation file for use with TeX\n");
@@ -2517,4 +2530,5 @@ void print_version(){
 
 @* Index.
 Automatically generates the list of used identifiers
+
 \end{document}
