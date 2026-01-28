@@ -2250,10 +2250,6 @@ bool hyphenate_dictionary(struct params *params, struct translate_table *tt, str
         fclose(pattmp);
         return false;
     }
-    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
-    if (ps->good_cnt + ps->miss_cnt > 0){
-        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->good_cnt/ (float) (ps->bad_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
-    }
     fclose(pattmp);
     return true;
 }
