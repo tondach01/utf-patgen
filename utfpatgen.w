@@ -102,7 +102,8 @@ Run the algorithm for every level in specified range. Read and parse hyperparame
 
 @<Pattern generation@>=
 size_t pat_start, pat_finish, good_wt, bad_wt, thresh;
-for (params->hyph_level = params->hyph_start; params->hyph_level <= params->hyph_finish; params->hyph_level++){
+for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
+    params->hyph_level = i;
     ps.level_pattern_cnt = 0;
     if (params->hyph_level > params->hyph_start) {
         printf("\n");
@@ -118,13 +119,13 @@ for (params->hyph_level = params->hyph_start; params->hyph_level <= params->hyph
         destroy_pattern_trie(pt);
         return EXIT_FAILURE;
     }
-}
-printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);
-if (!output_patterns(pt, params->output_file)){
-    destroy_params(params);
-    destroy_tr_table(tt);
-    destroy_pattern_trie(pt);
-    return EXIT_FAILURE;
+    printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);
+    if (!output_patterns(pt, params->output_file)){
+        destroy_params(params);
+        destroy_tr_table(tt);
+        destroy_pattern_trie(pt);
+        return EXIT_FAILURE;
+    }
 }
 
 
@@ -164,12 +165,13 @@ bool more_this_level[256];
 for (size_t i = 0; i < 256; i++){
     more_this_level[i] = true;
 }
-for (params->pat_len = params->pat_start; params->pat_len <= params->pat_finish; params->pat_len++) {
+for (size_t j = params->pat_start; j <= params->pat_finish; j++) {
+    params->pat_len = j;
     params->pat_dot = params->pat_len / 2;
     aux_dot = params->pat_dot * 2;
     while (params->pat_dot != params->pat_len) {
         params->pat_dot = aux_dot - params->pat_dot;
-        aux_dot = params->pat_len * 2 - 1;
+        aux_dot = params->pat_len * 2 - aux_dot - 1;
         if (more_this_level[params->pat_dot]){
             if (!process_dictionary(params, tt, pt, &ps)){
                 destroy_params(params);
@@ -194,7 +196,7 @@ If the user wants, distionary is tranversed one last time and hyphenated accordi
 @<Final pass@>=
 char c;
 printf("hyphenate word list? (y/n): ");
-if (scanf("%c%*s", &c) < 1){
+if (scanf(" %c", &c) < 1){
     destroy_params(params);
     destroy_tr_table(tt);
     destroy_pattern_trie(pt);
@@ -1132,6 +1134,7 @@ bool read_translate(struct params *params, struct translate_table *tt){
         }
     }
     destroy_buffer(buf);
+    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
     return true;
 }
 
@@ -2175,7 +2178,7 @@ bool process_dictionary(struct params *params, struct translate_table *tt, struc
     }
     printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
     if (ps->good_cnt + ps->miss_cnt > 0){
-        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->good_cnt/ (float) (ps->bad_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
+        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->bad_cnt/ (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
     }
     printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
     if (!collect_count_trie(ct, pt, params, ps)){
