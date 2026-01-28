@@ -1,8 +1,12 @@
 # dummy for Overleaf / output from cweave
 utfpatgen.tex
 
-# ouput from ctangle
+# output from ctangle
 utfpatgen.c
+
+# outputs of patgen
+pattmp.*
+output.out
 
 # binaries
 utfpatgen
