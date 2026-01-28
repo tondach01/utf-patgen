@@ -715,17 +715,21 @@ bool link_trie_up_to(struct trie *t, size_t index){
 
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
     size_t t_index;
-    if (q->node_max > threshold) {
-        t_index = get_aux(t, t->node_max + 1);
-    } else {
-        t_index = 0;
-    }
+    uint8_t offset;
+    t_index = 0;
     while (true) {
         t_index = get_link(t, t_index);
-        *out_base = t_index - (uint8_t) get_node(q, 1);
-        if (!link_trie_up_to(t, *out_base)) {
-            return false;
+        if (t_index == 0) {
+            if (!resize_trie(t, 2*t->capacity)){
+                return false;
+            }
+            continue;
         }
+        offset = (uint8_t) get_node(q, 1);
+        if (t_index <= offset) {
+            continue;
+        }
+        *out_base = t_index - offset;
         if (get_base_used(t, *out_base)) {
             continue;
         }
