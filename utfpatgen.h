@@ -74,8 +74,8 @@ struct pattern_trie {
 struct pattern_trie *init_pattern_trie(size_t trie_capacity, size_t outputs_capacity);
 void destroy_pattern_trie(struct pattern_trie *pt);
 
-bool new_trie_output(struct pattern_trie *pt, uint8_t value, size_t position, size_t next, size_t *op_index);
-size_t hash_trie_output(struct outputs *ops, uint8_t value, size_t position, size_t next);
+bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next, size_t *op_index);
+size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next);
 
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
