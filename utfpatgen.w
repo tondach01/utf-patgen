@@ -841,9 +841,9 @@ bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
 }
 
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
-    size_t index = end - length + 1;
-    size_t node = (uint8_t) pattern[index - 1] + 1;
-    size_t base = get_link(t, node);
+    size_t index = end - length;
+    size_t base = 1;
+    size_t node = base + (uint8_t) pattern[index];
     size_t fit;
     struct trie *q = init_trie(256);
     if (q == NULL) {
@@ -1564,15 +1564,15 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
     size_t node, utf_bytes_to_end = 0;
     while (s_base->top > 0){
         root = get_top_value(s_base);
+        pattern->data[pattern->size - 1] += 1;
         c = (uint8_t) pattern->data[pattern->size - 1];
-        if (c == 255){
+        if (c == 0){ // overflow, is this safe?
             pattern->data[pattern->size - 1] = '\0';
             pattern->size--;
             s_base->top--;
             current_len--;
             continue;
         }
-        pattern->data[pattern->size - 1] += 1;
         node = root + c;
         if ((uint8_t) get_node(ct->t, node) != c){
             continue;
@@ -1782,14 +1782,14 @@ bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
     size_t node;
     while (s_base->top > 0){
         root = get_top_value(s_base);
+        pattern->data[pattern->size - 1] += 1;
         c = (uint8_t) pattern->data[pattern->size - 1];
-        if (c == 255){
+        if (c == 0){
             pattern->data[pattern->size - 1] = '\0';
             pattern->size--;
             s_base->top--;
             continue;
         }
-        pattern->data[pattern->size - 1] += 1;
         node = root + c;
         if ((uint8_t) get_node(pt->t, node) != c){
             continue;
