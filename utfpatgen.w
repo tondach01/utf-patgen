@@ -410,7 +410,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
         return false;
     }
     char separator = buf->data[0];
-    if (buf->size > 1 && buf->data[1] == separator){  // a comment, not forbidden
+    if (buf->size > 1 && buf->data[1] == separator){  // a comment
         return true;
     }
     size_t alphabet_index = tt->alphabet->size;
@@ -420,7 +420,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
         return false;
     }
     bool lower = true;
-    if (!append_char(buf, separator)){  // just to be sure, if the translate file is in the format specified in patgen report, not necessary
+    if (!append_char(buf, separator)){
         destroy_buffer(letter);
         return false;
     }
@@ -428,7 +428,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
         char c = buf->data[i];
         if (c == separator){
             if (letter->size == 0){
-                break;  // end of line
+                break;
             }
             if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
                 destroy_buffer(letter);
@@ -1400,19 +1400,19 @@ struct word *init_word(size_t capacity){
 struct word *resize_word(struct word *word, size_t new_capacity){
     char *new_lowercase = realloc(word->lowercase, new_capacity * sizeof(char));
     if (new_lowercase == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->lowercase = new_lowercase; // UPDATE IMMEDIATELY
+    word->lowercase = new_lowercase;
 
     size_t *new_true_hyphens = realloc(word->true_hyphens, new_capacity * sizeof(size_t));
     if (new_true_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->true_hyphens = new_true_hyphens; // UPDATE IMMEDIATELY
+    word->true_hyphens = new_true_hyphens;
 
     uint8_t *new_found_hyphens = realloc(word->found_hyphens, new_capacity * sizeof(uint8_t));
     if (new_found_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->found_hyphens = new_found_hyphens; // UPDATE IMMEDIATELY
+    word->found_hyphens = new_found_hyphens;
 
     bool *new_no_more = realloc(word->no_more, new_capacity * sizeof(bool));
     if (new_no_more == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->no_more = new_no_more; // UPDATE IMMEDIATELY
+    word->no_more = new_no_more;
 
     size_t diff = new_capacity - word->capacity;
     memset(word->lowercase + word->capacity, '\0', diff * sizeof(char));
@@ -1942,7 +1942,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     size_t current_pos = word->length;
     size_t node, base, dot_index, end_index, op_index, dot_pos, end_pos;
     struct output op;
-    if (word->length < params->right_hyphen_min + 1){ // no hyphenation needed
+    if (word->length < params->right_hyphen_min + 1){
         return true;
     }
     size_t start_pos = word->length - params->right_hyphen_min - 1;
@@ -1969,7 +1969,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 }
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
-                dot_index = current_index - 1; // the should be no pattern starting with . and position == 0
+                dot_index = current_index - 1;
                 while (dot_pos < start_pos + op.position){
                     if (is_utf_start_byte(get_char(word, current_index))){
                         dot_pos++;
@@ -2002,7 +2002,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
 }
 
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps){
-    if (word->length < params->right_hyphen_min + 1){ // no counting needed
+    if (word->length < params->right_hyphen_min + 1){
         return;
     }
     size_t current_index = word->size;
@@ -2022,14 +2022,14 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
         hyphenation_value = get_true_hyphen(word, dot_index);
         weight = hyphenation_value / 4;
         hyf = hyphenation_value % 4;
-        if (hyphenation_value == 0){ // not an intercharacter position
+        if (hyphenation_value == 0){
             fprintf(stderr, "Code I hoped unreachable was reached\n");
             continue;
-        } else if (hyf % 2 == 0) { // position without a hyphen
+        } else if (hyf % 2 == 0) {
             if (odd_level) {
                 ps->bad_cnt += weight;
             }
-        } else { // position with a hyphen
+        } else {
             if (odd_level) {
                 ps->good_cnt += weight;
             } else {
