@@ -2207,6 +2207,15 @@ bool process_dictionary(struct params *params, struct translate_table *tt, struc
 
 bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
     rewind(params->dictionary_file);
+    uint8_t dot_min = params->pat_dot;
+    uint8_t dot_max = params->pat_len - params->pat_dot;
+    if (dot_min < params->left_hyphen_min + 1){
+        dot_min = params->left_hyphen_min + 1;
+    }
+    if (dot_max < params->right_hyphen_min + 1){
+        dot_max = params->right_hyphen_min + 1;
+    }
+    size_t dot_len = dot_min + dot_max;
     struct string_buffer *buf = init_buffer(64);
     if (buf == NULL){
         return false;
@@ -2229,10 +2238,12 @@ bool process_all_words(struct params *params, struct translate_table *tt, struct
             return false;
         }
         count_dots(word, params, ps);
-        if (!process_word(word, ct, params)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
+        if (word->length >= dot_len){
+            if (!process_word(word, ct, params)){
+                destroy_buffer(buf);
+                destroy_word(word);
+                return false;
+            }
         }
         if (!read_line(params->dictionary_file, buf)){
             destroy_buffer(buf);
