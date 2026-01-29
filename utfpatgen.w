@@ -1156,8 +1156,8 @@ struct pattern_counts *init_pattern_counts(size_t capacity){
         fprintf(stderr, "Allocation error\n");
         return NULL;
     }
-    pc->good = malloc(capacity * sizeof(size_t));
-    pc->bad = malloc(capacity * sizeof(size_t));
+    pc->good = calloc(capacity, sizeof(size_t));
+    pc->bad = calloc(capacity, sizeof(size_t));
     if (pc->good == NULL || pc->bad == NULL){
         fprintf(stderr, "Allocation error\n");
         free(pc->good);
@@ -1166,7 +1166,7 @@ struct pattern_counts *init_pattern_counts(size_t capacity){
         return NULL;
     }
     pc->capacity = capacity;
-    pc->size = 0;
+    pc->size = 1;
     return pc;
 }
 
@@ -1561,7 +1561,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         return false;
     }
 
-    size_t node, utf_bytes_to_end = 0;
+    size_t node, utf_bytes_to_end = 0, op_index, good, bad, cnt_index;
     while (s_base->top > 0){
         root = get_top_value(s_base);
         pattern->data[pattern->size - 1] += 1;
@@ -1585,17 +1585,9 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             utf_bytes_to_end -= 1;
         }
         if (current_len == params->pat_len && utf_bytes_to_end == 0){
-            size_t op_index;
-            size_t good = get_good(ct->cnts, node);
-            size_t bad = get_bad(ct->cnts, node);
-            if (good == 0 && bad == 0) {
-                if (is_utf_start_byte(c)) {
-                    current_len--;
-                } else {
-                    utf_bytes_to_end++;
-                }
-                continue;
-            }
+            cnt_index = get_aux(ct->t, node);
+            good = get_good(ct->cnts, cnt_index);
+            bad = get_bad(ct->cnts, cnt_index);
             if (params->good_wt * good < params->thresh){
                 if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
                     destroy_buffer(pattern);
@@ -2088,7 +2080,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
     if (dot_max < params->right_hyphen_min + 1){
         dot_max = params->right_hyphen_min + 1;
     }
-    size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight;
+    size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight, cnt_index;
     size_t current_pos = word->length;
     size_t current_index = word->size;
     bool good_pattern;
@@ -2131,17 +2123,25 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
             return false;
         }
-        if (node >= ct->cnts->capacity) {
+        if (ct->cnts->size >= ct->cnts->capacity) {
             size_t new_capacity = ct->t->capacity;
             if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
                 return false;
             }
         }
+        cnt_index = get_aux(ct->t, node);
+        if (cnt_index == 0){
+            cnt_index = ct->cnts->size;
+            if (!set_aux(ct->t, node, cnt_index)){
+                return false;
+            }
+            ct->cnts->size++;
+        }
         weight = get_true_hyphen(word, dot_index) / 4;
         if (good_pattern){
-            ct->cnts->good[node] += weight;
+            ct->cnts->good[cnt_index] += weight;
         } else {
-            ct->cnts->bad[node] += weight;
+            ct->cnts->bad[cnt_index] += weight;
         }
     }
     return true;
