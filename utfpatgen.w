@@ -1791,7 +1791,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
         if ((uint8_t) get_node(pt->t, node) != c){
             continue;
         }
-        if (is_utf_start_byte((uint8_t) c)){
+        if (get_aux(pt->t, node) > 0){
             output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
         }
         root = get_link(pt->t, node);
