@@ -1937,8 +1937,8 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     if (word->length < params->right_hyphen_min + 1){
         return true;
     }
-    size_t start_pos = word->length - params->right_hyphen_min - 1;
-    for (size_t i = 0; i <= word->length - params->right_hyphen_min - 1; i++) {
+    size_t start_pos = word->length - params->right_hyphen_min;
+    for (size_t i = 0; i <= word->length - params->right_hyphen_min; i++) {
         start_pos--;
         while (current_pos > start_pos) {
             current_index--;
@@ -1947,7 +1947,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             }
         }
         end_index = current_index;
-        end_pos = 0;
+        end_pos = current_pos;
         node = 1 + get_char(word, current_index);
         while (get_node(pt->t, node) == get_char(word, end_index)){
             if (is_utf_start_byte(get_char(word, end_index))){
@@ -1974,7 +1974,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                     }
                 }
                 if (op.value >= params->hyph_level){
-                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
+                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot + 1)){
                         if (!set_no_more(word, dot_index, true)){
                             return false;
                         }
