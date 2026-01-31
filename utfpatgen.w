@@ -1637,19 +1637,21 @@ bool delete_patterns(struct pattern_trie *pt){
         destroy_stack(s_offset);
         return false;
     }
-    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 1) || !put_on_stack(s_freed, (size_t) true)){
+    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
         destroy_stack(s_base);
         destroy_stack(s_offset);
         destroy_stack(s_freed);
         return false;
     }
-    size_t node, offset;
+    size_t node;
+    uint8_t c;
     while (s_base->top > 0){
         root = get_top_value(s_base);
-        offset = get_top_value(s_offset);
-        if (offset == 255){
+        set_top_value(s_offset, (uint8_t) get_top_value(s_offset) + 1);
+        c = (uint8_t) get_top_value(s_offset);
+        if (c == 0){
             if (get_top_value(s_freed) == (size_t) true){
-                if (!set_base_used(pt->t, root + offset, false)){
+                if (!set_base_used(pt->t, root + c, false)){
                     destroy_stack(s_base);
                     destroy_stack(s_offset);
                     destroy_stack(s_freed);
@@ -1661,34 +1663,31 @@ bool delete_patterns(struct pattern_trie *pt){
             s_freed->top--;
             continue;
         }
-        set_top_value(s_offset, get_top_value(s_offset) + 1);
-        node = root + offset;
-        if ((uint8_t) get_node(pt->t, node) != offset){
+        node = root + c;
+        if ((uint8_t) get_node(pt->t, node) != c){
             continue;
         }
-        if (is_utf_start_byte((uint8_t) offset)){
-            if (!link_around_bad_outputs(pt, node)){
+        if (!link_around_bad_outputs(pt, node)){
+            destroy_stack(s_base);
+            destroy_stack(s_offset);
+            destroy_stack(s_freed);
+            return false;
+        }
+        if (get_link(pt->t, node) > 0 || get_aux(pt->t, node) > 0 || root == 1){
+            set_top_value(s_freed, (size_t) false);
+        } else {
+            if (!deallocate_node(pt->t, node)){
                 destroy_stack(s_base);
                 destroy_stack(s_offset);
                 destroy_stack(s_freed);
                 return false;
-            }
-            if (get_link(pt->t, node) > 0 || get_aux(pt->t, node) > 0 || root == 1){
-                set_top_value(s_freed, (size_t) false);
-            } else {
-                if (!deallocate_node(pt->t, node)){
-                    destroy_stack(s_base);
-                    destroy_stack(s_offset);
-                    destroy_stack(s_freed);
-                    return false;
-                }
             }
         }
         root = get_link(pt->t, node);
         if (root == 0){
             continue;
         }
-        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 1) || !put_on_stack(s_freed, (size_t) true)){
+        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
             destroy_stack(s_base);
             destroy_stack(s_offset);
             destroy_stack(s_freed);
