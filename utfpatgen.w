@@ -1834,14 +1834,14 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
     if (letter == NULL) {
         return false;
     }
-    if (!append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
+    uint8_t weight = params->word_weight;
+    enum hyphen_class hyf = NO_HYF;
+    if (!append_char_to_word(out_word, EDGE_OF_WORD)){
         destroy_buffer(letter);
         return false;
     }
-    uint8_t weight = params->word_weight;
     char c;
     char *lower;
-    enum hyphen_class hyf = NO_HYF;
     for (size_t i = 0; i < buf->size; i++){
         c = buf->data[i];
         if (is_ascii_number(buf->data[i])){
@@ -1897,7 +1897,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         destroy_buffer(letter);
         return false;
     }
-    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD)){
+    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) ||  !set_true_hyphen(out_word, 0, 4 * params->word_weight + NO_HYF) || !set_true_hyphen(out_word, out_word->size - 1, 4 * params->word_weight + NO_HYF)){
         destroy_buffer(letter);
         return false;
     }
@@ -1956,7 +1956,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                     }
                 }
                 if (op.value >= params->hyph_level){
-                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot + 1)){
+                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
                         if (!set_no_more(word, dot_index, true)){
                             return false;
                         }
@@ -2094,6 +2094,9 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             continue;
         }
         hyf = get_true_hyphen(word, dot_index) % 4;
+        if (get_found_hyphen(word, dot_index) % 2 == 1){
+            hyf += 2;
+        }
         if (hyf == params->good_dot){
             good_pattern = true;
         } else if (hyf == params->bad_dot){
