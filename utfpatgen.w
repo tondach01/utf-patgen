@@ -1460,7 +1460,6 @@ bool append_string_to_word(struct word *word, char *s, size_t length){
 
 char get_char(struct word *word, size_t index){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return '\0';
     }
     return word->lowercase[index];
@@ -1468,7 +1467,6 @@ char get_char(struct word *word, size_t index){
 
 size_t get_true_hyphen(struct word *word, size_t index){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return 0;
     }
     return word->true_hyphens[index];
@@ -1476,7 +1474,6 @@ size_t get_true_hyphen(struct word *word, size_t index){
 
 bool set_true_hyphen(struct word *word, size_t index, size_t value){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->true_hyphens[index] = value;
@@ -1485,7 +1482,6 @@ bool set_true_hyphen(struct word *word, size_t index, size_t value){
 
 uint8_t get_found_hyphen(struct word *word, size_t index){
     if (index >= word->size) {
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return 0;
     }
     return word->found_hyphens[index];    
@@ -1493,7 +1489,6 @@ uint8_t get_found_hyphen(struct word *word, size_t index){
 
 bool set_found_hyphen(struct word *word, size_t index, uint8_t value){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->found_hyphens[index] = value;
@@ -1502,7 +1497,6 @@ bool set_found_hyphen(struct word *word, size_t index, uint8_t value){
 
 bool get_no_more(struct word *word, size_t index){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     return word->no_more[index];
@@ -1510,7 +1504,6 @@ bool get_no_more(struct word *word, size_t index){
 
 bool set_no_more(struct word *word, size_t index, bool value){
     if (index >= word->size){
-        fprintf(stderr, "Index %zu out of bounds of the word\n", index);
         return false;
     }
     word->no_more[index] = value;
@@ -1918,13 +1911,13 @@ bool is_ascii_number(char c){
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
     size_t current_index = word->size;
     size_t current_pos = word->length;
-    size_t node, base, dot_index, end_index, op_index, dot_pos, end_pos;
+    size_t node, base, start_index, dot_index, end_index, op_index, dot_pos, end_pos;
     struct output op;
     if (word->length < params->right_hyphen_min + 1){
         return true;
     }
     size_t start_pos = word->length - params->right_hyphen_min;
-    for (size_t i = 0; i <= word->length - params->right_hyphen_min; i++) {
+    for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
         start_pos--;
         while (current_pos > start_pos) {
             current_index--;
@@ -1932,10 +1925,12 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 current_pos--;
             }
         }
+        start_index = current_index;
         end_index = current_index;
-        end_pos = current_pos;
-        node = 1 + get_char(word, current_index);
+        end_pos = current_pos + 1;
+        node = 1 + (uint8_t) get_char(word, start_index);
         while (get_node(pt->t, node) == get_char(word, end_index)){
+            end_index++;
             if (is_utf_start_byte(get_char(word, end_index))){
                 end_pos++;
             }
@@ -1947,13 +1942,14 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 }
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
-                dot_index = current_index - 1;
+                dot_index = start_index;
                 while (dot_pos < start_pos + op.position){
-                    if (is_utf_start_byte(get_char(word, current_index))){
+                    dot_index++;
+                    if (is_utf_start_byte(get_char(word, dot_index))){
                         dot_pos++;
                     }
-                    dot_index++;
                 }
+                dot_index--;
                 if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
                     if (!set_found_hyphen(word, dot_index, op.value)){
                         return false;
@@ -1972,7 +1968,6 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (base == 0){
                 break;
             }
-            end_index++;
             node = base + (uint8_t) get_char(word, end_index);
         }
     }
