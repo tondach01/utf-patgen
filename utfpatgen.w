@@ -914,19 +914,6 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
-    size_t trie_index = traverse_trie(pt->t, pattern);
-    struct output empty = {.value = EMPTY_OP_VALUE};
-    if (trie_index == 0) {
-        return empty;
-    }
-    size_t op_index = get_aux(pt->t, trie_index);
-    if (op_index == 0) {
-        return empty;
-    }
-    return pt->ops->data[op_index];
-}
-
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
     if (!new_trie_output(pt, value, position, get_aux(pt->t, node), &op_index) || !set_aux(pt->t, node, op_index)) {

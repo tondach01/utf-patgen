@@ -80,7 +80,6 @@ size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
-struct output get_pattern_output(struct pattern_trie *pt, const char *pattern);
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position);
 
 struct pattern_counts {

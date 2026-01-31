@@ -2,6 +2,19 @@
 #include <string.h>
 #include "../utfpatgen.h"
 
+struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
+    size_t trie_index = traverse_trie(pt->t, pattern);
+    struct output empty = {.value = EMPTY_OP_VALUE};
+    if (trie_index == 0) {
+        return empty;
+    }
+    size_t op_index = get_aux(pt->t, trie_index);
+    if (op_index == 0) {
+        return empty;
+    }
+    return pt->ops->data[op_index];
+}
+
 void test_read_line() {
     printf("---- Read Line Test ----\n");
     FILE *file = fopen("test/read_line_test.txt", "r");
