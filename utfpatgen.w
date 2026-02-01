@@ -83,7 +83,7 @@ Read the values for hyphenation level range from standard input, parse them, and
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
 size_t hyph_start, hyph_finish;
 while (true){
-    if (scanf("%zu %zu", &hyph_start, &hyph_finish) < 2 || hyph_start < 1 || hyph_start > 254 || hyph_finish < 1 || hyph_finish > 254){
+    if (scanf("%zu %zu", &hyph_start, &hyph_finish) < 2 || getchar() != '\n' || hyph_start < 1 || hyph_start > 254 || hyph_finish < 1 || hyph_finish > 254){
         printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
     } else {
         break;
@@ -135,7 +135,7 @@ Read and parse the level-specific hyper parameters pat\_start, pat\_finish, good
 @<Hyperparameters input@>=
 printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
 while (true){
-    if (scanf("%zu %zu", &pat_start, &pat_finish) < 2 || pat_start < 1 || pat_finish < 1 || pat_start > pat_finish || pat_start > 255 || pat_finish > 255){
+    if (scanf("%zu %zu", &pat_start, &pat_finish) < 2 || getchar() != '\n' || pat_start < 1 || pat_finish < 1 || pat_start > pat_finish || pat_start > 255 || pat_finish > 255){
         printf("Error: Specify 1 <= pat_start <= pat_finish <= 255! Insert again: ");
     } else {
         break;
@@ -146,7 +146,7 @@ params->pat_finish = (uint8_t) pat_finish;
 
 printf("good_wt (good -), bad_wt (bad pattern weight), threshold: ");
 while (true){
-    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 255){
+    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || getchar() != '\n' || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 255){
         printf("Error: Specify 1 <= good_wt, bad_wt, threshold <= 255! Insert again: ");
     } else {
         break;
