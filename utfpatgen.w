@@ -82,11 +82,14 @@ Read the values for hyphenation level range from standard input, parse them, and
 @<Level range specification@>=
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
 size_t hyph_start, hyph_finish;
+int result;
 while (true){
-    if (scanf("%zu %zu", &hyph_start, &hyph_finish) < 2 || getchar() != '\n' || hyph_start < 1 || hyph_start > 254 || hyph_finish < 1 || hyph_finish > 254){
-        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
-    } else {
+    result = scanf("%zu %zu", &hyph_start, &hyph_finish);
+    if (result == 2 && hyph_start >= 1 && hyph_start <= 254 && hyph_finish >= 1 && hyph_finish <= 254){
         break;
+    } else {
+        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
+        while(getchar() != '\n');
     }
 }
 params->hyph_start = (uint8_t) hyph_start;
@@ -135,10 +138,12 @@ Read and parse the level-specific hyper parameters pat\_start, pat\_finish, good
 @<Hyperparameters input@>=
 printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
 while (true){
-    if (scanf("%zu %zu", &pat_start, &pat_finish) < 2 || getchar() != '\n' || pat_start < 1 || pat_finish < 1 || pat_start > pat_finish || pat_start > 255 || pat_finish > 255){
-        printf("Error: Specify 1 <= pat_start <= pat_finish <= 255! Insert again: ");
-    } else {
+    result = scanf("%zu %zu", &pat_start, &pat_finish);
+    if (result == 2 && pat_start >= 1 && pat_finish >= 1 && pat_start <= pat_finish && pat_start <= 255 && pat_finish <= 255){
         break;
+    } else {
+        printf("Error: Specify 1 <= pat_start <= pat_finish <= 255! Insert again: ");
+        while (getchar() != '\n');
     }
 }
 params->pat_start = (uint8_t) pat_start;
@@ -146,10 +151,12 @@ params->pat_finish = (uint8_t) pat_finish;
 
 printf("good_wt (good -), bad_wt (bad pattern weight), threshold: ");
 while (true){
-    if (scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh) < 3 || getchar() != '\n' || good_wt < 1 || bad_wt < 1 || thresh < 1 || good_wt > 255 || bad_wt > 255 || thresh > 255){
-        printf("Error: Specify 1 <= good_wt, bad_wt, threshold <= 255! Insert again: ");
-    } else {
+    result = scanf("%zu %zu %zu", &good_wt, &bad_wt, &thresh);
+    if (result == 3 && good_wt >= 1 && bad_wt >= 1 && thresh >= 1 && good_wt <= 255 && bad_wt <= 255 && thresh <= 255){
         break;
+    } else {
+        printf("Error: Specify 1 <= good_wt, bad_wt, threshold <= 255! Insert again: ");
+        while (getchar() != '\n');
     }
 }
 params->good_wt = (uint8_t) good_wt;
