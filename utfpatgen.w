@@ -1548,7 +1548,6 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         destroy_stack(s_base);
         return false;
     }
-
     size_t node, utf_bytes_to_end = 0, op_index, good, bad, cnt_index;
     while (s_base->top > 0){
         root = get_top_value(s_base);
@@ -1559,6 +1558,8 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             s_base->top--;
             if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
                 current_len--;
+            } else {
+                utf_bytes_to_end++;
             }
             continue;
         }
@@ -1602,11 +1603,12 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             }
             continue;
         }
-        
         root = get_link(ct->t, node);
         if (root == 0){
             if (is_utf_start_byte(c)) {
                 current_len--;
+            } else {
+                utf_bytes_to_end++;
             }
             continue;
         }
