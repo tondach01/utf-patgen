@@ -1653,17 +1653,43 @@ bool delete_patterns(struct pattern_trie *pt){
         set_top_value(s_offset, (uint8_t) get_top_value(s_offset) + 1);
         c = (uint8_t) get_top_value(s_offset);
         if (c == 0){
-            if (get_top_value(s_freed) == (size_t) true){
-                if (!set_base_used(pt->t, root + c, false)){
+            bool child_freed = (get_top_value(s_freed) == (size_t) true);
+            if (child_freed){
+                if (!set_base_used(pt->t, root, false)){
                     destroy_stack(s_base);
                     destroy_stack(s_offset);
                     destroy_stack(s_freed);
                     return false;
                 }
-            }
+            } 
             s_offset->top--;
             s_base->top--;
             s_freed->top--;
+            if (s_base->top > 0) {
+                size_t parent_root = get_top_value(s_base);
+                uint8_t parent_c = (uint8_t) get_top_value(s_offset);
+                size_t parent_node = parent_root + parent_c;
+                if (child_freed) {
+                    if (!set_link(pt->t, parent_node, 0)){
+                        destroy_stack(s_base);
+                        destroy_stack(s_offset);
+                        destroy_stack(s_freed);
+                        return false;
+                    }
+                    if (get_aux(pt->t, parent_node) == 0 && parent_root != 1) {
+                        if (!deallocate_node(pt->t, parent_node)){
+                            destroy_stack(s_base);
+                            destroy_stack(s_offset);
+                            destroy_stack(s_freed);
+                            return false;
+                        }
+                    } else {
+                        set_top_value(s_freed, (size_t) false);
+                    }
+                } else {
+                    set_top_value(s_freed, (size_t) false);
+                }
+            }
             continue;
         }
         node = root + c;
@@ -1676,15 +1702,18 @@ bool delete_patterns(struct pattern_trie *pt){
             destroy_stack(s_freed);
             return false;
         }
-        if (get_link(pt->t, node) > 0 || get_aux(pt->t, node) > 0 || root == 1){
+        if (get_aux(pt->t, node) > 0 || root == 1){
             set_top_value(s_freed, (size_t) false);
         } else {
-            if (!deallocate_node(pt->t, node)){
-                destroy_stack(s_base);
-                destroy_stack(s_offset);
-                destroy_stack(s_freed);
-                return false;
+            if (get_link(pt->t, node) == 0){
+                if (!deallocate_node(pt->t, node)){
+                    destroy_stack(s_base);
+                    destroy_stack(s_offset);
+                    destroy_stack(s_freed);
+                    return false;
+                }
             }
+            
         }
         root = get_link(pt->t, node);
         if (root == 0){
