@@ -122,13 +122,7 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
         destroy_pattern_trie(pt);
         return EXIT_FAILURE;
     }
-    printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);
-    if (!output_patterns(pt, params->output_file)){
-        destroy_params(params);
-        destroy_tr_table(tt);
-        destroy_pattern_trie(pt);
-        return EXIT_FAILURE;
-    }
+    printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);    
 }
 
 
@@ -201,6 +195,12 @@ for (size_t j = params->pat_start; j <= params->pat_finish; j++) {
 If the user wants, distionary is tranversed one last time and hyphenated according to found patterns. The output is stored in file 'pattmp.X'.
 
 @<Final pass@>=
+if (!output_patterns(pt, params->output_file)){
+    destroy_params(params);
+    destroy_tr_table(tt);
+    destroy_pattern_trie(pt);
+    return EXIT_FAILURE;
+}
 char c;
 printf("hyphenate word list? (y/n): ");
 if (scanf(" %c", &c) < 1){
