@@ -1936,7 +1936,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         destroy_buffer(letter);
         return false;
     }
-    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) ||  !set_true_hyphen(out_word, 0, 4 * params->word_weight + NO_HYF) || !set_true_hyphen(out_word, out_word->size - 1, 4 * params->word_weight + NO_HYF)){
+    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
         destroy_buffer(letter);
         return false;
     }
@@ -2113,6 +2113,20 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             }
         }
         dot_index = current_index - 1;
+        if (get_no_more(word, dot_index)){
+            continue;
+        }
+        hyf = get_true_hyphen(word, dot_index) % 4;
+        if (get_found_hyphen(word, dot_index) % 2 == 1){
+            hyf += 2;
+        }
+        if (hyf == params->good_dot){
+            good_pattern = true;
+        } else if (hyf == params->bad_dot){
+            good_pattern = false;
+        } else {
+            continue;
+        }
         start_pos = dot_pos;
         start_index = current_index;
         while (start_pos > dot_pos - params->pat_dot){
@@ -2128,20 +2142,6 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             if (is_utf_start_byte(get_char(word, end_index))){
                 end_pos++;
             }
-        }
-        if (get_no_more(word, dot_index)){
-            continue;
-        }
-        hyf = get_true_hyphen(word, dot_index) % 4;
-        if (get_found_hyphen(word, dot_index) % 2 == 1){
-            hyf += 2;
-        }
-        if (hyf == params->good_dot){
-            good_pattern = true;
-        } else if (hyf == params->bad_dot){
-            good_pattern = false;
-        } else {
-            continue;
         }
         if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
             return false;
