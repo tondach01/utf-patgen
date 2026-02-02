@@ -852,25 +852,26 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     size_t base = 1;
     size_t node = base + (uint8_t) pattern[index];
     size_t fit;
+    size_t node_prev = 0;
     struct trie *q = init_trie(256);
     if (q == NULL) {
         return false;
     }
     bool new_pattern = false;
     while (index < end && base > 0) {
-        base += (uint8_t) pattern[index];
-        if (get_node(t, base) != pattern[index]) {
+        node = base + (uint8_t) pattern[index];
+        if (get_node(t, node) != pattern[index]) {
             new_pattern = true;
-            if (get_node(t, base) == 0) {
-                if (!set_links(t, get_aux(t, base), get_link(t, base)) || !set_node(t, base, pattern[index]) || !set_aux(t, base, 0) || !set_link(t, base, 0)) {
+            if (get_node(t, node) == 0) {
+                if (!set_links(t, get_aux(t, node), get_link(t, node)) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     destroy_trie(q);
                     return false;
                 }
-                if (base > t->node_max) {
-                    t->node_max = base;
+                if (node > t->node_max) {
+                    t->node_max = node;
                 }
             } else {
-                if (!repack(t, q, &node, &base, pattern[index])) {
+                if (!repack(t, q, &node_prev, &node, pattern[index])) {
                     destroy_trie(q);
                     return false;
                 }
@@ -878,7 +879,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
             t->occupied++;
         }
         index++;
-        node = base;
+        node_prev = node;
         base = get_link(t, node);
     }
     if (!set_link(q, 1, 0) || !set_aux(q, 1, 0)) {
