@@ -1841,7 +1841,12 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
             }
             pattern_position++;
         }
-        fputc(pattern->data[i], pattern_file);
+        if (pattern->data[i] == EDGE_OF_WORD){
+            fputc('.', pattern_file);
+        } else {
+            fputc(pattern->data[i], pattern_file);
+        }
+        
     }
     level = get_highest_level(ops, op_index, pattern_position);
     if (level > 0){
