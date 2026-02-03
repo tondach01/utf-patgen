@@ -1519,7 +1519,7 @@ bool set_no_more(struct word *word, size_t index, bool value){
 }
 
 uint8_t n_utf_following_bytes(uint8_t c){
-    if (c < 128){
+    if (c < 128 || c > 253){
         return 0;
     } else if (c < 208){
         return 1;
