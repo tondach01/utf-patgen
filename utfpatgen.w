@@ -1712,8 +1712,8 @@ bool delete_patterns(struct pattern_trie *pt){
                     destroy_stack(s_freed);
                     return false;
                 }
+                continue;
             }
-            
         }
         root = get_link(pt->t, node);
         if (root == 0){
