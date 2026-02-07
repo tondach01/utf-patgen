@@ -812,31 +812,46 @@ size_t traverse_trie(struct trie *t, const char *pattern){
 
 bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next_op_index, size_t *op_index){
     if (pt->ops->count >= pt->ops->capacity - 1) {
-        if (resize_outputs(pt->ops, pt->ops->capacity * 2, pt->t) == NULL) {
+        if (resize_outputs(pt->ops, pt->ops->capacity * 2) == NULL) {
+            return false;
+        }
+    }
+    if (pt->ops->lookup_cnt * 4 > pt->ops->lookup_cap * 3) {
+        if (!resize_lookup(pt->ops, pt->ops->lookup_cap * 2, pt->t)){
             return false;
         }
     }
     size_t hash = hash_trie_output(pt->ops, value, position, next_op_index);
-    if (pt->ops->data[hash].value == 0) {
+    if (pt->ops->lookup[hash] == 0) {
         pt->ops->count++;
         struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
-        pt->ops->data[hash] = new_op;
+        size_t free_list_head = pt->ops->data[0].next_op_index;
+        if (pt->ops->data[free_list_head].next_op_index == 0){
+            pt->ops->data[0].next_op_index = pt->ops->count + 1;
+        } else {
+            pt->ops->data[0].next_op_index = pt->ops->data[free_list_head].next_op_index;
+        }
+        pt->ops->data[free_list_head] = new_op;
+        pt->ops->lookup[hash] = free_list_head;
+        pt->ops->lookup_cnt++;
     } 
     *op_index = hash;
     return true;
 }
 
 size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
-    size_t hash = ((next_op_index + 313*position + 361*value) % ops->capacity) + 1;
+    size_t hash = ((next_op_index + 313*position + 361*value) % ops->lookup_cap) + 1;
+    size_t op_index;
     while (true) {
-        if (ops->data[hash].value == 0) {
+        op_index = ops->lookup[hash];
+        if (op_index == 0) {
             return hash;
-        } else if (ops->data[hash].value == value && ops->data[hash].position == position && ops->data[hash].next_op_index == next_op_index) {
+        } else if (ops->data[op_index].value == value && ops->data[op_index].position == position && ops->data[op_index].next_op_index == next_op_index) {
             return hash;
         } else if (hash > 1) {
             hash -= 1;
         } else {
-            hash = ops->capacity;
+            hash = ops->lookup_cap;
         }
     }
     return 0;
@@ -924,7 +939,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
 
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(pt, value, position, get_aux(pt->t, node), &op_index) || !set_aux(pt->t, node, op_index)) {
+    if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
         return false;
     }
     return true;
@@ -960,37 +975,62 @@ struct outputs *init_outputs(size_t capacity){
         free(ops);
         return NULL;
     }
+    ops->data[0].next_op_index = 1;
+    ops->lookup_cap = 2*capacity;
+    ops->lookup_cnt = 0;
+    ops->lookup = calloc(2*capacity, sizeof(size_t));
+    if (ops->lookup == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(ops->data);
+        free(ops);
+        return NULL;
+    }
     return ops;
 }
 
-// warning: computationally very expensive for larger tries!
-struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t){
-    struct output *new_data = calloc(capacity + 1, sizeof(struct output)); 
+struct outputs *resize_outputs(struct outputs *ops, size_t capacity){
+    struct output *new_data = realloc(ops->data, (capacity + 1) * sizeof(struct output)); 
     if (new_data == NULL) {
         fputs("Allocation error\n", stderr);
         return NULL;
     }
-    struct output *old_data = ops->data;
     ops->data = new_data;
+    size_t diff = capacity - ops->capacity;
+    memset(ops->data + ops->capacity + 1, 0, diff * sizeof(struct output));
     ops->capacity = capacity;
-    for (size_t i = 0; i < t->capacity; i++) {
-        if (is_node_occupied(t, i) && get_aux(t, i) != 0) {
-            size_t old_index = get_aux(t, i);
-            struct output old_op = old_data[old_index];
-            size_t new_index = hash_trie_output(ops, old_op.value, old_op.position, old_op.next_op_index); // !!! old\_op\_index is invalid
-            ops->data[new_index] = old_op;
-            if (!set_aux(t, i, new_index)){
-                free(old_data);
-                return NULL;
-            }
+    return ops;
+}
+
+bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
+    size_t *new_lookup = calloc(new_cap, sizeof(size_t));
+    size_t *old_lookup = ops->lookup;
+    if (new_lookup == NULL){
+        return false;
+    }
+    ops->lookup = new_lookup;
+    ops->lookup_cap = new_cap;
+    size_t old_hash, new_hash, op_index;
+    struct output op;
+    for (size_t node = 0; node <= t->node_max; node++){
+        if (!is_node_occupied(t, node) || get_aux(t, node) == 0){
+            continue;
+        }
+        old_hash = get_aux(t, node);
+        op_index = old_lookup[old_hash];
+        op = ops->data[op_index];
+        new_hash = hash_trie_output(ops, op.value, op.position, op.next_op_index);
+        ops->lookup[new_hash] = op_index;
+        if (!set_aux(t, node, new_hash)){
+            return false;
         }
     }
-    free(old_data);
-    return ops;
+    free(old_lookup);
+    return true;
 }
 
 void destroy_outputs(struct outputs *ops){
     free(ops->data);
+    free(ops->lookup);
     free(ops);
 }
 
@@ -1733,7 +1773,12 @@ bool delete_patterns(struct pattern_trie *pt){
 }
 
 bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
-    size_t op_index = get_aux(pt->t, t_index);
+    size_t lookup_index = get_aux(pt->t, t_index);
+    if (lookup_index == 0){
+        return true;
+    }
+    size_t op_index = pt->ops->lookup[lookup_index];
+    size_t free_list_head = pt->ops->data[0].next_op_index;
     size_t h = 0;
     pt->ops->data[0].next_op_index = op_index;
     size_t n = pt->ops->data[0].next_op_index;
@@ -1745,9 +1790,18 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
         }
         n = pt->ops->data[h].next_op_index;
     }
-    if (!set_aux(pt->t, t_index, pt->ops->data[0].next_op_index)){
-        return false;
+    if (h == 0){
+        if (pt->ops->lookup[lookup_index] > 0){
+            pt->ops->lookup[lookup_index] = 0;
+            pt->ops->lookup_cnt--;
+        }
+        if (!set_aux(pt->t, t_index, 0)){
+            return false;
+        }
+    } else {
+        pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
     }
+    pt->ops->data[0].next_op_index = free_list_head;
     return true;
 }
 
@@ -1769,6 +1823,8 @@ bool delete_bad_patterns(struct pattern_trie *pt){
         if (pt->ops->data[h].value == BAD_OP_VALUE){
             pt->ops->data[h].value = EMPTY_OP_VALUE;
             pt->ops->count--;
+            pt->ops->data[h].next_op_index = pt->ops->data[0].next_op_index;
+            pt->ops->data[0].next_op_index = h;
         }
     }
     printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
@@ -1857,7 +1913,7 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
 
 size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
     size_t highest = 0;
-    size_t op_index = start_index;
+    size_t op_index = ops->lookup[start_index];
     struct output op;
     while (op_index > 0){
         op = ops->data[op_index];
@@ -1978,12 +2034,8 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (is_utf_start_byte(get_char(word, end_index))){
                 end_pos++;
             }
-            op_index = get_aux(pt->t, node);
+            op_index = pt->ops->lookup[get_aux(pt->t, node)];
             while (op_index > 0){
-                if (op_index > pt->ops->capacity){
-                    fprintf(stderr, "Output index %zu out of bounds\n", op_index);
-                    return false;
-                }
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
                 dot_index = start_index;

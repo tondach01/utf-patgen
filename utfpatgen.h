@@ -60,11 +60,15 @@ struct outputs {
     size_t capacity;
     size_t count;
     struct output *data;
+    size_t lookup_cap;
+    size_t lookup_cnt;
+    size_t *lookup;
 };
 
 struct outputs *init_outputs(size_t capacity);
-struct outputs *resize_outputs(struct outputs *ops, size_t capacity, struct trie *t);
+struct outputs *resize_outputs(struct outputs *ops, size_t capacity);
 void destroy_outputs(struct outputs *ops);
+bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t);
 
 struct pattern_trie {
     struct trie *t;
