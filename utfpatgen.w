@@ -1,11 +1,63 @@
 % --- LIMBO SECTION (LaTeX settings) ---
 \documentclass[a4paper,11pt]{cweb} % Use cweb class
 \usepackage[utf8]{inputenc}        % UTF-8 encoding
+\newcommand{\utfpatgen}{\texttt{utf-patgen }}
+\newcommand{\patgen}{\texttt{patgen }}
+\newcommand{\lefthyphenminpar}{\texttt{lefthyphenmin }}
+\newcommand{\righthyphenminpar}{\texttt{righthyphenmin }}
+\newcommand{\hyphstartpar}{\texttt{hyph\_start }}
+\newcommand{\hyphfinishpar}{\texttt{hyph\_finish }}
+\newcommand{\patstartpar}{\texttt{pat\_start }}
+\newcommand{\patfinishpar}{\texttt{pat\_finish }}
+\newcommand{\goodwtpar}{\texttt{good\_wt }}
+\newcommand{\badwtpar}{\texttt{bad\_wt }}
+\newcommand{\threshpar}{\texttt{thresh }}
 
 \begin{document}
 
-@* Beginning.
-This is \texttt{utf-patgen} - reimplementation of the classic \texttt{patgen} program for pattern generation.
+@** Introduction.
+This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen,
+we intend to overcome several limitations of the original, such as the number of hyphenation levels possible,
+inability to use some reserved characters in dictionary, and most importantly, we enable native usage of 
+the UTF-8 encoding in dictionaries that are no longer limited by the fixed number of lowercase characters
+permitted by \patgen.
+
+We provide \utfpatgen open-source and free of charge under \textbf{TODO} license. Please note that there is no
+warranty and despite our greatest effort, the program may contain bugs.
+
+@** Implementation.
+In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find
+the names and functions similar to those in the \patgen technical report. We have nevertheless decided to rewrite
+several parts of the algorithm in more "modern" way to improve its readability and testability. The main points
+to mention are:
+
+\begin{itemize}
+    \item the algorithm is implemented in CWEB (C being the laguage of the program), not WEB (with Pascal),
+    \item instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated
+        and reallocated dynamically, allowing for greater flexibility and possibly space savings,
+    \item global variables are localized as much as possible,
+    \item \texttt{goto} statements are eliminated.
+\end{itemize}
+
+You may also find a few unit tests appended to the code. These are by no means exhaustive, but feel free to 
+run them and add your own.
+
+We decided to present \utfpatgen in top-down fashion -- starting with the full overview and moving to details
+in later sections. Same goes for the structures which have their own dedicated sections.
+
+@* Dependencies.
+All external libraries used in \utfpatgen come from the standard C package, so we hope it to be widely portable
+without greater trouble. All in all, we use fixed-size types from \texttt{<stdint.h>} and \texttt{<stdbool.h>},
+IO support from \texttt{<stdio.h>}, string manipulation methods from \texttt{<string.h>}, and memory management
+provided by \texttt{<stdlib.h>}.
+
+@<Library includes@>=
+#include "utfpatgen.h"
+#include <string.h>
+
+@* Main body.
+The general flow of the program is rather simple: initialize structures, get the parameters, generate patterns,
+and optionally hyphenate the dictionary. For sure, it gets more complicated the deeper we dive.
 
 @c
 @<Library includes@>@;
@@ -33,15 +85,21 @@ int main(int argc, char *argv[]) {
 }
 # endif
 
-@* Implementation.
-Main body of the program.
+@* Initialization sequence.
+First, the input parameters provided to the program call are read, validated and processed. Unless asking for help
+(\texttt{--help}) or version printout (\texttt{--version}), \utfpatgen takes exactly 4 parameters, representing
+4 files:
 
-@<Library includes@>=
-#include "utfpatgen.h"
-#include <string.h>
+\begin{itemize}
+    \item \textbf{Dictionary file}: contains set of hyphenated words.
+    \item \textbf{Patterns file}: stores patterns generated in previous runs.
+    \item \textbf{Output file}: where the patterns will be stored after the run.
+    \item \textbf{Translate file}: contains the mapping of characters from the dictionary and dictionary-specific
+        parameters.
+\end{itemize}
 
-@ Initialization sequence
-Parse the passed parameters and store them into program internal structure.
+The required formats of these files are the same as for the original \patgen program and are discussed in dedicated
+sections.
 
 @<Initialization sequence@>=
 struct params *params = init_params();
@@ -76,8 +134,11 @@ if (!read_patterns(params, pt, tt, &ps)){
     return EXIT_FAILURE;
 }
 
-@ Level range specification
-Read the values for hyphenation level range from standard input, parse them, and feed in if acceptable.
+@* Level range specification.
+Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
+and \hyphfinishpar specify the range of \textbf{hyphenation levels} covered during the run. Hyphenation level of a
+pattern represents its strength -- it overruns any pattern of lower level. The program can generate patterns up to
+level 254.
 
 @<Level range specification@>=
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
@@ -100,8 +161,9 @@ if (hyph_start > hyph_finish){
     params->hyph_finish = (uint8_t) hyph_finish;
 }
 
-@ Pattern generation
-Run the algorithm for every level in specified range. Read and parse hyperparameters and proceed to the generation itself.
+@* Pattern generation loop.
+The algorithm runs for each level within the specified range, going from the \hyphstartpar up. The program prompts
+for level-specific hyperparameters, generates and prunes the patterns.
 
 @<Pattern generation@>=
 size_t pat_start, pat_finish, good_wt, bad_wt, thresh;
@@ -114,7 +176,7 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
     if (params->hyph_start <= ps.max_level) {
         printf("Warning: Largest hyphenation value %u in patterns should be less than hyph_start\n", ps.max_level);
     }
-    @<Hyperparameters input@>;
+    @<Level hyperparameters input@>;
     @<Level generation@>;
     if (!delete_bad_patterns(pt)){
         destroy_params(params);
@@ -125,11 +187,18 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
     printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);    
 }
 
+@* Level hyperparameters input.
+The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define
+the \textbf{lenght range} of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to
+255. Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These
+define the \textbf{acceptance criteria} for candidate patterns -- in order to accept the pattern during the ongoing
+iteration, its \textit{good} (the number of supporting cases in the dictionary) and \textit{bad} (the number of
+contradicting cases) occurences must make the following inequality to hold:
+\begin{equation}
+    good * good\_wt - bad * bad\_wt \geq thresh
+\end{equation}
 
-@ Hyperparameters input
-Read and parse the level-specific hyper parameters pat\_start, pat\_finish, good\_wt, bad\_wt, thresh.
-
-@<Hyperparameters input@>=
+@<Level hyperparameters input@>=
 printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
 while (true){
     result = scanf("%zu %zu", &pat_start, &pat_finish);
@@ -157,7 +226,7 @@ params->good_wt = (uint8_t) good_wt;
 params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
 
-@ Level generation
+@* Level generation.
 Do single pass through the dictionary.
 
 @<Level generation@>=
@@ -221,32 +290,6 @@ if (c == 'y' || c == 'Y'){
 
 @* Requirements.
 To ensure that the new implementation behaves in similar manner to the old one, we should specify desired behavior.
-
-@ Input.
-The program takes 4 arguments in this order:
-\begin{itemize}
-    \item \textbf{dictionary file}: contains set of hyphenated words, one per line. The hyphenation marks are specified
-        in translate file. It must contain only the characters specified in translate file. If translate file is empty,
-        it must contain only ASCII characters.
-    \item \textbf{patterns file}: contains patterns generated in previous runs, one per line. The patterns must have
-        only levels that are lower than current hyphenation level. The old patgen represented levels are ASCII characters
-        '1' through '9'. We might want to rethink it for \texttt{utf-patgen} where more than 9 levels are possible.
-        Anyway the back compatibilitywould be fine for testing and comparison with \texttt{patgen}.
-    \item \textbf{output file}: where the hyphenated dictionary will be stored once all the pattern are generated.
-    \item \textbf{translate file}: contains the characters that are contained in the dictionary. In the first line the
-        hyphenation marks and \texttt{lefthyphenmin}, \texttt{righthyphenmin} parameters can be redefined:
-        \begin{itemize}
-            \item first line (optional): 'XXYY BMG', where 'XX' is the value of \texttt{lefthyphenmin}, 'YY' the value 
-                of \texttt{righthyphenmin}, 'B' the symbol for bad hyphen (marked, not present in the data), 'M' the symbol
-                for missed hyphen (not marked, present in the data), and 'G' the symbol for good hyphen (marked, present).
-                If any of the parameters is left blank, the default is used: \texttt{lefthyphenmin}$=2$, \texttt{righthyphenmin}$=3$,
-                bad hyphen '.', missed hyphen '-', good hyphen '*'.
-            \item consequent lines: '$<>X<>Y_1<>...Y_n<><>$', where 'X' is a lower-case letter, '$Y_k$' arbitrary (even zero) 
-                number of upper-case variants of 'X', and '$<>$' the delimiter, usually space.
-        \end{itemize}
-        For the sake of compatibility, the program should be able to read such format, although the inner representation
-        must allow for using the bytes corresponding to these "reserved characters" also as pattern bytes.
-\end{itemize}
 
 @* IO procedures.
 
@@ -1147,6 +1190,19 @@ void destroy_tr_table(struct translate_table *tt){
     free(tt);
 }
 
+@* Translate file.
+Format:
+\begin{itemize}
+    \item first line (optional): 'LLRR BMG', where 'LL' is the value of \lefthyphenminpar, 'RR' the value of
+        \righthyphenminpar, 'B' the symbol for bad hyphen (marked, not present), 'M' the symbol for missed hyphen
+        (not marked, present), and 'G' the symbol for good hyphen (marked, present). Should any of these 
+        parameters stay blank, the default is used: \lefthyphenminpar$=2$, \righthyphenminpar$=3$, bad hyphen '.',
+        missed hyphen '-', good hyphen '*'.
+    \item consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lower-case letter, '$Y_k$' an arbitrary
+        (even zero) number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
+\end{itemize}
+
+@c
 bool read_translate(struct params *params, struct translate_table *tt){
     rewind(params->translate_file);
     struct string_buffer *buf = init_buffer(64);
