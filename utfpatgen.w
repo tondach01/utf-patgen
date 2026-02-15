@@ -15,49 +15,78 @@
 
 \begin{document}
 
-@** Introduction.
-This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen,
-we intend to overcome several limitations of the original, such as the number of hyphenation levels possible,
-inability to use some reserved characters in dictionary, and most importantly, we enable native usage of 
-the UTF-8 encoding in dictionaries that are no longer limited by the fixed number of lowercase characters
-permitted by \patgen.
+@* Introduction.
+This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen, we
+intend to overcome several limitations of the original, such as the number of hyphenation levels possible, inability to
+use some reserved characters in dictionary, and most importantly, we enable native usage of the UTF-8 encoding in
+dictionaries that are no longer limited by the fixed number of lowercase characters permitted by \patgen.
 
-We provide \utfpatgen open-source and free of charge under \textbf{TODO} license. Please note that there is no
-warranty and despite our greatest effort, the program may contain bugs.
+We provide \utfpatgen open-source and free of charge under \textbf{TODO} license. Please note that there is no warranty
+and despite our greatest effort, the program may contain bugs.
 
-@** Implementation.
-In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find
-the names and functions similar to those in the \patgen technical report. We have nevertheless decided to rewrite
-several parts of the algorithm in more "modern" way to improve its readability and testability. The main points
-to mention are:
+@* Glossary.
+Before diving into the implementation part of the program, it is useful to mention several terms occurring frequently
+throughout the text. It may come useful especially to those who are not thoroughly familiar with \patgen. The
+definitions here are mostly informal and intended to ease reader's understanding of the topic.
+
+\textbf{Hyphenation} is a process of splitting words so that they fit better to the paragraphs when typeset. It follows
+the linguistic rules set for the language in which the text is written.
+
+\textbf{Pattern} is a sequence of characters containing hyphenation information tied to some position (\textbf{dot
+position}) on the edges of the pattern or in between the characters. Whether this information tells that the position
+should or should not be hyphenated, we distinguish between \textbf{hyphenating} and \textbf{inhibiting patterns}.
+
+\textbf{Hyphen} (in context of \patgen and \utfpatgen) is a mark between two characters holding the information whether
+that position should be split during hyphenation and whether this split was detected by current patterns. There are
+therefore 4 types of hyphens: \textbf{NO\_HYF} (not in the data, not marked), \textbf{MISS\_HYF} (in the data, not
+marked), \textbf{BAD\_HYF} (not in the data, marked), and \textbf{GOOD\_HYF} (in the data, marked). Strictly speaking,
+there is a hyphen between each pair of neighboring characters in the data, but NO\_HYF marking is omitted implicitly.
+
+\textbf{Supporting occurences} of a pattern in the data are those that are in favor of the hyphenation information it
+holds. For hyphenating patterns, these are the cases where the word has a MISS\_HYF on the dot position pointed by the
+pattern. For inhibiting patterns, dot position with a BAD\_HYF is a supporting one. \textbf{Contradicting occurences}
+are those that would break a correct hyphen, thus NO\_HYF for hyphenating, and GOOD\_HYF for inhibiting patterns. Note
+that a occurence of a pattern can be neither supporting nor contradicting.
+
+\textbf{Hyphenation level} marks the strength of a hyphenation. It is represented by a non-negative integer and creates
+a hierarchy of patterns. Pattern with higher level always takes precedence over any pattern with lower level. At odd
+levels, the patterns are hyphenating, at even levels inhibiting.
+
+\textbf{Trie} is a data structure for storing n-ary trees. It can implemented using an associated array with highly
+effective insertion, deletion and lookup. Furthermore, we can condense it via \textit{packing} to save space.
+
+@* Implementation.
+In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find the
+names and functions similar to those in the \patgen technical report. We have nevertheless decided to rewrite several
+parts of the algorithm in more "modern" way to improve its readability and testability. The main points to mention are:
 
 \begin{itemize}
     \item the algorithm is implemented in CWEB (C being the laguage of the program), not WEB (with Pascal),
-    \item instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated
-        and reallocated dynamically, allowing for greater flexibility and possibly space savings,
+    \item instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated and
+        reallocated dynamically, allowing for greater flexibility and possibly space savings,
     \item global variables are localized as much as possible,
     \item \texttt{goto} statements are eliminated.
 \end{itemize}
 
-You may also find a few unit tests appended to the code. These are by no means exhaustive, but feel free to 
-run them and add your own.
+You may also find a few unit tests appended to the code. These are by no means exhaustive, but feel free to run them
+and add your own.
 
-We decided to present \utfpatgen in top-down fashion -- starting with the full overview and moving to details
-in later sections. Same goes for the structures which have their own dedicated sections.
+We decided to present \utfpatgen in top-down fashion -- starting with the full overview and moving to details in later
+sections. Same goes for the structures which have their own dedicated sections.
 
-@* Dependencies.
-All external libraries used in \utfpatgen come from the standard C package, so we hope it to be widely portable
-without greater trouble. All in all, we use fixed-size types from \texttt{<stdint.h>} and \texttt{<stdbool.h>},
-IO support from \texttt{<stdio.h>}, string manipulation methods from \texttt{<string.h>}, and memory management
-provided by \texttt{<stdlib.h>}.
+@ Dependencies.
+All external libraries used in \utfpatgen come from the standard C package, so we hope it to be widely portable without
+greater trouble. All in all, we use fixed-size types from \texttt{<stdint.h>} and \texttt{<stdbool.h>}, IO support from
+\texttt{<stdio.h>}, string manipulation methods from \texttt{<string.h>}, and memory management provided by
+\texttt{<stdlib.h>}.
 
 @<Library includes@>=
 #include "utfpatgen.h"
 #include <string.h>
 
-@* Main body.
-The general flow of the program is rather simple: initialize structures, get the parameters, generate patterns,
-and optionally hyphenate the dictionary. For sure, it gets more complicated the deeper we dive.
+@ Main body.
+The general flow of the program is rather simple: initialize structures, get the parameters, generate patterns, and
+optionally hyphenate the dictionary. For sure, it gets more complicated the deeper we dive.
 
 @c
 @<Library includes@>@;
@@ -85,10 +114,9 @@ int main(int argc, char *argv[]) {
 }
 # endif
 
-@* Initialization sequence.
+@ Initialization sequence.
 First, the input parameters provided to the program call are read, validated and processed. Unless asking for help
-(\texttt{--help}) or version printout (\texttt{--version}), \utfpatgen takes exactly 4 parameters, representing
-4 files:
+(\texttt{--help}) or version printout (\texttt{--version}), \utfpatgen takes exactly 4 inputs, representing 4 files:
 
 \begin{itemize}
     \item \textbf{Dictionary file}: contains set of hyphenated words.
@@ -98,8 +126,7 @@ First, the input parameters provided to the program call are read, validated and
         parameters.
 \end{itemize}
 
-The required formats of these files are the same as for the original \patgen program and are discussed in dedicated
-sections.
+The required formats of these files are the same as for the \patgen program and are discussed in dedicated sections.
 
 @<Initialization sequence@>=
 struct params *params = init_params();
@@ -134,11 +161,10 @@ if (!read_patterns(params, pt, tt, &ps)){
     return EXIT_FAILURE;
 }
 
-@* Level range specification.
+@ Level range specification.
 Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
-and \hyphfinishpar specify the range of \textbf{hyphenation levels} covered during the run. Hyphenation level of a
-pattern represents its strength -- it overruns any pattern of lower level. The program can generate patterns up to
-level 254.
+and \hyphfinishpar specify the range of hyphenation levels covered during the run. The program can generate patterns up
+to level 254.
 
 @<Level range specification@>=
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
@@ -161,9 +187,9 @@ if (hyph_start > hyph_finish){
     params->hyph_finish = (uint8_t) hyph_finish;
 }
 
-@* Pattern generation loop.
-The algorithm runs for each level within the specified range, going from the \hyphstartpar up. The program prompts
-for level-specific hyperparameters, generates and prunes the patterns.
+@ Pattern generation loop.
+The algorithm runs for each level within the specified range, going from \hyphstartpar up. The program prompts for
+level-specific hyperparameters, generates and prunes the patterns.
 
 @<Pattern generation@>=
 size_t pat_start, pat_finish, good_wt, bad_wt, thresh;
@@ -187,16 +213,16 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
     printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);    
 }
 
-@* Level hyperparameters input.
-The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define
-the \textbf{lenght range} of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to
-255. Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These
-define the \textbf{acceptance criteria} for candidate patterns -- in order to accept the pattern during the ongoing
-iteration, its \textit{good} (the number of supporting cases in the dictionary) and \textit{bad} (the number of
-contradicting cases) occurences must make the following inequality to hold:
+@ Level hyperparameters input.
+The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define the
+lenght range of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to 255.
+Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These define the
+acceptance criteria for candidate patterns -- in order to accept the pattern during the ongoing iteration, its number
+of \textit{good} (supporting) and \textit{bad} (contradicting) occurences must make the following inequality to hold:
 \begin{equation}
     good * good\_wt - bad * bad\_wt \geq thresh
 \end{equation}
+The maximum value for the weights and threshold in \utfpatgen is set to 255.
 
 @<Level hyperparameters input@>=
 printf("pat_start (shortest -), pat_finish (longest pattern explored): ");
@@ -226,8 +252,10 @@ params->good_wt = (uint8_t) good_wt;
 params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
 
-@* Level generation.
-Do single pass through the dictionary.
+@ Level generation.
+The single iteration of \utfpatgen at given hyphenation level comprises going through all pattern lengths and their dot
+positions (the parameter \texttt{pat\_dot}) and processes the dictionary to collect their supporting and contradicting
+occurences. 
 
 @<Level generation@>=
 uint8_t aux_dot;
