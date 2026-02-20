@@ -12,7 +12,7 @@ struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
     if (op_index == 0) {
         return empty;
     }
-    return pt->ops->data[op_index];
+    return pt->ops->data[pt->ops->lookup[op_index]];
 }
 
 void test_read_line() {
@@ -246,7 +246,7 @@ void test_parse_word() {
         return;
     }
 
-    struct string_buffer *buf = mock_buffer("7te2-S.t");
+    struct string_buffer *buf = mock_buffer("\xfe\x07te\xfe\x02-S.t");
 
     if (!parse_word(buf, tt, params, word)){
         destroy_tr_table(tt);
