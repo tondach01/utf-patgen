@@ -3,7 +3,7 @@ NAME = utfpatgen
 
 # C compiler
 CXX = gcc
-CXXFLAGS = -O2 -Wall
+CXXFLAGS = -O2 -Wall -Wextra -pedantic
 
 # Targets
 all: pdf exe test
@@ -33,4 +33,4 @@ test: $(NAME).w
 
 # Cleaning
 clean:
-	rm -f $(NAME).c $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) test/unit_test
+	rm -f $(NAME).c $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) test/unit_test pattmp.*
