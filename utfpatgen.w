@@ -93,7 +93,7 @@ optionally hyphenate the dictionary. For sure, it gets more complicated the deep
 
 # ifndef TEST
 int main(int argc, char *argv[]) {
-    for (size_t i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             print_help();
             return EXIT_SUCCESS;
@@ -153,7 +153,7 @@ if (pt == NULL){
     destroy_tr_table(tt);
     return EXIT_FAILURE;
 }
-struct pass_stats ps = {};
+struct pass_stats ps;
 if (!read_patterns(params, pt, tt, &ps)){
     destroy_params(params);
     destroy_tr_table(tt);
@@ -253,9 +253,10 @@ params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
 
 @ Level generation.
-The single iteration of \utfpatgen at given hyphenation level comprises going through all pattern lengths and their dot
-positions (the parameter \texttt{pat\_dot}) and processes the dictionary to collect their supporting and contradicting
-occurences. 
+The single pass of \utfpatgen at given hyphenation level comprises iterating through pattern lengths (\texttt{pat\_len}
+parameter, in ascending order) and dot positions (\texttt{pat\_dot}, from the middle toward the edges) and processing
+the dictionary. The algorithm collects supporting and contradicting occurences and eventually adds new patterns to the
+set. It can happen that an iteration is skipped if it is known in advance that it will not yield any new patterns.
 
 @<Level generation@>=
 uint8_t aux_dot;
@@ -288,8 +289,9 @@ for (size_t j = params->pat_start; j <= params->pat_finish; j++) {
 }
 
 
-@ Final pass
-If the user wants, distionary is tranversed one last time and hyphenated according to found patterns. The output is stored in file 'pattmp.X'.
+@ Final pass.
+If the user wishes, the dictionary is traversed one last time and hyphenated according to found patterns. The output is
+stored in file 'pattmp.X'.
 
 @<Final pass@>=
 if (!output_patterns(pt, params->output_file)){
@@ -315,61 +317,56 @@ if (c == 'y' || c == 'Y'){
     }
 }
 
+@* Algorithm.
+In this section we focus on the implementation details, each subsection devoted to one particular aspect of the
+algorithm.
 
-@* Requirements.
-To ensure that the new implementation behaves in similar manner to the old one, we should specify desired behavior.
-
-@* IO procedures.
-
-@ String buffer.
-Buffer is used for storing lines read from input files. We use dynamic allocation to allow for arbitrary length lines.
-
-@c
-struct string_buffer *init_buffer(size_t capacity){
-    struct string_buffer *buf = malloc(sizeof(struct string_buffer));
-    if (buf == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    buf->capacity = capacity;
-    buf->size = 0;
-    buf->data = (char *)malloc(capacity);
-    buf->eof = false;
-    if (buf->data == NULL) {
-        fputs("Allocation error\n", stderr);
-        free(buf);
-        return NULL;
-    }
-    buf->data[0] = '\0';
-    return buf;
-}
-
-struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity){
-    char *new_ptr = realloc(buf->data, new_capacity);
-    if (new_ptr == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    buf->data = new_ptr;
-    buf->capacity = new_capacity;
-    return buf;
-}
-
-void reset_buffer(struct string_buffer *buf){
-    buf->eof = false;
-    buf->size = 0;
-    buf->data[0] = '\0';
-}
-
-void destroy_buffer(struct string_buffer *buf){
-    free(buf->data);
-    free(buf);
-}
-
-@ Read line.
-Reads a line from the given stream into the provided string buffer. Returns true on success, false on failure.
+@ IO procedures.
+Methods in this subsection stand on the interface between \utfpatgen and the user, together with the \texttt{main}
+method. \texttt{parse\_inputs} attempts to open the 4 files provided as inputs into streams and save them for later
+use. \texttt{read\_line} is a utility to simplify reading from these streams that stores the information read into
+provided buffer. The \texttt{print\_help} and \texttt{print\_version} methods print out the desired information if the
+user does not wish to proceed to pattern generation.
 
 @c
+bool parse_input(char *argv[], int argc, struct params *params){
+    if (argc != 5){
+        fprintf(stderr, "UTF-patgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
+        return false;
+    }
+    FILE *dictionary_file = fopen(argv[1], "rb");
+    if (dictionary_file == NULL){
+        fprintf(stderr, "Could not open dictionary file '%s'.\n", argv[1]);
+        return false;
+    }
+    FILE *pattern_file = fopen(argv[2], "rb");
+    if (pattern_file == NULL){
+        fprintf(stderr, "Could not open pattern file '%s'.\n", argv[2]);
+        fclose(dictionary_file);
+        return false;
+    }
+    FILE *output_file = fopen(argv[3], "wb");
+    if (output_file == NULL){
+        fprintf(stderr, "Could not open output file '%s'.\n", argv[3]);
+        fclose(dictionary_file);
+        fclose(pattern_file);
+        return false;
+    }
+    FILE *translate_file = fopen(argv[4], "rb");
+    if (translate_file == NULL){
+        fprintf(stderr, "Could not open translate file '%s'.\n", argv[4]);
+        fclose(dictionary_file);
+        fclose(pattern_file);
+        fclose(output_file);
+        return false;
+    }
+    params->dictionary_file = dictionary_file;
+    params->pattern_file = pattern_file;
+    params->output_file = output_file;
+    params->translate_file = translate_file;
+    return true;
+}
+
 bool read_line(FILE *stream, struct string_buffer *buf){
     reset_buffer(buf);
     char c;
@@ -395,33 +392,76 @@ bool read_line(FILE *stream, struct string_buffer *buf){
     return true;
 }
 
-bool append_char(struct string_buffer *buf, char c){
-    if (buf->size + 1 >= buf->capacity) {
-        if (resize_buffer(buf, 2*buf->capacity) == NULL) {
-            return false;
-        }
-    }
-    buf->data[buf->size] = c;
-    buf->size++;
-    return true;
+void print_help(){
+    printf("Usage: utfpatgen [OPTION]... DICTIONARY PATTERNS OUTPUT TRANSLATE\n");
+    printf("\tGenerate the OUTPUT hyphenation file for use with TeX\n");
+    printf("\tfrom the DICTIONARY, PATTERNS, and TRANSLATE files.\n");
+    printf("\n--help        print this help and exit\n");
+    printf("--version     output version information and exit\n");
 }
 
-bool append_string(struct string_buffer *buf, const char *str, size_t len){
-    if (buf->size + len >= buf->capacity) {
-        if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
-            return false;
-        }
-    }
-    strcpy(&buf->data[buf->size], str);
-    buf->size += len;
-    return true;
+void print_version(){
+    printf("This is UTF-patgen version %s\n", UTFPATGEN_VERSION);
 }
 
-@ Parse header.
-Parses the header line from the translate file to extract hyphenation parameters. Returns true on success, false on failure.
-Note that failure might mean that header was just not present and default parameters should be used.
+@ Translate file processing.
+Once the translate file has been successfully opened and its stream pointer stored, it is read line by line into
+translate table. The purpose of the translate file is to list all the characters that occur in the dictionary, together
+with their uppercase variants. Later during the pattern generation, all of these variants are treated as though they
+were the same character. Besides, the first line of the file may redefine the language-specific parameters
+\lefthyphenminpar, \righthyphenminpar, and the symbols used for marking hyphens in the dictionary. The format of the
+translate file follows the same pattern as required by \patgen:
+\begin{itemize}
+    \item first line (optional): 'LLRR BMG', where 'LL' is the value of \lefthyphenminpar, 'RR' the value of
+        \righthyphenminpar, 'B' the symbol for \texttt{BAD\_HYF}, 'M' the symbol for \texttt{MISS\_HYF}, and 'G' the
+        symbol for \texttt{GOOD\_HYF}. Should any of these parameters stay blank, the default is used:
+        \lefthyphenminpar$=2$, \righthyphenminpar$=3$, \texttt{BAD\_HYF} '.', \texttt{MISS\_HYF} '-',
+        \texttt{GOOD\_HYF} '*'.
+    \item consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lowercase letter, '$Y_k$' an arbitrary (even 0)
+        number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
+\end{itemize}
+Note that this format allows two-digit values of \lefthyphenminpar and \righthyphenminpar at most and one-byte
+characters for hyphen symbols. Practically, this is not a problem.
+
+The translate file must be provided as an input to \utfpatgen, but may be left empty. In that case, the default values
+for parameters ASCII character mapping are used.
 
 @c
+bool read_translate(struct params *params, struct translate_table *tt){
+    rewind(params->translate_file);
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL) {
+        return false;
+    }
+    if (!read_line(params->translate_file, buf)) {
+        destroy_buffer(buf);
+        return false;
+    }
+    if (buf->eof) {
+        bool default_mapping = default_ascii_mapping(tt);
+        destroy_buffer(buf);
+        return default_mapping;
+    }
+    bool first_line = true;
+    while (!buf->eof) {
+        if (first_line && parse_header(buf, params)) {
+            // header parsed successfully
+        } else if (!parse_letters(buf, tt)) {
+            destroy_buffer(buf);
+            return false;
+        }
+        first_line = false;
+        reset_buffer(buf);
+        if (!read_line(params->translate_file, buf)) {
+            destroy_buffer(buf);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
+    return true;
+}
+
 bool is_integer(char c){
     return (c >= '0' && c <= '9');
 }
@@ -478,10 +518,6 @@ bool parse_header(struct string_buffer *buf, struct params *params){
     return true;
 }
 
-@ Parse letters.
-Parses the letter mappings from the translate file. Returns true on success, false on failure.
-
-@c
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
     if (buf->size == 0){
         fprintf(stderr, "Empty line in translate file\n");
@@ -551,27 +587,998 @@ bool default_ascii_mapping(struct translate_table *tt){
     return true;
 }
 
-char *get_lower(struct translate_table *tt, const char *letter){
-    size_t index = traverse_trie(tt->mapping, letter);
-    if (index == 0 || get_aux(tt->mapping, index) >= tt->alphabet->size){
-        return NULL;
+@ Pattern file processing.
+The user can provide \utfpatgen with initial set of patterns to work with. Similarly to the translate file, the pattern
+file must be given as input, but may be left empty. Each line of the file represents one pattern, with following format
+required:
+\begin{quote}
+    $<hyph. level><character><hyph. level>\dots<hyph. level>$
+\end{quote}
+Zero levels are omitted implicitly. The special character '.' denotes edges of the word (it can be only used as the
+first or last character of a pattern). The original \patgen program that supports only levels up to 9 represents them
+simply as ASCII numeric literals '0' to '9'. On the other hand, \utfpatgen expects each byte representing a level
+preceded with a special \texttt{HYPHEN\_FLAG} byte of hexadecimal value '0xfe', so the range is extended up to 253.
+This works thanks to the fact that '0xfe' byte is not used by any UTF-8 character by design.
+
+The \texttt{read\_patterns} method iterates over the file, reads each entry into the buffer and proccesses it with
+\texttt{parse\_pattern}. The parsed pattern is then inserted into the pattern trie by \texttt{insert\_new\_pattern}.
+
+@c
+bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
+    ps->level_pattern_cnt = 0;
+    ps->max_level = 0;
+    struct string_buffer *buf = init_buffer(16);
+    if (buf == NULL){
+        return false;
     }
-    return tt->alphabet->data + get_aux(tt->mapping, index);
+    struct pattern *pat = init_pattern(16);
+    if (pat == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+    if (!read_line(params->pattern_file, buf)){
+        destroy_pattern(pat);
+        destroy_buffer(buf);
+        return false;
+    }
+    while (!buf->eof){
+        ps->level_pattern_cnt++;
+        if (!parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps)){
+            destroy_pattern(pat);
+            destroy_buffer(buf);
+            return false;
+        }
+        if (!read_line(params->pattern_file, buf)){
+            destroy_pattern(pat);
+            destroy_buffer(buf);
+            return false;
+        }
+    }
+    printf("%zu patterns read in\n", ps->level_pattern_cnt);
+    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
+    destroy_pattern(pat);
+    destroy_buffer(buf);
+    return true;
 }
 
-@* Trie structure.
-The \texttt{trie} structure is used for storing patterns efficiently. The structure uses following fields:
-\begin{itemize}
-    \item \textbf{capacity}: total number of nodes allocated (but not necessarily used),
-    \item \textbf{occupied}: number of nodes currently used,
-    \item \textbf{node\_size}: size of each node in bytes (so that we can create tries with different node sizes),
-    \item \textbf{node\_max}: highest index of used node,
-    \item \textbf{base\_max}: highest index of used base,
-    \item \textbf{nodes}: array of nodes,
-    \item \textbf{links}: array of links, i.e., pointers to next base,
-    \item \textbf{aux}: helper array: if a node is occupied, it stores a pointer to corresponding output, otherwise it points to neighboring empty spaces,
-    \item \textbf{taken}: bit array indicating which nodes are used as bases.
-\end{itemize}
+bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
+    reset_pattern(out_pattern);
+    char c;
+    char *lower;
+    bool next_hyphen = false;
+    struct string_buffer *letter = init_buffer(4);
+    if (letter == NULL){
+        return false;
+    }
+    for (size_t i = 0; i < buf->size; i++) {
+        c = buf->data[i];
+        if (c == EDGE_OF_WORD && i != 0 && i != buf->size - 1){
+            fprintf(stderr, "Edge of word found inside a pattern.\n");
+            destroy_buffer(letter);
+            return false;
+        }
+        if (next_hyphen){
+            if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
+                destroy_buffer(letter);
+                return false;
+            }
+            next_hyphen = false;
+            continue;
+        }
+        if (is_utf_start_byte(c) && letter->size > 0){
+            if (!append_char(letter, '\0')){
+                destroy_buffer(letter);
+                return false;
+            }
+            lower = get_lower(tt, letter->data);
+            if (lower == 0){
+                fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
+                destroy_buffer(letter);
+                return false;
+            }
+            if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+                destroy_buffer(letter);
+                return false;
+            }
+            reset_buffer(letter);
+        }
+        if (c == HYPHEN_FLAG){
+            next_hyphen = true;
+        } else if (!append_char(letter, c)){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    if (next_hyphen){
+        if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
+            destroy_buffer(letter);
+            return false;
+        }
+    } else if (letter->size > 0){
+        if (!append_char(letter, '\0')){
+            destroy_buffer(letter);
+            return false;
+        }
+        lower = get_lower(tt, letter->data);
+        if (lower == 0){
+            fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
+            destroy_buffer(letter);
+            return false;
+        }
+        if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    destroy_buffer(letter);
+    return true;
+}
+
+bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps){
+    size_t hyphenation_value, node;
+    size_t current_len = 0;
+    if (!insert_pattern(pt->t, pat->text, &node)){
+        return false;
+    }
+    for (size_t i = 0; i < pat->size; i++){
+        hyphenation_value = get_hyphen(pat, i);
+        if (hyphenation_value != 0){
+            if (!set_output(pt, node, hyphenation_value, current_len)){
+                return false;
+            }
+            if (hyphenation_value > ps->max_level){
+                ps->max_level = hyphenation_value;
+            }
+        }
+        if (is_utf_start_byte(pat->text[i])){
+            current_len++;
+        }
+    }
+    hyphenation_value = get_hyphen(pat, pat->size);
+    if (hyphenation_value > 0){
+        if (!set_output(pt, node, hyphenation_value, current_len)){
+            return false;
+        }
+    }
+    return true;
+}
+
+@ Dictionary file processing.
+The dictionary is the main source of data for pattern generation. The file indeed has to be provided as input, and
+though no error is raised when it is empty, such case does not make much sense. Each line in the file represents single
+hyphenated word, with hyphens marked using \texttt{GOOD\_HYF}, \texttt{MISS\_HYF}, and \texttt{BAD\_HYF}. Furthermore,
+both the whole word and separate hyphens can be weighted by preceding the with \texttt{HYPHEN\_FLAG} and a value.
+Similarly to the pattern file, the possible range of weights is increased to 253. If the hyphen weight is omitted, word
+weight is used. If the word weight is omitted, \utfpatgen uses the default value 1. The lines of the dictionary file
+thus look like this:
+\begin{quote}
+    $<word weigth><character><hyphen weight><hyphen><character>\dots<character>$
+\end{quote}
+
+@c
+bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
+    reset_word(out_word);
+    struct string_buffer *letter = init_buffer(4);
+    if (letter == NULL) {
+        return false;
+    }
+    uint8_t weight = params->word_weight;
+    enum hyphen_class hyf = NO_HYF;
+    if (!append_char_to_word(out_word, EDGE_OF_WORD)){
+        destroy_buffer(letter);
+        return false;
+    }
+    char c;
+    char *lower;
+    bool has_weight = false;
+    for (size_t i = 0; i < buf->size; i++){
+        c = buf->data[i];
+        if (has_weight){
+            weight = (uint8_t) c;
+            if (i == 1){
+                params->word_weight = weight;
+            }
+            has_weight = false;
+            continue;
+        } else if (c == HYPHEN_FLAG){
+            has_weight = true;
+            continue;
+        } else if (c == params->good_hyphen){
+            hyf = GOOD_HYF;
+            continue;
+        } else if (c == params->missed_hyphen){
+            hyf = MISS_HYF;
+            continue;
+        } else if (c == params->bad_hyphen) {
+            hyf = BAD_HYF;
+            continue;
+        } else if (is_utf_start_byte(c) && letter->size > 0){
+            if (!append_char(letter, '\0')){
+                destroy_buffer(letter);
+                return false;
+            }
+            lower = get_lower(tt, letter->data);
+            if (lower == NULL) {
+                fprintf(stderr, "Character '%s' not known\n", letter->data);
+                destroy_buffer(letter);
+                return false;
+            }
+            if (!append_string_to_word(out_word, lower, strlen(lower))){
+                destroy_buffer(letter);
+                return false;
+            }
+            if (!set_true_hyphen(out_word, out_word->size-1, 4 * weight + hyf)){
+                destroy_buffer(letter);
+                return false;
+            }
+            hyf = NO_HYF;
+            reset_buffer(letter);
+        }
+        weight = params->word_weight;
+        if (!append_char(letter, c)){
+            destroy_buffer(letter);
+            return false;
+        }
+    }
+    if (!append_char(letter, '\0')){
+        destroy_buffer(letter);
+        return false;
+    }
+    lower = get_lower(tt, letter->data);
+    if (lower == NULL) {
+        fprintf(stderr, "Character '%s' not known\n", letter->data);
+        destroy_buffer(letter);
+        return false;
+    }
+    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
+        destroy_buffer(letter);
+        return false;
+    }
+    return true;
+}
+
+void count_dots(struct word *word, struct params *params, struct pass_stats *ps){
+    if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
+        return;
+    }
+    size_t current_index = word->size;
+    size_t current_pos = word->length;
+    bool odd_level;
+    size_t dot_index, hyphenation_value, weight;
+    enum hyphen_class hyf;
+    for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= (uint8_t) (params->left_hyphen_min + 1); dot_pos--){
+        while (current_pos > dot_pos){
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))) {
+                current_pos--;
+            }
+        }
+        dot_index = current_index - 1;
+        odd_level = (get_found_hyphen(word, dot_index) % 2 == 1);
+        hyphenation_value = get_true_hyphen(word, dot_index);
+        weight = hyphenation_value / 4;
+        hyf = hyphenation_value % 4;
+        if (hyphenation_value == 0){
+            fprintf(stderr, "Code I hoped unreachable was reached\n");
+            continue;
+        } else if (hyf % 2 == 0) {
+            if (odd_level) {
+                ps->bad_cnt += weight;
+            }
+        } else {
+            if (odd_level) {
+                ps->good_cnt += weight;
+            } else {
+                ps->miss_cnt += weight;
+            }
+        }
+    }
+}
+
+bool process_word(struct word *word, struct count_trie *ct, struct params *params){
+    uint8_t dot_min = params->pat_dot;
+    uint8_t dot_max = params->pat_len - params->pat_dot;
+    if (dot_min < params->left_hyphen_min + 1){
+        dot_min = params->left_hyphen_min + 1;
+    }
+    if (dot_max < params->right_hyphen_min + 1){
+        dot_max = params->right_hyphen_min + 1;
+    }
+    size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight, cnt_index;
+    size_t current_pos = word->length;
+    size_t current_index = word->size;
+    bool good_pattern;
+    enum hyphen_class hyf;
+    for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
+        while (current_pos > dot_pos){
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))){
+                current_pos--;
+            }
+        }
+        dot_index = current_index - 1;
+        if (get_no_more(word, dot_index)){
+            continue;
+        }
+        hyf = get_true_hyphen(word, dot_index) % 4;
+        if (get_found_hyphen(word, dot_index) % 2 == 1){
+            hyf += 2;
+        }
+        if (hyf == params->good_dot){
+            good_pattern = true;
+        } else if (hyf == params->bad_dot){
+            good_pattern = false;
+        } else {
+            continue;
+        }
+        start_pos = dot_pos;
+        start_index = current_index;
+        while (start_pos > dot_pos - params->pat_dot){
+            start_index--;
+            if (is_utf_start_byte(get_char(word, start_index))){
+                start_pos--;
+            }
+        }
+        end_pos = dot_pos;
+        end_index = current_index;
+        while (end_pos < start_pos + params->pat_len){
+            end_index++;
+            if (is_utf_start_byte(get_char(word, end_index))){
+                end_pos++;
+            }
+        }
+        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
+            return false;
+        }
+        if (ct->cnts->size >= ct->cnts->capacity) {
+            size_t new_capacity = ct->t->capacity;
+            if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
+                return false;
+            }
+        }
+        cnt_index = get_aux(ct->t, node);
+        if (cnt_index == 0){
+            cnt_index = ct->cnts->size;
+            if (!set_aux(ct->t, node, cnt_index)){
+                return false;
+            }
+            ct->cnts->size++;
+        }
+        weight = get_true_hyphen(word, dot_index) / 4;
+        if (good_pattern){
+            ct->cnts->good[cnt_index] += weight;
+        } else {
+            ct->cnts->bad[cnt_index] += weight;
+        }
+    }
+    return true;
+}
+
+bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+    ps->good_cnt = 0;
+    ps->bad_cnt = 0;
+    ps->miss_cnt = 0;
+    params->word_weight = 1;
+    if (params->hyph_level % 2 == 1){
+        params->good_dot = MISS_HYF;
+        params->bad_dot = NO_HYF;
+    } else {
+        params->good_dot = BAD_HYF;
+        params->bad_dot = GOOD_HYF;
+    }
+    struct count_trie *ct = init_count_trie(256, 256);
+    if (ct == NULL){
+        return false;
+    }
+    printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
+    if (!process_all_words(params, tt, pt, ps, ct)){
+        destroy_count_trie(ct);
+        return false;
+    }
+    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
+    if (ps->good_cnt + ps->miss_cnt > 0){
+        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->bad_cnt/ (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
+    }
+    printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
+    if (!collect_count_trie(ct, pt, params, ps)){
+        destroy_count_trie(ct);
+        return false;
+    }
+    destroy_count_trie(ct);
+    return true;
+}
+
+bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
+    rewind(params->dictionary_file);
+    uint8_t dot_min = params->pat_dot;
+    uint8_t dot_max = params->pat_len - params->pat_dot;
+    if (dot_min < params->left_hyphen_min + 1){
+        dot_min = params->left_hyphen_min + 1;
+    }
+    if (dot_max < params->right_hyphen_min + 1){
+        dot_max = params->right_hyphen_min + 1;
+    }
+    size_t dot_len = dot_min + dot_max;
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL){
+        return false;
+    }
+    struct word *word = init_word(16);
+    if (word == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+
+    if (!read_line(params->dictionary_file, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
+    while (!buf->eof){
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+        count_dots(word, params, ps);
+        if (word->length >= dot_len){
+            if (!process_word(word, ct, params)){
+                destroy_buffer(buf);
+                destroy_word(word);
+                return false;
+            }
+        }
+        if (!read_line(params->dictionary_file, buf)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
+}
+
+@ Pattern collection.
+
+@c
+bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps){
+    double bad_eff = (double) params->thresh / (double) params->good_wt;
+    ps->good_pat_cnt = 0;
+    ps->bad_pat_cnt = 0;
+    ps->good_cnt = 0;
+    ps->bad_cnt = 0;
+    ps->more_to_come = false;
+    if (!traverse_count_trie(ct, pt, params, ps)){
+        return false;
+    }
+    printf("%zu good and %zu bad patterns added", ps->good_pat_cnt, ps->bad_pat_cnt);
+    ps->level_pattern_cnt += ps->good_pat_cnt;
+    if (ps->more_to_come) {
+        printf(" (more to come)\n");
+    } else {
+        printf("\n");
+    }
+    printf("finding %zu good and %zu bad hyphens", ps->good_cnt, ps->bad_cnt);
+    if (ps->good_pat_cnt > 0) {
+        printf(", efficiency = %.2lf\n", (double) ps->good_cnt / (ps->good_pat_cnt + ((double) ps->bad_cnt / bad_eff)));
+    } else {
+        printf("\n");
+    }
+    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
+    return true;
+}
+
+bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps) {
+    size_t root = 1;
+    size_t current_len = 0;
+    uint8_t c;
+    struct string_buffer *pattern = init_buffer(4 * params->pat_len);
+    if (pattern == NULL){
+        return false;
+    }
+    struct stack *s_base = init_stack(4 * params->pat_len);
+    if (s_base == NULL) {
+        destroy_buffer(pattern);
+        return false;
+    }
+    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+        destroy_buffer(pattern);
+        destroy_stack(s_base);
+        return false;
+    }
+    size_t node, utf_bytes_to_end = 0, op_index, good, bad, cnt_index;
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
+        pattern->data[pattern->size - 1] += 1;
+        c = (uint8_t) pattern->data[pattern->size - 1];
+        if (c == 0){ // overflow, is this safe?
+            pattern->size--;
+            s_base->top--;
+            if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
+                current_len--;
+            } else {
+                utf_bytes_to_end++;
+            }
+            continue;
+        }
+        node = root + c;
+        if ((uint8_t) get_node(ct->t, node) != c){
+            continue;
+        }
+        if (is_utf_start_byte(c)) {
+            current_len++;
+            utf_bytes_to_end = n_utf_following_bytes((uint8_t) c);
+        } else {
+            utf_bytes_to_end -= 1;
+        }
+        if (current_len == params->pat_len && utf_bytes_to_end == 0){
+            cnt_index = get_aux(ct->t, node);
+            good = get_good(ct->cnts, cnt_index);
+            bad = get_bad(ct->cnts, cnt_index);
+            if (params->good_wt * good < params->thresh){
+                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
+                    destroy_buffer(pattern);
+                    destroy_stack(s_base);
+                    return false;
+                }
+                ps->bad_pat_cnt++;
+            } else if (params->good_wt * good >= params->thresh + params->bad_wt * bad) {
+                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
+                    destroy_buffer(pattern);
+                    destroy_stack(s_base);
+                    return false;
+                }
+                ps->good_pat_cnt++;
+                ps->good_cnt += good;
+                ps->bad_cnt += bad;
+            } else {
+                ps->more_to_come = true;
+            }
+            if (is_utf_start_byte(c)) {
+                current_len--;
+            } else {
+                utf_bytes_to_end++;
+            }
+            continue;
+        }
+        root = get_link(ct->t, node);
+        if (root == 0){
+            if (is_utf_start_byte(c)) {
+                current_len--;
+            } else {
+                utf_bytes_to_end++;
+            }
+            continue;
+        }
+        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+            destroy_buffer(pattern);
+            destroy_stack(s_base);
+            return false;
+        }        
+    }
+    destroy_buffer(pattern);
+    destroy_stack(s_base);
+    return true;
+}
+
+@ Pattern pruning.
+
+@c
+bool delete_patterns(struct pattern_trie *pt){
+    size_t root = 1;
+    struct stack *s_base = init_stack(16);
+    if (s_base == NULL){
+        return false;
+    }
+    struct stack *s_offset = init_stack(16);
+    if (s_offset == NULL){
+        destroy_stack(s_base);
+        return false;
+    }
+    struct stack *s_freed = init_stack(16);
+    if (s_freed == NULL){
+        destroy_stack(s_base);
+        destroy_stack(s_offset);
+        return false;
+    }
+    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+        destroy_stack(s_base);
+        destroy_stack(s_offset);
+        destroy_stack(s_freed);
+        return false;
+    }
+    size_t node;
+    uint8_t c;
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
+        set_top_value(s_offset, (uint8_t) get_top_value(s_offset) + 1);
+        c = (uint8_t) get_top_value(s_offset);
+        if (c == 0){
+            bool child_freed = (get_top_value(s_freed) == (size_t) true);
+            if (child_freed){
+                if (!set_base_used(pt->t, root, false)){
+                    destroy_stack(s_base);
+                    destroy_stack(s_offset);
+                    destroy_stack(s_freed);
+                    return false;
+                }
+            } 
+            s_offset->top--;
+            s_base->top--;
+            s_freed->top--;
+            if (s_base->top > 0) {
+                size_t parent_root = get_top_value(s_base);
+                uint8_t parent_c = (uint8_t) get_top_value(s_offset);
+                size_t parent_node = parent_root + parent_c;
+                if (child_freed) {
+                    if (!set_link(pt->t, parent_node, 0)){
+                        destroy_stack(s_base);
+                        destroy_stack(s_offset);
+                        destroy_stack(s_freed);
+                        return false;
+                    }
+                    if (get_aux(pt->t, parent_node) == 0 && parent_root != 1) {
+                        if (!deallocate_node(pt->t, parent_node)){
+                            destroy_stack(s_base);
+                            destroy_stack(s_offset);
+                            destroy_stack(s_freed);
+                            return false;
+                        }
+                    } else {
+                        set_top_value(s_freed, (size_t) false);
+                    }
+                } else {
+                    set_top_value(s_freed, (size_t) false);
+                }
+            }
+            continue;
+        }
+        node = root + c;
+        if ((uint8_t) get_node(pt->t, node) != c){
+            continue;
+        }
+        if (!link_around_bad_outputs(pt, node)){
+            destroy_stack(s_base);
+            destroy_stack(s_offset);
+            destroy_stack(s_freed);
+            return false;
+        }
+        if (get_aux(pt->t, node) > 0 || root == 1){
+            set_top_value(s_freed, (size_t) false);
+        } else {
+            if (get_link(pt->t, node) == 0){
+                if (!deallocate_node(pt->t, node)){
+                    destroy_stack(s_base);
+                    destroy_stack(s_offset);
+                    destroy_stack(s_freed);
+                    return false;
+                }
+                continue;
+            }
+        }
+        root = get_link(pt->t, node);
+        if (root == 0){
+            continue;
+        }
+        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
+            destroy_stack(s_base);
+            destroy_stack(s_offset);
+            destroy_stack(s_freed);
+            return false;
+        }        
+    }
+    destroy_stack(s_base);
+    destroy_stack(s_offset);
+    destroy_stack(s_freed);
+    return true;
+}
+
+bool delete_bad_patterns(struct pattern_trie *pt){
+    size_t old_op_cnt = pt->ops->count;
+    size_t old_trie_cnt = pt->t->occupied;
+    if (!delete_patterns(pt)){
+        return false;
+    }
+    for (size_t h = 1; h <= pt->ops->capacity; h++){
+        if (pt->ops->data[h].value == BAD_OP_VALUE){
+            pt->ops->data[h].value = EMPTY_OP_VALUE;
+            pt->ops->count--;
+            pt->ops->data[h].next_op_index = pt->ops->data[0].next_op_index;
+            pt->ops->data[0].next_op_index = h;
+        }
+    }
+    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
+    return true;
+}
+
+@ Pattern output.
+
+@c
+bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
+    size_t root = 1;
+    uint8_t c;
+    struct string_buffer *pattern = init_buffer(16);
+    if (pattern == NULL){
+        return false;
+    }
+
+    struct stack *s_base = init_stack(16 * sizeof(size_t));
+    if (s_base == NULL) {
+        destroy_buffer(pattern);
+        return false;
+    }
+    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+        destroy_buffer(pattern);
+        destroy_stack(s_base);
+        return false;
+    }
+
+    size_t node;
+    while (s_base->top > 0){
+        root = get_top_value(s_base);
+        pattern->data[pattern->size - 1] += 1;
+        c = (uint8_t) pattern->data[pattern->size - 1];
+        if (c == 0){
+            pattern->data[pattern->size - 1] = '\0';
+            pattern->size--;
+            s_base->top--;
+            continue;
+        }
+        node = root + c;
+        if ((uint8_t) get_node(pt->t, node) != c){
+            continue;
+        }
+        if (get_aux(pt->t, node) > 0){
+            output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
+        }
+        root = get_link(pt->t, node);
+        if (root == 0){
+            continue;
+        }
+        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+            destroy_buffer(pattern);
+            destroy_stack(s_base);
+            return false;
+        }        
+    }
+    destroy_buffer(pattern);
+    destroy_stack(s_base);
+    return true;
+}
+
+void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file){
+    if (op_index == 0){
+        return;
+    }
+    size_t pattern_position = 0;
+    size_t level;
+    for (size_t i = 0; i < pattern->size; i++) {
+        if (is_utf_start_byte(pattern->data[i])){
+            level = get_highest_level(ops, op_index, pattern_position);
+            if (level > 0){
+                fprintf(pattern_file, "%zu", level);
+            }
+            pattern_position++;
+        }
+        if (pattern->data[i] == EDGE_OF_WORD){
+            fputc('.', pattern_file);
+        } else {
+            fputc(pattern->data[i], pattern_file);
+        }
+        
+    }
+    level = get_highest_level(ops, op_index, pattern_position);
+    if (level > 0){
+        fprintf(pattern_file, "%zu", level);
+    }
+    fputc('\n', pattern_file);
+}
+
+size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
+    size_t highest = 0;
+    size_t op_index = ops->lookup[start_index];
+    struct output op;
+    while (op_index > 0){
+        op = ops->data[op_index];
+        if (op.position == position && op.value != BAD_OP_VALUE && op.value > highest){
+            highest = op.value;
+        }
+        op_index = op.next_op_index;
+    }
+    return highest;
+}
+
+@ Hyphenation.
+
+@c
+bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
+    size_t current_index = word->size;
+    size_t current_pos = word->length;
+    size_t node, base, start_index, dot_index, end_index, op_index, dot_pos, end_pos;
+    struct output op;
+    if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
+        return true;
+    }
+    size_t start_pos = word->length - params->right_hyphen_min;
+    for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
+        start_pos--;
+        while (current_pos > start_pos) {
+            current_index--;
+            if (is_utf_start_byte(get_char(word, current_index))) {
+                current_pos--;
+            }
+        }
+        start_index = current_index;
+        end_index = current_index;
+        end_pos = current_pos + 1;
+        node = 1 + (uint8_t) get_char(word, start_index);
+        while (get_node(pt->t, node) == get_char(word, end_index)){
+            end_index++;
+            if (is_utf_start_byte(get_char(word, end_index))){
+                end_pos++;
+            }
+            op_index = pt->ops->lookup[get_aux(pt->t, node)];
+            while (op_index > 0){
+                op = pt->ops->data[op_index];
+                dot_pos = start_pos;
+                dot_index = start_index;
+                while (dot_pos < start_pos + op.position){
+                    dot_index++;
+                    if (is_utf_start_byte(get_char(word, dot_index))){
+                        dot_pos++;
+                    }
+                }
+                dot_index--;
+                if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
+                    if (!set_found_hyphen(word, dot_index, op.value)){
+                        return false;
+                    }
+                }
+                if (op.value >= params->hyph_level){
+                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
+                        if (!set_no_more(word, dot_index, true)){
+                            return false;
+                        }
+                    }
+                }
+                op_index = op.next_op_index;
+            }
+            base = get_link(pt->t, node);
+            if (base == 0){
+                break;
+            }
+            node = base + (uint8_t) get_char(word, end_index);
+        }
+    }
+    return true;
+}
+
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
+    if (params->word_weight > 1){
+        fprintf(pattmp, "%d", params->word_weight);
+    }
+    char c;
+    size_t weight, dot_pos = 0;
+    bool has_hyphen, found_hyphen;
+    for (size_t i = 0; i < word->size; i++){
+        has_hyphen = false;
+        found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
+        c = get_char(word, i);
+        if (c == EDGE_OF_WORD){
+            continue;
+        }
+        if (is_utf_start_byte(c)){
+            dot_pos++;
+        }
+        fputc(c, pattmp);
+        weight = get_true_hyphen(word, i);
+        if (weight == 0 || dot_pos < params->left_hyphen_min || dot_pos >= word->length - params->right_hyphen_min - 1){
+            continue;
+        }
+        if (weight % 2 == 1) {
+            has_hyphen = true;
+        }
+        weight /= 4;
+        if (weight != params->word_weight){
+            fprintf(pattmp, "%zu", weight);
+        }
+        if (found_hyphen && has_hyphen){
+            fputc((char) params->good_hyphen, pattmp);
+        } else if (found_hyphen && !has_hyphen){
+            fputc((char) params->bad_hyphen, pattmp);
+        } else if (!found_hyphen && has_hyphen){
+            fputc((char) params->missed_hyphen, pattmp);
+        }
+    }
+    fputc('\n', pattmp);
+}
+
+bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+    ps->good_cnt = 0;
+    ps->bad_cnt = 0;
+    ps->miss_cnt = 0;
+    params->word_weight = 1;
+     char *filename = malloc(11 * sizeof(char));
+    if (filename == NULL){
+        return false;
+    }
+    sprintf(filename, "pattmp.%u", params->hyph_level);
+    FILE *pattmp = fopen(filename, "w");
+    if (pattmp == NULL){
+        free(filename);
+        return false;
+    }
+    printf("writing %s\n", filename);
+    free(filename);
+    if (!hyphenate_all_words(params, tt, pt, ps, pattmp)){
+        fclose(pattmp);
+        return false;
+    }
+    fclose(pattmp);
+    return true;
+}
+
+bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
+    rewind(params->dictionary_file);
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL){
+        return false;
+    }
+    struct word *word = init_word(16);
+    if (word == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+
+    if (!read_line(params->dictionary_file, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
+    while (!buf->eof){
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+        count_dots(word, params, ps);
+        if (word->length > 2){
+            output_hyphenated_word(pattmp, word, params);
+        }
+        if (!read_line(params->dictionary_file, buf)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
+}
+
+@ UTF-8 specifics.
+
+@c
+bool is_utf_start_byte(uint8_t byte){
+    return (byte & 0xc0) != 0x80;
+}
+
+uint8_t n_utf_following_bytes(uint8_t c){
+    if (c < 128 || c > 253){
+        return 0;
+    } else if (c < 208){
+        return 1;
+    } else if (c < 216){
+        return 2;
+    } else {
+        return 3;
+    }
+}
+
+@* Structures.
+
+@ Trie.
 
 @c
 struct trie *init_trie(size_t capacity){
@@ -781,16 +1788,6 @@ bool is_node_occupied(struct trie *t, size_t index){
     return get_node(t, index) != 0;
 }
 
-bool link_trie_up_to(struct trie *t, size_t index){
-    while (t->base_max < index){
-        t->base_max++;
-        if (!set_node(t, t->base_max + 255, 0) || !set_links(t, t->base_max + 255, t->base_max + 256)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
     size_t t_index;
     uint8_t offset;
@@ -881,53 +1878,6 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     return node;
 }
 
-bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next_op_index, size_t *op_index){
-    if (pt->ops->count >= pt->ops->capacity - 1) {
-        if (resize_outputs(pt->ops, pt->ops->capacity * 2) == NULL) {
-            return false;
-        }
-    }
-    if (pt->ops->lookup_cnt * 4 > pt->ops->lookup_cap * 3) {
-        if (!resize_lookup(pt->ops, pt->ops->lookup_cap * 2, pt->t)){
-            return false;
-        }
-    }
-    size_t hash = hash_trie_output(pt->ops, value, position, next_op_index);
-    if (pt->ops->lookup[hash] == 0) {
-        pt->ops->count++;
-        struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
-        size_t free_list_head = pt->ops->data[0].next_op_index;
-        if (pt->ops->data[free_list_head].next_op_index == 0){
-            pt->ops->data[0].next_op_index = pt->ops->count + 1;
-        } else {
-            pt->ops->data[0].next_op_index = pt->ops->data[free_list_head].next_op_index;
-        }
-        pt->ops->data[free_list_head] = new_op;
-        pt->ops->lookup[hash] = free_list_head;
-        pt->ops->lookup_cnt++;
-    } 
-    *op_index = hash;
-    return true;
-}
-
-size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
-    size_t hash = ((next_op_index + 313*position + 361*value) % ops->lookup_cap) + 1;
-    size_t op_index;
-    while (true) {
-        op_index = ops->lookup[hash];
-        if (op_index == 0) {
-            return hash;
-        } else if (ops->data[op_index].value == value && ops->data[op_index].position == position && ops->data[op_index].next_op_index == next_op_index) {
-            return hash;
-        } else if (hash > 1) {
-            hash -= 1;
-        } else {
-            hash = ops->lookup_cap;
-        }
-    }
-    return 0;
-}
-
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
     size_t length = strlen(pattern);
     return insert_substring(t, pattern, length, length, out_op_index);
@@ -1008,30 +1958,35 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
-    size_t op_index;
-    if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
+bool deallocate_node(struct trie *t, size_t t_index){
+    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
         return false;
     }
+    t->occupied--;
     return true;
 }
 
-@* Output.
-The \texttt{output} structure is used for storing hyphenation outputs. The structure uses following fields:
-\begin{itemize}
-    \item \textbf{value}: hyphenation value,
-    \item \textbf{position}: position in the pattern,
-    \item \textbf{next\_op\_index}: index of the next output in the linked list.
-\end{itemize}
-
-Outputs are grouped together in \texttt{outputs} structure:
-\begin{itemize}
-    \item \textbf{capacity}: total number of outputs allocated (but not necessarily used),
-    \item \textbf{count}: number of outputs currently used,
-    \item \textbf{data}: array of \texttt{output} structures.
-\end{itemize}
+@ Outputs.
 
 @c
+size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
+    size_t hash = ((next_op_index + 313*position + 361*value) % ops->lookup_cap) + 1;
+    size_t op_index;
+    while (true) {
+        op_index = ops->lookup[hash];
+        if (op_index == 0) {
+            return hash;
+        } else if (ops->data[op_index].value == value && ops->data[op_index].position == position && ops->data[op_index].next_op_index == next_op_index) {
+            return hash;
+        } else if (hash > 1) {
+            hash -= 1;
+        } else {
+            hash = ops->lookup_cap;
+        }
+    }
+    return 0;
+}
+
 struct outputs *init_outputs(size_t capacity){
     struct outputs *ops = malloc(sizeof(struct outputs));
     if (ops == NULL) {
@@ -1105,6 +2060,9 @@ void destroy_outputs(struct outputs *ops){
     free(ops);
 }
 
+@ Pattern trie.
+
+@c
 struct pattern_trie *init_pattern_trie(size_t trie_capacity, size_t outputs_capacity){
     struct pattern_trie *pt = malloc(sizeof(struct pattern_trie));
     if (pt == NULL){
@@ -1135,138 +2093,77 @@ void destroy_pattern_trie(struct pattern_trie *pt){
     free(pt);
 }
 
-@* Translate file parsing.
-Parses the translate file to build character mappings and hyphenation parameters. Returns true on success, false on failure.
-
-@c
-struct params *init_params(){
-    struct params *p = malloc(sizeof(struct params));
-    if (p == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    p->left_hyphen_min = 2;
-    p->right_hyphen_min = 3;
-    p->bad_hyphen = '.';
-    p->missed_hyphen = '-';
-    p->good_hyphen = '*';
-
-    p->word_weight = 1;
-
-    p->dictionary_file = NULL;
-    p->pattern_file = NULL;
-    p->output_file = NULL;
-    p->translate_file = NULL;
-    return p;
-}
-
-void reset_params(struct params *p){
-    p->left_hyphen_min = 2;
-    p->right_hyphen_min = 3;
-    p->bad_hyphen = '.';
-    p->missed_hyphen = '-';
-    p->good_hyphen = '*';
-}
-
-void destroy_params(struct params *p){
-    if (p->dictionary_file != NULL){
-        fclose(p->dictionary_file);
-    }
-    if (p->pattern_file != NULL){
-        fclose(p->pattern_file);
-    }
-    if (p->output_file != NULL){
-        fclose(p->output_file);
-    }
-    if (p->translate_file != NULL){
-        fclose(p->translate_file);
-    }
-    free(p);
-}
-
-struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity){
-    struct translate_table *tt = malloc(sizeof(struct translate_table));
-    if (tt == NULL){
-        fprintf(stderr, "Allocation error\n");
-        return NULL;
-    }
-    struct trie *mapping = init_trie(mapping_capacity);
-    if (mapping == NULL){
-        free(tt);
-        return NULL;
-    }
-    struct string_buffer *alphabet = init_buffer(alphabet_capacity);
-    if (alphabet == NULL){
-        destroy_trie(mapping);
-        free(tt);
-        return NULL;
-    }
-    tt->mapping = mapping;
-    tt->alphabet = alphabet;
-    if (!append_char(tt->alphabet, '\0')){
-        destroy_trie(tt->mapping);
-        destroy_buffer(tt->alphabet);
-        free(tt);
-        return NULL;
-    }
-    return tt;
-}
-
-void destroy_tr_table(struct translate_table *tt){
-    destroy_trie(tt->mapping);
-    destroy_buffer(tt->alphabet);
-    free(tt);
-}
-
-@* Translate file.
-Format:
-\begin{itemize}
-    \item first line (optional): 'LLRR BMG', where 'LL' is the value of \lefthyphenminpar, 'RR' the value of
-        \righthyphenminpar, 'B' the symbol for bad hyphen (marked, not present), 'M' the symbol for missed hyphen
-        (not marked, present), and 'G' the symbol for good hyphen (marked, present). Should any of these 
-        parameters stay blank, the default is used: \lefthyphenminpar$=2$, \righthyphenminpar$=3$, bad hyphen '.',
-        missed hyphen '-', good hyphen '*'.
-    \item consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lower-case letter, '$Y_k$' an arbitrary
-        (even zero) number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
-\end{itemize}
-
-@c
-bool read_translate(struct params *params, struct translate_table *tt){
-    rewind(params->translate_file);
-    struct string_buffer *buf = init_buffer(64);
-    if (buf == NULL) {
-        return false;
-    }
-    if (!read_line(params->translate_file, buf)) {
-        destroy_buffer(buf);
-        return false;
-    }
-    if (buf->eof) {
-        bool default_mapping = default_ascii_mapping(tt);
-        destroy_buffer(buf);
-        return default_mapping;
-    }
-    bool first_line = true;
-    while (!buf->eof) {
-        if (first_line && parse_header(buf, params)) {
-            // header parsed successfully
-        } else if (!parse_letters(buf, tt)) {
-            destroy_buffer(buf);
-            return false;
-        }
-        first_line = false;
-        reset_buffer(buf);
-        if (!read_line(params->translate_file, buf)) {
-            destroy_buffer(buf);
+bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next_op_index, size_t *op_index){
+    if (pt->ops->count >= pt->ops->capacity - 1) {
+        if (resize_outputs(pt->ops, pt->ops->capacity * 2) == NULL) {
             return false;
         }
     }
-    destroy_buffer(buf);
-    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
+    if (pt->ops->lookup_cnt * 4 > pt->ops->lookup_cap * 3) {
+        if (!resize_lookup(pt->ops, pt->ops->lookup_cap * 2, pt->t)){
+            return false;
+        }
+    }
+    size_t hash = hash_trie_output(pt->ops, value, position, next_op_index);
+    if (pt->ops->lookup[hash] == 0) {
+        pt->ops->count++;
+        struct output new_op = {.value = value, .position = position, .next_op_index = next_op_index};
+        size_t free_list_head = pt->ops->data[0].next_op_index;
+        if (pt->ops->data[free_list_head].next_op_index == 0){
+            pt->ops->data[0].next_op_index = pt->ops->count + 1;
+        } else {
+            pt->ops->data[0].next_op_index = pt->ops->data[free_list_head].next_op_index;
+        }
+        pt->ops->data[free_list_head] = new_op;
+        pt->ops->lookup[hash] = free_list_head;
+        pt->ops->lookup_cnt++;
+    } 
+    *op_index = hash;
     return true;
 }
 
-@* Count trie traversing.
+bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
+    size_t op_index;
+    if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
+        return false;
+    }
+    return true;
+}
+
+bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
+    size_t lookup_index = get_aux(pt->t, t_index);
+    if (lookup_index == 0){
+        return true;
+    }
+    size_t op_index = pt->ops->lookup[lookup_index];
+    size_t free_list_head = pt->ops->data[0].next_op_index;
+    size_t h = 0;
+    pt->ops->data[0].next_op_index = op_index;
+    size_t n = pt->ops->data[0].next_op_index;
+    while (n > 0){
+        if (pt->ops->data[n].value == BAD_OP_VALUE){
+            pt->ops->data[h].next_op_index = pt->ops->data[n].next_op_index;
+        } else {
+            h = n;
+        }
+        n = pt->ops->data[h].next_op_index;
+    }
+    if (h == 0){
+        if (pt->ops->lookup[lookup_index] > 0){
+            pt->ops->lookup[lookup_index] = 0;
+            pt->ops->lookup_cnt--;
+        }
+        if (!set_aux(pt->t, t_index, 0)){
+            return false;
+        }
+    } else {
+        pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
+    }
+    pt->ops->data[0].next_op_index = free_list_head;
+    return true;
+}
+
+@ Pattern counts.
 
 @c
 struct pattern_counts *init_pattern_counts(size_t capacity){
@@ -1357,6 +2254,9 @@ bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
     return true;
 }
 
+@ Count trie.
+
+@c
 struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity){
     struct count_trie *ct = malloc(sizeof(struct count_trie));
     if (ct == NULL){
@@ -1387,37 +2287,104 @@ void destroy_count_trie(struct count_trie *ct){
     free(ct);
 }
 
-bool is_utf_start_byte(uint8_t byte){
-    return (byte & 0xc0) != 0x80;
+@ Translation table.
+
+@c
+struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity){
+    struct translate_table *tt = malloc(sizeof(struct translate_table));
+    if (tt == NULL){
+        fprintf(stderr, "Allocation error\n");
+        return NULL;
+    }
+    struct trie *mapping = init_trie(mapping_capacity);
+    if (mapping == NULL){
+        free(tt);
+        return NULL;
+    }
+    struct string_buffer *alphabet = init_buffer(alphabet_capacity);
+    if (alphabet == NULL){
+        destroy_trie(mapping);
+        free(tt);
+        return NULL;
+    }
+    tt->mapping = mapping;
+    tt->alphabet = alphabet;
+    if (!append_char(tt->alphabet, '\0')){
+        destroy_trie(tt->mapping);
+        destroy_buffer(tt->alphabet);
+        free(tt);
+        return NULL;
+    }
+    return tt;
 }
 
-bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps){
-    double bad_eff = (double) params->thresh / (double) params->good_wt;
-    ps->good_pat_cnt = 0;
-    ps->bad_pat_cnt = 0;
-    ps->good_cnt = 0;
-    ps->bad_cnt = 0;
-    ps->more_to_come = false;
-    if (!traverse_count_trie(ct, pt, params, ps)){
-        return false;
-    }
-    printf("%zu good and %zu bad patterns added", ps->good_pat_cnt, ps->bad_pat_cnt);
-    ps->level_pattern_cnt += ps->good_pat_cnt;
-    if (ps->more_to_come) {
-        printf(" (more to come)\n");
-    } else {
-        printf("\n");
-    }
-    printf("finding %zu good and %zu bad hyphens", ps->good_cnt, ps->bad_cnt);
-    if (ps->good_pat_cnt > 0) {
-        printf(", efficiency = %.2lf\n", (double) ps->good_cnt / (ps->good_pat_cnt + ((double) ps->bad_cnt / bad_eff)));
-    } else {
-        printf("\n");
-    }
-    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
-    return true;
+void destroy_tr_table(struct translate_table *tt){
+    destroy_trie(tt->mapping);
+    destroy_buffer(tt->alphabet);
+    free(tt);
 }
 
+char *get_lower(struct translate_table *tt, const char *letter){
+    size_t index = traverse_trie(tt->mapping, letter);
+    if (index == 0 || get_aux(tt->mapping, index) >= tt->alphabet->size){
+        return NULL;
+    }
+    return tt->alphabet->data + get_aux(tt->mapping, index);
+}
+
+@ Params.
+
+@c
+struct params *init_params(){
+    struct params *p = malloc(sizeof(struct params));
+    if (p == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    p->left_hyphen_min = 2;
+    p->right_hyphen_min = 3;
+    p->bad_hyphen = '.';
+    p->missed_hyphen = '-';
+    p->good_hyphen = '*';
+
+    p->word_weight = 1;
+
+    p->dictionary_file = NULL;
+    p->pattern_file = NULL;
+    p->output_file = NULL;
+    p->translate_file = NULL;
+    return p;
+}
+
+void reset_params(struct params *p){
+    p->left_hyphen_min = 2;
+    p->right_hyphen_min = 3;
+    p->bad_hyphen = '.';
+    p->missed_hyphen = '-';
+    p->good_hyphen = '*';
+}
+
+void destroy_params(struct params *p){
+    if (p->dictionary_file != NULL){
+        fclose(p->dictionary_file);
+    }
+    if (p->pattern_file != NULL){
+        fclose(p->pattern_file);
+    }
+    if (p->output_file != NULL){
+        fclose(p->output_file);
+    }
+    if (p->translate_file != NULL){
+        fclose(p->translate_file);
+    }
+    free(p);
+}
+
+@ Pass stats.
+
+@ Stack.
+
+@c
 struct stack *init_stack(size_t capacity){
     struct stack *s = malloc(sizeof(struct stack));
     if (s == NULL) {
@@ -1479,6 +2446,9 @@ void set_top_value(struct stack *s, size_t value){
     s->data[s->top - 1] = value;
 }
 
+@ Word.
+
+@c
 struct word *init_word(size_t capacity){
     struct word *word = malloc(sizeof(struct word));
     if (word == NULL){
@@ -1642,850 +2612,9 @@ bool set_no_more(struct word *word, size_t index, bool value){
     return true;
 }
 
-uint8_t n_utf_following_bytes(uint8_t c){
-    if (c < 128 || c > 253){
-        return 0;
-    } else if (c < 208){
-        return 1;
-    } else if (c < 216){
-        return 2;
-    } else {
-        return 3;
-    }
-}
-
-bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps) {
-    size_t root = 1;
-    size_t current_len = 0;
-    uint8_t c;
-    struct string_buffer *pattern = init_buffer(4 * params->pat_len);
-    if (pattern == NULL){
-        return false;
-    }
-    struct stack *s_base = init_stack(4 * params->pat_len);
-    if (s_base == NULL) {
-        destroy_buffer(pattern);
-        return false;
-    }
-    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
-        destroy_buffer(pattern);
-        destroy_stack(s_base);
-        return false;
-    }
-    size_t node, utf_bytes_to_end = 0, op_index, good, bad, cnt_index;
-    while (s_base->top > 0){
-        root = get_top_value(s_base);
-        pattern->data[pattern->size - 1] += 1;
-        c = (uint8_t) pattern->data[pattern->size - 1];
-        if (c == 0){ // overflow, is this safe?
-            pattern->size--;
-            s_base->top--;
-            if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
-                current_len--;
-            } else {
-                utf_bytes_to_end++;
-            }
-            continue;
-        }
-        node = root + c;
-        if ((uint8_t) get_node(ct->t, node) != c){
-            continue;
-        }
-        if (is_utf_start_byte(c)) {
-            current_len++;
-            utf_bytes_to_end = n_utf_following_bytes((uint8_t) c);
-        } else {
-            utf_bytes_to_end -= 1;
-        }
-        if (current_len == params->pat_len && utf_bytes_to_end == 0){
-            cnt_index = get_aux(ct->t, node);
-            good = get_good(ct->cnts, cnt_index);
-            bad = get_bad(ct->cnts, cnt_index);
-            if (params->good_wt * good < params->thresh){
-                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
-                    destroy_buffer(pattern);
-                    destroy_stack(s_base);
-                    return false;
-                }
-                ps->bad_pat_cnt++;
-            } else if (params->good_wt * good >= params->thresh + params->bad_wt * bad) {
-                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
-                    destroy_buffer(pattern);
-                    destroy_stack(s_base);
-                    return false;
-                }
-                ps->good_pat_cnt++;
-                ps->good_cnt += good;
-                ps->bad_cnt += bad;
-            } else {
-                ps->more_to_come = true;
-            }
-            if (is_utf_start_byte(c)) {
-                current_len--;
-            } else {
-                utf_bytes_to_end++;
-            }
-            continue;
-        }
-        root = get_link(ct->t, node);
-        if (root == 0){
-            if (is_utf_start_byte(c)) {
-                current_len--;
-            } else {
-                utf_bytes_to_end++;
-            }
-            continue;
-        }
-        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
-            destroy_buffer(pattern);
-            destroy_stack(s_base);
-            return false;
-        }        
-    }
-    destroy_buffer(pattern);
-    destroy_stack(s_base);
-    return true;
-}
-
-bool delete_patterns(struct pattern_trie *pt){
-    size_t root = 1;
-    struct stack *s_base = init_stack(16);
-    if (s_base == NULL){
-        return false;
-    }
-    struct stack *s_offset = init_stack(16);
-    if (s_offset == NULL){
-        destroy_stack(s_base);
-        return false;
-    }
-    struct stack *s_freed = init_stack(16);
-    if (s_freed == NULL){
-        destroy_stack(s_base);
-        destroy_stack(s_offset);
-        return false;
-    }
-    if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
-        destroy_stack(s_base);
-        destroy_stack(s_offset);
-        destroy_stack(s_freed);
-        return false;
-    }
-    size_t node;
-    uint8_t c;
-    while (s_base->top > 0){
-        root = get_top_value(s_base);
-        set_top_value(s_offset, (uint8_t) get_top_value(s_offset) + 1);
-        c = (uint8_t) get_top_value(s_offset);
-        if (c == 0){
-            bool child_freed = (get_top_value(s_freed) == (size_t) true);
-            if (child_freed){
-                if (!set_base_used(pt->t, root, false)){
-                    destroy_stack(s_base);
-                    destroy_stack(s_offset);
-                    destroy_stack(s_freed);
-                    return false;
-                }
-            } 
-            s_offset->top--;
-            s_base->top--;
-            s_freed->top--;
-            if (s_base->top > 0) {
-                size_t parent_root = get_top_value(s_base);
-                uint8_t parent_c = (uint8_t) get_top_value(s_offset);
-                size_t parent_node = parent_root + parent_c;
-                if (child_freed) {
-                    if (!set_link(pt->t, parent_node, 0)){
-                        destroy_stack(s_base);
-                        destroy_stack(s_offset);
-                        destroy_stack(s_freed);
-                        return false;
-                    }
-                    if (get_aux(pt->t, parent_node) == 0 && parent_root != 1) {
-                        if (!deallocate_node(pt->t, parent_node)){
-                            destroy_stack(s_base);
-                            destroy_stack(s_offset);
-                            destroy_stack(s_freed);
-                            return false;
-                        }
-                    } else {
-                        set_top_value(s_freed, (size_t) false);
-                    }
-                } else {
-                    set_top_value(s_freed, (size_t) false);
-                }
-            }
-            continue;
-        }
-        node = root + c;
-        if ((uint8_t) get_node(pt->t, node) != c){
-            continue;
-        }
-        if (!link_around_bad_outputs(pt, node)){
-            destroy_stack(s_base);
-            destroy_stack(s_offset);
-            destroy_stack(s_freed);
-            return false;
-        }
-        if (get_aux(pt->t, node) > 0 || root == 1){
-            set_top_value(s_freed, (size_t) false);
-        } else {
-            if (get_link(pt->t, node) == 0){
-                if (!deallocate_node(pt->t, node)){
-                    destroy_stack(s_base);
-                    destroy_stack(s_offset);
-                    destroy_stack(s_freed);
-                    return false;
-                }
-                continue;
-            }
-        }
-        root = get_link(pt->t, node);
-        if (root == 0){
-            continue;
-        }
-        if (!put_on_stack(s_base, root) || !put_on_stack(s_offset, 0) || !put_on_stack(s_freed, (size_t) true)){
-            destroy_stack(s_base);
-            destroy_stack(s_offset);
-            destroy_stack(s_freed);
-            return false;
-        }        
-    }
-    destroy_stack(s_base);
-    destroy_stack(s_offset);
-    destroy_stack(s_freed);
-    return true;
-}
-
-bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
-    size_t lookup_index = get_aux(pt->t, t_index);
-    if (lookup_index == 0){
-        return true;
-    }
-    size_t op_index = pt->ops->lookup[lookup_index];
-    size_t free_list_head = pt->ops->data[0].next_op_index;
-    size_t h = 0;
-    pt->ops->data[0].next_op_index = op_index;
-    size_t n = pt->ops->data[0].next_op_index;
-    while (n > 0){
-        if (pt->ops->data[n].value == BAD_OP_VALUE){
-            pt->ops->data[h].next_op_index = pt->ops->data[n].next_op_index;
-        } else {
-            h = n;
-        }
-        n = pt->ops->data[h].next_op_index;
-    }
-    if (h == 0){
-        if (pt->ops->lookup[lookup_index] > 0){
-            pt->ops->lookup[lookup_index] = 0;
-            pt->ops->lookup_cnt--;
-        }
-        if (!set_aux(pt->t, t_index, 0)){
-            return false;
-        }
-    } else {
-        pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
-    }
-    pt->ops->data[0].next_op_index = free_list_head;
-    return true;
-}
-
-bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
-        return false;
-    }
-    t->occupied--;
-    return true;
-}
-
-bool delete_bad_patterns(struct pattern_trie *pt){
-    size_t old_op_cnt = pt->ops->count;
-    size_t old_trie_cnt = pt->t->occupied;
-    if (!delete_patterns(pt)){
-        return false;
-    }
-    for (size_t h = 1; h <= pt->ops->capacity; h++){
-        if (pt->ops->data[h].value == BAD_OP_VALUE){
-            pt->ops->data[h].value = EMPTY_OP_VALUE;
-            pt->ops->count--;
-            pt->ops->data[h].next_op_index = pt->ops->data[0].next_op_index;
-            pt->ops->data[0].next_op_index = h;
-        }
-    }
-    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
-    return true;
-}
-
-bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
-    size_t root = 1;
-    uint8_t c;
-    struct string_buffer *pattern = init_buffer(16);
-    if (pattern == NULL){
-        return false;
-    }
-
-    struct stack *s_base = init_stack(16 * sizeof(size_t));
-    if (s_base == NULL) {
-        destroy_buffer(pattern);
-        return false;
-    }
-    if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
-        destroy_buffer(pattern);
-        destroy_stack(s_base);
-        return false;
-    }
-
-    size_t node;
-    while (s_base->top > 0){
-        root = get_top_value(s_base);
-        pattern->data[pattern->size - 1] += 1;
-        c = (uint8_t) pattern->data[pattern->size - 1];
-        if (c == 0){
-            pattern->data[pattern->size - 1] = '\0';
-            pattern->size--;
-            s_base->top--;
-            continue;
-        }
-        node = root + c;
-        if ((uint8_t) get_node(pt->t, node) != c){
-            continue;
-        }
-        if (get_aux(pt->t, node) > 0){
-            output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
-        }
-        root = get_link(pt->t, node);
-        if (root == 0){
-            continue;
-        }
-        if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
-            destroy_buffer(pattern);
-            destroy_stack(s_base);
-            return false;
-        }        
-    }
-    destroy_buffer(pattern);
-    destroy_stack(s_base);
-    return true;
-}
-
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file){
-    if (op_index == 0){
-        return;
-    }
-    size_t pattern_position = 0;
-    size_t level;
-    for (size_t i = 0; i < pattern->size; i++) {
-        if (is_utf_start_byte(pattern->data[i])){
-            level = get_highest_level(ops, op_index, pattern_position);
-            if (level > 0){
-                fprintf(pattern_file, "%zu", level);
-            }
-            pattern_position++;
-        }
-        if (pattern->data[i] == EDGE_OF_WORD){
-            fputc('.', pattern_file);
-        } else {
-            fputc(pattern->data[i], pattern_file);
-        }
-        
-    }
-    level = get_highest_level(ops, op_index, pattern_position);
-    if (level > 0){
-        fprintf(pattern_file, "%zu", level);
-    }
-    fputc('\n', pattern_file);
-}
-
-size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
-    size_t highest = 0;
-    size_t op_index = ops->lookup[start_index];
-    struct output op;
-    while (op_index > 0){
-        op = ops->data[op_index];
-        if (op.position == position && op.value != BAD_OP_VALUE && op.value > highest){
-            highest = op.value;
-        }
-        op_index = op.next_op_index;
-    }
-    return highest;
-}
-
-@ Break
+@ Pattern.
 
 @c
-bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
-    reset_word(out_word);
-    struct string_buffer *letter = init_buffer(4);
-    if (letter == NULL) {
-        return false;
-    }
-    uint8_t weight = params->word_weight;
-    enum hyphen_class hyf = NO_HYF;
-    if (!append_char_to_word(out_word, EDGE_OF_WORD)){
-        destroy_buffer(letter);
-        return false;
-    }
-    char c;
-    char *lower;
-    for (size_t i = 0; i < buf->size; i++){
-        c = buf->data[i];
-        if (is_ascii_number(buf->data[i])){
-            weight = (uint8_t) (c - '0');
-            if (i == 0){
-                params->word_weight = weight;
-            }
-            continue;
-        } else if (c == params->good_hyphen) {
-            hyf = GOOD_HYF;
-            continue;
-        } else if (c == params->missed_hyphen){
-            hyf = MISS_HYF;
-            continue;
-        } else if (c == params->bad_hyphen) {
-            hyf = BAD_HYF;
-            continue;
-        } else if (is_utf_start_byte(c) && letter->size > 0){
-            if (!append_char(letter, '\0')){
-                destroy_buffer(letter);
-                return false;
-            }
-            lower = get_lower(tt, letter->data);
-            if (lower == NULL) {
-                fprintf(stderr, "Character '%s' not known\n", letter->data);
-                destroy_buffer(letter);
-                return false;
-            }
-            if (!append_string_to_word(out_word, lower, strlen(lower))){
-                destroy_buffer(letter);
-                return false;
-            }
-            if (!set_true_hyphen(out_word, out_word->size-1, 4 * weight + hyf)){
-                destroy_buffer(letter);
-                return false;
-            }
-            hyf = NO_HYF;
-            reset_buffer(letter);
-        }
-        weight = params->word_weight;
-        if (!append_char(letter, c)){
-            destroy_buffer(letter);
-            return false;
-        }
-    }
-    if (!append_char(letter, '\0')){
-        destroy_buffer(letter);
-        return false;
-    }
-    lower = get_lower(tt, letter->data);
-    if (lower == NULL) {
-        fprintf(stderr, "Character '%s' not known\n", letter->data);
-        destroy_buffer(letter);
-        return false;
-    }
-    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
-        destroy_buffer(letter);
-        return false;
-    }
-    return true;
-}
-
-bool is_ascii_number(char c){
-    return c >= '0' && c <= '9';
-}
-
-bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
-    size_t current_index = word->size;
-    size_t current_pos = word->length;
-    size_t node, base, start_index, dot_index, end_index, op_index, dot_pos, end_pos;
-    struct output op;
-    if (word->length < params->right_hyphen_min + 1){
-        return true;
-    }
-    size_t start_pos = word->length - params->right_hyphen_min;
-    for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
-        start_pos--;
-        while (current_pos > start_pos) {
-            current_index--;
-            if (is_utf_start_byte(get_char(word, current_index))) {
-                current_pos--;
-            }
-        }
-        start_index = current_index;
-        end_index = current_index;
-        end_pos = current_pos + 1;
-        node = 1 + (uint8_t) get_char(word, start_index);
-        while (get_node(pt->t, node) == get_char(word, end_index)){
-            end_index++;
-            if (is_utf_start_byte(get_char(word, end_index))){
-                end_pos++;
-            }
-            op_index = pt->ops->lookup[get_aux(pt->t, node)];
-            while (op_index > 0){
-                op = pt->ops->data[op_index];
-                dot_pos = start_pos;
-                dot_index = start_index;
-                while (dot_pos < start_pos + op.position){
-                    dot_index++;
-                    if (is_utf_start_byte(get_char(word, dot_index))){
-                        dot_pos++;
-                    }
-                }
-                dot_index--;
-                if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
-                    if (!set_found_hyphen(word, dot_index, op.value)){
-                        return false;
-                    }
-                }
-                if (op.value >= params->hyph_level){
-                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
-                        if (!set_no_more(word, dot_index, true)){
-                            return false;
-                        }
-                    }
-                }
-                op_index = op.next_op_index;
-            }
-            base = get_link(pt->t, node);
-            if (base == 0){
-                break;
-            }
-            node = base + (uint8_t) get_char(word, end_index);
-        }
-    }
-    return true;
-}
-
-void count_dots(struct word *word, struct params *params, struct pass_stats *ps){
-    if (word->length < params->right_hyphen_min + 1){
-        return;
-    }
-    size_t current_index = word->size;
-    size_t current_pos = word->length;
-    bool odd_level;
-    size_t dot_index, hyphenation_value, weight;
-    enum hyphen_class hyf;
-    for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= params->left_hyphen_min + 1; dot_pos--){
-        while (current_pos > dot_pos){
-            current_index--;
-            if (is_utf_start_byte(get_char(word, current_index))) {
-                current_pos--;
-            }
-        }
-        dot_index = current_index - 1;
-        odd_level = (get_found_hyphen(word, dot_index) % 2 == 1);
-        hyphenation_value = get_true_hyphen(word, dot_index);
-        weight = hyphenation_value / 4;
-        hyf = hyphenation_value % 4;
-        if (hyphenation_value == 0){
-            fprintf(stderr, "Code I hoped unreachable was reached\n");
-            continue;
-        } else if (hyf % 2 == 0) {
-            if (odd_level) {
-                ps->bad_cnt += weight;
-            }
-        } else {
-            if (odd_level) {
-                ps->good_cnt += weight;
-            } else {
-                ps->miss_cnt += weight;
-            }
-        }
-    }
-}
-
-void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
-    if (params->word_weight > 1){
-        fprintf(pattmp, "%d", params->word_weight);
-    }
-    char c;
-    size_t weight, dot_pos = 0;
-    bool has_hyphen, found_hyphen;
-    for (size_t i = 0; i < word->size; i++){
-        has_hyphen = false;
-        found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
-        c = get_char(word, i);
-        if (c == EDGE_OF_WORD){
-            continue;
-        }
-        if (is_utf_start_byte(c)){
-            dot_pos++;
-        }
-        fputc(c, pattmp);
-        weight = get_true_hyphen(word, i);
-        if (weight == 0 || dot_pos < params->left_hyphen_min || dot_pos >= word->length - params->right_hyphen_min - 1){
-            continue;
-        }
-        if (weight % 2 == 1) {
-            has_hyphen = true;
-        }
-        weight /= 4;
-        if (weight != params->word_weight){
-            fprintf(pattmp, "%zu", weight);
-        }
-        if (found_hyphen && has_hyphen){
-            fputc((char) params->good_hyphen, pattmp);
-        } else if (found_hyphen && !has_hyphen){
-            fputc((char) params->bad_hyphen, pattmp);
-        } else if (!found_hyphen && has_hyphen){
-            fputc((char) params->missed_hyphen, pattmp);
-        }
-    }
-    fputc('\n', pattmp);
-}
-
-bool process_word(struct word *word, struct count_trie *ct, struct params *params){
-    uint8_t dot_min = params->pat_dot;
-    uint8_t dot_max = params->pat_len - params->pat_dot;
-    if (dot_min < params->left_hyphen_min + 1){
-        dot_min = params->left_hyphen_min + 1;
-    }
-    if (dot_max < params->right_hyphen_min + 1){
-        dot_max = params->right_hyphen_min + 1;
-    }
-    size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight, cnt_index;
-    size_t current_pos = word->length;
-    size_t current_index = word->size;
-    bool good_pattern;
-    enum hyphen_class hyf;
-    for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
-        while (current_pos > dot_pos){
-            current_index--;
-            if (is_utf_start_byte(get_char(word, current_index))){
-                current_pos--;
-            }
-        }
-        dot_index = current_index - 1;
-        if (get_no_more(word, dot_index)){
-            continue;
-        }
-        hyf = get_true_hyphen(word, dot_index) % 4;
-        if (get_found_hyphen(word, dot_index) % 2 == 1){
-            hyf += 2;
-        }
-        if (hyf == params->good_dot){
-            good_pattern = true;
-        } else if (hyf == params->bad_dot){
-            good_pattern = false;
-        } else {
-            continue;
-        }
-        start_pos = dot_pos;
-        start_index = current_index;
-        while (start_pos > dot_pos - params->pat_dot){
-            start_index--;
-            if (is_utf_start_byte(get_char(word, start_index))){
-                start_pos--;
-            }
-        }
-        end_pos = dot_pos;
-        end_index = current_index;
-        while (end_pos < start_pos + params->pat_len){
-            end_index++;
-            if (is_utf_start_byte(get_char(word, end_index))){
-                end_pos++;
-            }
-        }
-        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
-            return false;
-        }
-        if (ct->cnts->size >= ct->cnts->capacity) {
-            size_t new_capacity = ct->t->capacity;
-            if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
-                return false;
-            }
-        }
-        cnt_index = get_aux(ct->t, node);
-        if (cnt_index == 0){
-            cnt_index = ct->cnts->size;
-            if (!set_aux(ct->t, node, cnt_index)){
-                return false;
-            }
-            ct->cnts->size++;
-        }
-        weight = get_true_hyphen(word, dot_index) / 4;
-        if (good_pattern){
-            ct->cnts->good[cnt_index] += weight;
-        } else {
-            ct->cnts->bad[cnt_index] += weight;
-        }
-    }
-    return true;
-}
-
-bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, size_t *out_end_index){
-    if (start_index >= word->size){
-        return false;
-    }
-    size_t i = start_index;
-    char c;
-    size_t current_len = 0;
-    while (current_len < pattern_len && i < word->size){
-        c = get_char(word, i);
-        if (is_utf_start_byte(c)){
-            current_len++;
-        }
-        i++;
-    }
-    if (i == word->size) {
-        current_len++;
-    }
-    if (current_len == pattern_len){
-        *out_end_index = i;
-        return true;
-    }
-    return false;
-}
-
-bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
-    ps->good_cnt = 0;
-    ps->bad_cnt = 0;
-    ps->miss_cnt = 0;
-    params->word_weight = 1;
-    if (params->hyph_level % 2 == 1){
-        params->good_dot = MISS_HYF;
-        params->bad_dot = NO_HYF;
-    } else {
-        params->good_dot = BAD_HYF;
-        params->bad_dot = GOOD_HYF;
-    }
-    struct count_trie *ct = init_count_trie(256, 256);
-    if (ct == NULL){
-        return false;
-    }
-    printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
-    if (!process_all_words(params, tt, pt, ps, ct)){
-        destroy_count_trie(ct);
-        return false;
-    }
-    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
-    if (ps->good_cnt + ps->miss_cnt > 0){
-        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->bad_cnt/ (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
-    }
-    printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
-    if (!collect_count_trie(ct, pt, params, ps)){
-        destroy_count_trie(ct);
-        return false;
-    }
-    destroy_count_trie(ct);
-    return true;
-}
-
-bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
-    rewind(params->dictionary_file);
-    uint8_t dot_min = params->pat_dot;
-    uint8_t dot_max = params->pat_len - params->pat_dot;
-    if (dot_min < params->left_hyphen_min + 1){
-        dot_min = params->left_hyphen_min + 1;
-    }
-    if (dot_max < params->right_hyphen_min + 1){
-        dot_max = params->right_hyphen_min + 1;
-    }
-    size_t dot_len = dot_min + dot_max;
-    struct string_buffer *buf = init_buffer(64);
-    if (buf == NULL){
-        return false;
-    }
-    struct word *word = init_word(16);
-    if (word == NULL){
-        destroy_buffer(buf);
-        return false;
-    }
-
-    if (!read_line(params->dictionary_file, buf)){
-        destroy_buffer(buf);
-        destroy_word(word);
-        return false;
-    }
-    while (!buf->eof){
-        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-        count_dots(word, params, ps);
-        if (word->length >= dot_len){
-            if (!process_word(word, ct, params)){
-                destroy_buffer(buf);
-                destroy_word(word);
-                return false;
-            }
-        }
-        if (!read_line(params->dictionary_file, buf)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-    }
-    destroy_buffer(buf);
-    destroy_word(word);
-    return true;
-}
-
-bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
-    ps->good_cnt = 0;
-    ps->bad_cnt = 0;
-    ps->miss_cnt = 0;
-    params->word_weight = 1;
-     char *filename = malloc(11 * sizeof(char));
-    if (filename == NULL){
-        return false;
-    }
-    sprintf(filename, "pattmp.%u", params->hyph_level);
-    FILE *pattmp = fopen(filename, "w");
-    if (pattmp == NULL){
-        free(filename);
-        return false;
-    }
-    printf("writing %s\n", filename);
-    free(filename);
-    if (!hyphenate_all_words(params, tt, pt, ps, pattmp)){
-        fclose(pattmp);
-        return false;
-    }
-    fclose(pattmp);
-    return true;
-}
-
-@ Break
-
-@c
-bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
-    rewind(params->dictionary_file);
-    struct string_buffer *buf = init_buffer(64);
-    if (buf == NULL){
-        return false;
-    }
-    struct word *word = init_word(16);
-    if (word == NULL){
-        destroy_buffer(buf);
-        return false;
-    }
-
-    if (!read_line(params->dictionary_file, buf)){
-        destroy_buffer(buf);
-        destroy_word(word);
-        return false;
-    }
-    while (!buf->eof){
-        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-        count_dots(word, params, ps);
-        if (word->length > 2){
-            output_hyphenated_word(pattmp, word, params);
-        }
-        if (!read_line(params->dictionary_file, buf)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-    }
-    destroy_buffer(buf);
-    destroy_word(word);
-    return true;
-}
-
 struct pattern *init_pattern(size_t capacity){
     struct pattern *pat = malloc(sizeof(struct pattern));
     if(pat == NULL){
@@ -2586,199 +2715,71 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
     return true;
 }
 
-bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
-    ps->level_pattern_cnt = 0;
-    ps->max_level = 0;
-    struct string_buffer *buf = init_buffer(16);
-    if (buf == NULL){
-        return false;
-    }
-    struct pattern *pat = init_pattern(16);
-    if (pat == NULL){
-        destroy_buffer(buf);
-        return false;
-    }
-    if (!read_line(params->pattern_file, buf)){
-        destroy_pattern(pat);
-        destroy_buffer(buf);
-        return false;
-    }
-    while (!buf->eof){
-        ps->level_pattern_cnt++;
-        if (!parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps)){
-            destroy_pattern(pat);
-            destroy_buffer(buf);
-            return false;
-        }
-        if (!read_line(params->pattern_file, buf)){
-            destroy_pattern(pat);
-            destroy_buffer(buf);
-            return false;
-        }
-    }
-    printf("%zu patterns read in\n", ps->level_pattern_cnt);
-    printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
-    destroy_pattern(pat);
-    destroy_buffer(buf);
-    return true;
-}
-
-@ Break
+@ String buffer.
+Buffer is used for storing lines read from input files. We use dynamic allocation to allow for arbitrary length lines.
 
 @c
-bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
-    reset_pattern(out_pattern);
-    char c;
-    char *lower;
-    bool next_hyphen = false;
-    struct string_buffer *letter = init_buffer(4);
-    if (letter == NULL){
-        return false;
+struct string_buffer *init_buffer(size_t capacity){
+    struct string_buffer *buf = malloc(sizeof(struct string_buffer));
+    if (buf == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
     }
-    for (size_t i = 0; i < buf->size; i++) {
-        c = buf->data[i];
-        if (c == EDGE_OF_WORD && i != 0 && i != buf->size - 1){
-            fprintf(stderr, "Edge of word found inside a pattern.\n");
-            destroy_buffer(letter);
-            return false;
-        }
-        if (next_hyphen){
-            if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
-                destroy_buffer(letter);
-                return false;
-            }
-            next_hyphen = false;
-            continue;
-        }
-        if (is_utf_start_byte(c) && letter->size > 0){
-            if (!append_char(letter, '\0')){
-                destroy_buffer(letter);
-                return false;
-            }
-            lower = get_lower(tt, letter->data);
-            if (lower == 0){
-                fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
-                destroy_buffer(letter);
-                return false;
-            }
-            if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
-                destroy_buffer(letter);
-                return false;
-            }
-            reset_buffer(letter);
-        }
-        if (c == HYPHEN_FLAG){
-            next_hyphen = true;
-        } else if (!append_char(letter, c)){
-            destroy_buffer(letter);
-            return false;
-        }
+    buf->capacity = capacity;
+    buf->size = 0;
+    buf->data = (char *)malloc(capacity);
+    buf->eof = false;
+    if (buf->data == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(buf);
+        return NULL;
     }
-    if (next_hyphen){
-        if (!set_hyphen(out_pattern, out_pattern->size, (uint8_t) c)){
-            destroy_buffer(letter);
-            return false;
-        }
-    } else if (letter->size > 0){
-        if (!append_char(letter, '\0')){
-            destroy_buffer(letter);
-            return false;
-        }
-        lower = get_lower(tt, letter->data);
-        if (lower == 0){
-            fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
-            destroy_buffer(letter);
-            return false;
-        }
-        if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
-            destroy_buffer(letter);
+    buf->data[0] = '\0';
+    return buf;
+}
+
+struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity){
+    char *new_ptr = realloc(buf->data, new_capacity);
+    if (new_ptr == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    buf->data = new_ptr;
+    buf->capacity = new_capacity;
+    return buf;
+}
+
+void reset_buffer(struct string_buffer *buf){
+    buf->eof = false;
+    buf->size = 0;
+    buf->data[0] = '\0';
+}
+
+void destroy_buffer(struct string_buffer *buf){
+    free(buf->data);
+    free(buf);
+}
+
+bool append_char(struct string_buffer *buf, char c){
+    if (buf->size + 1 >= buf->capacity) {
+        if (resize_buffer(buf, 2*buf->capacity) == NULL) {
             return false;
         }
     }
-    destroy_buffer(letter);
+    buf->data[buf->size] = c;
+    buf->size++;
     return true;
 }
 
-bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps){
-    size_t hyphenation_value, node;
-    size_t current_len = 0;
-    if (!insert_pattern(pt->t, pat->text, &node)){
-        return false;
-    }
-    for (size_t i = 0; i < pat->size; i++){
-        hyphenation_value = get_hyphen(pat, i);
-        if (hyphenation_value != 0){
-            if (!set_output(pt, node, hyphenation_value, current_len)){
-                return false;
-            }
-            if (hyphenation_value > ps->max_level){
-                ps->max_level = hyphenation_value;
-            }
-        }
-        if (is_utf_start_byte(pat->text[i])){
-            current_len++;
-        }
-    }
-    hyphenation_value = get_hyphen(pat, pat->size);
-    if (hyphenation_value > 0){
-        if (!set_output(pt, node, hyphenation_value, current_len)){
+bool append_string(struct string_buffer *buf, const char *str, size_t len){
+    if (buf->size + len >= buf->capacity) {
+        if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
             return false;
         }
     }
+    strcpy(&buf->data[buf->size], str);
+    buf->size += len;
     return true;
-}
-
-bool parse_input(char *argv[], int argc, struct params *params){
-    if (argc != 5){
-        fprintf(stderr, "UTF-patgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
-        return false;
-    }
-    FILE *dictionary_file = fopen(argv[1], "rb");
-    if (dictionary_file == NULL){
-        fprintf(stderr, "Could not open dictionary file '%s'.\n", argv[1]);
-        return false;
-    }
-    FILE *pattern_file = fopen(argv[2], "rb");
-    if (pattern_file == NULL){
-        fprintf(stderr, "Could not open pattern file '%s'.\n", argv[2]);
-        fclose(dictionary_file);
-        return false;
-    }
-    FILE *output_file = fopen(argv[3], "wb");
-    if (output_file == NULL){
-        fprintf(stderr, "Could not open output file '%s'.\n", argv[3]);
-        fclose(dictionary_file);
-        fclose(pattern_file);
-        return false;
-    }
-    FILE *translate_file = fopen(argv[4], "rb");
-    if (translate_file == NULL){
-        fprintf(stderr, "Could not open translate file '%s'.\n", argv[4]);
-        fclose(dictionary_file);
-        fclose(pattern_file);
-        fclose(output_file);
-        return false;
-    }
-    params->dictionary_file = dictionary_file;
-    params->pattern_file = pattern_file;
-    params->output_file = output_file;
-    params->translate_file = translate_file;
-    return true;
-}
-
-@ Break
-
-@c
-void print_help(){
-    printf("Usage: utfpatgen [OPTION]... DICTIONARY PATTERNS OUTPUT TRANSLATE\n");
-    printf("\tGenerate the OUTPUT hyphenation file for use with TeX\n");
-    printf("\tfrom the DICTIONARY, PATTERNS, and TRANSLATE files.\n");
-    printf("\n--help        print this help and exit\n");
-    printf("--version     output version information and exit\n");
-}
-
-void print_version(){
-    printf("This is UTF-patgen version %s\n", UTFPATGEN_VERSION);
 }
 
 @* Index.
