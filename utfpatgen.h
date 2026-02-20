@@ -45,7 +45,6 @@ bool set_links(struct trie *t, size_t from, size_t to);
 bool is_node_occupied(struct trie *t, size_t index);
 
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
-bool link_trie_up_to(struct trie *t, size_t index);
 bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
 bool unpack(struct trie *from, size_t base, struct trie *to);
 size_t traverse_trie(struct trie *t, const char *pattern);
@@ -266,10 +265,8 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps);
 void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
-bool process_outputs(struct outputs *ops, size_t op_index, size_t offset, size_t current_len, struct word *word, struct params *params);
 
 bool process_word(struct word *word, struct count_trie *ct, struct params *params);
-bool end_of_pattern(struct word *word, size_t pattern_len, size_t start_index, size_t *out_end_index);
 
 bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
 bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
@@ -307,5 +304,3 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
 bool parse_input(char *argv[], int argc, struct params *params);
 void print_help();
 void print_version();
-void generate_patterns();
-void clean(); // if necessary
