@@ -6,7 +6,7 @@ utfpatgen.c
 
 # outputs of patgen
 pattmp.*
-output.out
+test/output*
 
 # binaries
 utfpatgen
