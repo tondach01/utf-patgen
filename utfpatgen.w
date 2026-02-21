@@ -622,7 +622,6 @@ bool read_patterns(struct params *params, struct pattern_trie *pt, struct transl
         return false;
     }
     while (!buf->eof){
-        ps->level_pattern_cnt++;
         if (!parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps)){
             destroy_pattern(pat);
             destroy_buffer(buf);
@@ -722,7 +721,8 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
     }
     for (size_t i = 0; i < pat->size; i++){
         hyphenation_value = get_hyphen(pat, i);
-        if (hyphenation_value != 0){
+        if (hyphenation_value > 0){
+            ps->level_pattern_cnt++;
             if (!set_output(pt, node, hyphenation_value, current_len)){
                 return false;
             }
@@ -736,6 +736,7 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
     }
     hyphenation_value = get_hyphen(pat, pat->size);
     if (hyphenation_value > 0){
+        ps->level_pattern_cnt++;
         if (!set_output(pt, node, hyphenation_value, current_len)){
             return false;
         }
