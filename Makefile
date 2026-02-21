@@ -14,19 +14,19 @@ debug:
 all: clean $(NAME).pdf $(NAME) test/unit_test
 
 # PDF documentation
-$(NAME).tex: $(NAME).w
-	cweave $(NAME).w
+%.tex: %.w
+	cweave $<
 
-$(NAME).pdf: $(NAME).tex
-	pdflatex $(NAME).tex
-	pdflatex $(NAME).tex
+%.pdf: %.tex
+	pdflatex $<
+	pdflatex $<
 
 # Executable
-$(NAME).c : $(NAME).w
-	ctangle $(NAME).w
+%.c : %.w
+	ctangle $<
 
-$(NAME): $(NAME).c
-	$(CXX) $(CXXFLAGS) -o $(NAME) $(NAME).c
+%: %.c
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # Unit tests
 test/unit_test: $(NAME).c
@@ -35,4 +35,4 @@ test/unit_test: $(NAME).c
 # Cleaning
 .PHONY: clean
 clean:
-	rm -f $(NAME).c $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) test/unit_test pattmp.*
+	rm -f *.c *.tex $(NAME).pdf *.log *.toc *.idx *.scn *.aux $(NAME) test/unit_test pattmp.* *.utfpatgen
