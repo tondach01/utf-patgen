@@ -1358,7 +1358,8 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
         if (is_utf_start_byte(pattern->data[i])){
             level = get_highest_level(ops, op_index, pattern_position);
             if (level > 0){
-                fprintf(pattern_file, "%zu", level);
+                fputc('\xfe', pattern_file);
+                fputc((uint8_t) level, pattern_file);
             }
             pattern_position++;
         }
@@ -1371,7 +1372,8 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
     }
     level = get_highest_level(ops, op_index, pattern_position);
     if (level > 0){
-        fprintf(pattern_file, "%zu", level);
+        fputc('\xfe', pattern_file);
+        fputc((uint8_t) level, pattern_file);
     }
     fputc('\n', pattern_file);
 }
