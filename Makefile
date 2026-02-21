@@ -1,36 +1,38 @@
 # Project name
 NAME = utfpatgen
 
-# C compiler
+# Build
 CXX = gcc
 CXXFLAGS = -O2 -Wall -Wextra -pedantic
 
+.PHONY: debug
+debug:
+	$(eval CXXFLAGS = -g)
+
 # Targets
-all: pdf exe test
+.PHONY: all
+all: clean $(NAME).pdf $(NAME) test/unit_test
 
-# 1. WEAVE: PDF documentation
-# Run cweave (makes .tex) and twice pdflatex (cross-references)
-pdf: $(NAME).w
+# PDF documentation
+$(NAME).tex: $(NAME).w
 	cweave $(NAME).w
+
+$(NAME).pdf: $(NAME).tex
 	pdflatex $(NAME).tex
 	pdflatex $(NAME).tex
 
-# 2. TANGLE: executable
-# Run ctangle (makes .c) and compiles
-exe: $(NAME).w
+# Executable
+$(NAME).c : $(NAME).w
 	ctangle $(NAME).w
+
+$(NAME): $(NAME).c
 	$(CXX) $(CXXFLAGS) -o $(NAME) $(NAME).c
 
-# 3. Debug build
-debug: $(NAME).w
-	ctangle $(NAME).w
-	$(CXX) -g $(NAME).c -o $(NAME) 
-
-# 4. Test
-test: $(NAME).w
-	ctangle $(NAME).w
-	$(CXX) -g -DTEST -o test/unit_test $(NAME).c test/unit_test.c
+# Unit tests
+test/unit_test: $(NAME).c
+	$(CXX) $(CXXFLAGS) -DTEST -o test/unit_test $(NAME).c test/unit_test.c
 
 # Cleaning
+.PHONY: clean
 clean:
 	rm -f $(NAME).c $(NAME).tex $(NAME).pdf $(NAME).log $(NAME).toc $(NAME).idx $(NAME).scn $(NAME).aux $(NAME) test/unit_test pattmp.*
