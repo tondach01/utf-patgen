@@ -755,8 +755,100 @@ thus look like this:
 \begin{quote}
     $<word weigth><character><hyphen weight><hyphen><character>\dots<character>$
 \end{quote}
+The \texttt{process\_dictionary} method encompasses both reading through the dictionary file and generating patterns
+afterwards. The reading itself is implemented in \texttt{process\_all\_words}: each word is read, translated to
+lowercase and parsed (\texttt{parse\_word}), hyphenated, statistics collected (\texttt{count\_dots}), and processed
+into the count trie (\texttt{process\_word}).
+
+Since some patterns may be tied to the edges of the word, special byte symbol \texttt{EDGE\_OF\_WORD} was introduced
+that marks the edges. Hexadecimal value of the symbol is '0xff' that is not used by the UTF-8 encoding.
 
 @c
+bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
+    ps->good_cnt = 0;
+    ps->bad_cnt = 0;
+    ps->miss_cnt = 0;
+    params->word_weight = 1;
+    if (params->hyph_level % 2 == 1){
+        params->good_dot = MISS_HYF;
+        params->bad_dot = NO_HYF;
+    } else {
+        params->good_dot = BAD_HYF;
+        params->bad_dot = GOOD_HYF;
+    }
+    struct count_trie *ct = init_count_trie(256, 256);
+    if (ct == NULL){
+        return false;
+    }
+    printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
+    if (!process_all_words(params, tt, pt, ps, ct)){
+        destroy_count_trie(ct);
+        return false;
+    }
+    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
+    if (ps->good_cnt + ps->miss_cnt > 0){
+        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->bad_cnt/ (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
+    }
+    printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
+    if (!collect_count_trie(ct, pt, params, ps)){
+        destroy_count_trie(ct);
+        return false;
+    }
+    destroy_count_trie(ct);
+    return true;
+}
+
+bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
+    rewind(params->dictionary_file);
+    uint8_t dot_min = params->pat_dot;
+    uint8_t dot_max = params->pat_len - params->pat_dot;
+    if (dot_min < params->left_hyphen_min + 1){
+        dot_min = params->left_hyphen_min + 1;
+    }
+    if (dot_max < params->right_hyphen_min + 1){
+        dot_max = params->right_hyphen_min + 1;
+    }
+    size_t dot_len = dot_min + dot_max;
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL){
+        return false;
+    }
+    struct word *word = init_word(16);
+    if (word == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+
+    if (!read_line(params->dictionary_file, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
+    while (!buf->eof){
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+        count_dots(word, params, ps);
+        if (word->length >= dot_len){
+            if (!process_word(word, ct, params)){
+                destroy_buffer(buf);
+                destroy_word(word);
+                return false;
+            }
+        }
+        if (!read_line(params->dictionary_file, buf)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
+}
+
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
     reset_word(out_word);
     struct string_buffer *letter = init_buffer(4);
@@ -952,91 +1044,6 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             ct->cnts->bad[cnt_index] += weight;
         }
     }
-    return true;
-}
-
-bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
-    ps->good_cnt = 0;
-    ps->bad_cnt = 0;
-    ps->miss_cnt = 0;
-    params->word_weight = 1;
-    if (params->hyph_level % 2 == 1){
-        params->good_dot = MISS_HYF;
-        params->bad_dot = NO_HYF;
-    } else {
-        params->good_dot = BAD_HYF;
-        params->bad_dot = GOOD_HYF;
-    }
-    struct count_trie *ct = init_count_trie(256, 256);
-    if (ct == NULL){
-        return false;
-    }
-    printf("processing dictionary with pat_len = %u, pat_dot = %u\n", params->pat_len, params->pat_dot);
-    if (!process_all_words(params, tt, pt, ps, ct)){
-        destroy_count_trie(ct);
-        return false;
-    }
-    printf("\n%zu good, %zu bad, %zu missed\n", ps->good_cnt, ps->bad_cnt, ps->miss_cnt);
-    if (ps->good_cnt + ps->miss_cnt > 0){
-        printf("%.2f %%, %.2f %%, %.2f %%\n", (100* (float) ps->good_cnt / (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->bad_cnt/ (float) (ps->good_cnt + ps->miss_cnt)), (100* (float) ps->miss_cnt/ (float) (ps->good_cnt + ps->miss_cnt)));
-    }
-    printf("%zu patterns, %zu nodes in count trie, triec_max = %zu\n", ct->t->pattern_count, ct->t->occupied, ct->t->node_max);
-    if (!collect_count_trie(ct, pt, params, ps)){
-        destroy_count_trie(ct);
-        return false;
-    }
-    destroy_count_trie(ct);
-    return true;
-}
-
-bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
-    rewind(params->dictionary_file);
-    uint8_t dot_min = params->pat_dot;
-    uint8_t dot_max = params->pat_len - params->pat_dot;
-    if (dot_min < params->left_hyphen_min + 1){
-        dot_min = params->left_hyphen_min + 1;
-    }
-    if (dot_max < params->right_hyphen_min + 1){
-        dot_max = params->right_hyphen_min + 1;
-    }
-    size_t dot_len = dot_min + dot_max;
-    struct string_buffer *buf = init_buffer(64);
-    if (buf == NULL){
-        return false;
-    }
-    struct word *word = init_word(16);
-    if (word == NULL){
-        destroy_buffer(buf);
-        return false;
-    }
-
-    if (!read_line(params->dictionary_file, buf)){
-        destroy_buffer(buf);
-        destroy_word(word);
-        return false;
-    }
-    while (!buf->eof){
-        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-        count_dots(word, params, ps);
-        if (word->length >= dot_len){
-            if (!process_word(word, ct, params)){
-                destroy_buffer(buf);
-                destroy_word(word);
-                return false;
-            }
-        }
-        if (!read_line(params->dictionary_file, buf)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-    }
-    destroy_buffer(buf);
-    destroy_word(word);
     return true;
 }
 
