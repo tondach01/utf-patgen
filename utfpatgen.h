@@ -259,7 +259,6 @@ char *get_lower(struct translate_table *tt, const char *letter);
 #define EDGE_OF_WORD (char) 0xff
 #endif
 
-bool is_ascii_number(char c);
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word);
 
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
