@@ -309,7 +309,7 @@ if (scanf(" %c", &c) < 1){
     return EXIT_FAILURE;
 }
 if (c == 'y' || c == 'Y'){
-    if (!hyphenate_dictionary(params, tt, pt, &ps)){
+    if (!hyphenate_dictionary(params, tt, pt)){
         destroy_params(params);
         destroy_tr_table(tt);
         destroy_pattern_trie(pt);
@@ -1475,6 +1475,12 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
 }
 
 @ Hyphenation.
+Hyphenation appears on several places in the algorithm. Already in the dictionary processing, the words are hyphenated
+with the current set of patterns (\texttt{hyphenate\_word}). The other case occurs at the absolute end of \utfpatgen
+when the user wishes to see the hyphenated dictionary -- \texttt{hyphenate\_dictionary} initiates the process and
+prints out statistics, \texttt{hyphenate\_all\_words} iterates over the dictionary, \texttt{hyphenate\_word} processes
+each word with the set of patterns from the pattern trie and \texttt{output\_hyphenated\_word} writes the hyphenated
+word into 'pattmp.X' file. The 'X' marks the last hyphenation level explored.
 
 @c
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
@@ -1539,6 +1545,65 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     return true;
 }
 
+bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt){
+    params->word_weight = 1;
+     char *filename = malloc(11 * sizeof(char));
+    if (filename == NULL){
+        return false;
+    }
+    sprintf(filename, "pattmp.%u", params->hyph_level);
+    FILE *pattmp = fopen(filename, "w");
+    if (pattmp == NULL){
+        free(filename);
+        return false;
+    }
+    printf("writing %s\n", filename);
+    free(filename);
+    if (!hyphenate_all_words(params, tt, pt, pattmp)){
+        fclose(pattmp);
+        return false;
+    }
+    fclose(pattmp);
+    return true;
+}
+
+bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, FILE *pattmp){
+    rewind(params->dictionary_file);
+    struct string_buffer *buf = init_buffer(64);
+    if (buf == NULL){
+        return false;
+    }
+    struct word *word = init_word(16);
+    if (word == NULL){
+        destroy_buffer(buf);
+        return false;
+    }
+
+    if (!read_line(params->dictionary_file, buf)){
+        destroy_buffer(buf);
+        destroy_word(word);
+        return false;
+    }
+    while (!buf->eof){
+        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+        if (word->length > 2){
+            output_hyphenated_word(pattmp, word, params);
+        }
+        if (!read_line(params->dictionary_file, buf)){
+            destroy_buffer(buf);
+            destroy_word(word);
+            return false;
+        }
+    }
+    destroy_buffer(buf);
+    destroy_word(word);
+    return true;
+}
+
 void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
     if (params->word_weight > 1){
         fprintf(pattmp, "%d", params->word_weight);
@@ -1577,69 +1642,6 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
         }
     }
     fputc('\n', pattmp);
-}
-
-bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
-    ps->good_cnt = 0;
-    ps->bad_cnt = 0;
-    ps->miss_cnt = 0;
-    params->word_weight = 1;
-     char *filename = malloc(11 * sizeof(char));
-    if (filename == NULL){
-        return false;
-    }
-    sprintf(filename, "pattmp.%u", params->hyph_level);
-    FILE *pattmp = fopen(filename, "w");
-    if (pattmp == NULL){
-        free(filename);
-        return false;
-    }
-    printf("writing %s\n", filename);
-    free(filename);
-    if (!hyphenate_all_words(params, tt, pt, ps, pattmp)){
-        fclose(pattmp);
-        return false;
-    }
-    fclose(pattmp);
-    return true;
-}
-
-bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, FILE *pattmp){
-    rewind(params->dictionary_file);
-    struct string_buffer *buf = init_buffer(64);
-    if (buf == NULL){
-        return false;
-    }
-    struct word *word = init_word(16);
-    if (word == NULL){
-        destroy_buffer(buf);
-        return false;
-    }
-
-    if (!read_line(params->dictionary_file, buf)){
-        destroy_buffer(buf);
-        destroy_word(word);
-        return false;
-    }
-    while (!buf->eof){
-        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-        count_dots(word, params, ps);
-        if (word->length > 2){
-            output_hyphenated_word(pattmp, word, params);
-        }
-        if (!read_line(params->dictionary_file, buf)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
-    }
-    destroy_buffer(buf);
-    destroy_word(word);
-    return true;
 }
 
 @ UTF-8 specifics.
