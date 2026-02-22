@@ -360,7 +360,7 @@ void test_patterns(){
         return;   
     }
     printf("Pattern %s parsed.\n", buf->data);
-    struct pass_stats ps = {};
+    struct pass_stats ps;
     if (!insert_new_pattern(pat, pt, &ps)){
         destroy_pattern_trie(pt);
         destroy_pattern(pat);
