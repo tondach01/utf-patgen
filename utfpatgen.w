@@ -1370,9 +1370,15 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
 }
 
 @ Pattern output.
+At the end of the run, \utfpatgen prints out the final set of patterns to the output file. The format is the same as
+the required format of the input pattern file -- each value of a hyphenation level is preceded by the
+\texttt{HYPHEN\_FLAG} symbol, the '.' character marking an edge of word. The method \texttt{output\_patterns} traverses
+through the pattern trie and whenever it finds an non-empty output, \texttt{output\_pattern} writes the pattern to the
+output file. The \texttt{get\_highest\_level} method finds the highest hyphenation value amongst the outputs for given
+pattern that overrides all the others.
 
 @c
-bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
+bool output_patterns(struct pattern_trie *pt, FILE *output_file){
     size_t root = 1;
     uint8_t c;
     struct string_buffer *pattern = init_buffer(16);
@@ -1407,7 +1413,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
             continue;
         }
         if (get_aux(pt->t, node) > 0){
-            output_pattern(pattern, pt->ops, get_aux(pt->t, node), pattern_file);
+            output_pattern(pattern, pt->ops, get_aux(pt->t, node), output_file);
         }
         root = get_link(pt->t, node);
         if (root == 0){
@@ -1424,7 +1430,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *pattern_file){
     return true;
 }
 
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file){
+void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *output_file){
     if (op_index == 0){
         return;
     }
@@ -1434,24 +1440,24 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
         if (is_utf_start_byte(pattern->data[i])){
             level = get_highest_level(ops, op_index, pattern_position);
             if (level > 0){
-                fputc('\xfe', pattern_file);
-                fputc((uint8_t) level, pattern_file);
+                fputc('\xfe', output_file);
+                fputc((uint8_t) level, output_file);
             }
             pattern_position++;
         }
         if (pattern->data[i] == EDGE_OF_WORD){
-            fputc('.', pattern_file);
+            fputc('.', output_file);
         } else {
-            fputc(pattern->data[i], pattern_file);
+            fputc(pattern->data[i], output_file);
         }
         
     }
     level = get_highest_level(ops, op_index, pattern_position);
     if (level > 0){
-        fputc('\xfe', pattern_file);
-        fputc((uint8_t) level, pattern_file);
+        fputc('\xfe', output_file);
+        fputc((uint8_t) level, output_file);
     }
-    fputc('\n', pattern_file);
+    fputc('\n', output_file);
 }
 
 size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
