@@ -1645,6 +1645,15 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
 }
 
 @ UTF-8 specifics.
+Following methods greatly simplify dealing with UTF-8 encoding. We took advantage of the design that allows to easily
+determine whether a byte is the first one in UTF-8 character (the \texttt{is\_utf\_start\_byte})-- its two highest bits
+are not '10'. The first byte also encodes the number of bytes that form the UTF-8 character. If the highest bit is '0',
+the character comprise the single byte and its meaning is the same as it would be in ASCII encoding. If the highest bit
+is '1', the number of '1' bits on the highest positions equals the number of bytes of the character (with the exception
+of '10' which is not allowed in the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3-byte
+UTF-8 character. The method \texttt{n\_utf\_following\_bytes} returns the number of bytes following after a given
+leading byte. Although bytes '0xfe' and '0xff' are not formally allowed in UTF-8, we treat them as one-byte characters
+with special meaning (\texttt{HYPHEN\_FLAG}, \texttt{EDGE\_OF\_WORD} respectively).
 
 @c
 bool is_utf_start_byte(uint8_t byte){
