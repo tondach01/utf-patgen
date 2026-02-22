@@ -1050,7 +1050,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 @ Pattern collection.
 After the dictionary has been processed, the count trie contains the number of good (supporting) and bad
 (contradicting) occurences of each candidate pattern found. There are 3 types of patterns based on these counts and the
-\goodwtpar, \badwtpar, and \threshpar :
+\goodwtpar, \badwtpar, and \threshpar parameters:
 \begin{itemize}
     \item \textbf{good patterns} for which inequality 
         \begin{equation}
