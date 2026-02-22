@@ -1194,8 +1194,31 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
 }
 
 @ Pattern pruning.
+Once all the required pattern lengths and dot positions were explored for given hyphenation level, the pattern trie is
+pruned of the patterns that were marked as bad. The \texttt{delete\_bad\_patterns} method encompasses the process. It
+invokes \texttt{delete\_patterns}, deletes bad outputs from the pattern trie, and prints out the statistics. The
+\texttt{delete\_patterns} method does the deletion from trie itself, relinking its outputs (\texttt{deallocate\_node}),
+and deallocating the nodes that are no longer needed (\texttt{link\_around\_bad\_outputs}).
 
 @c
+bool delete_bad_patterns(struct pattern_trie *pt){
+    size_t old_op_cnt = pt->ops->count;
+    size_t old_trie_cnt = pt->t->occupied;
+    if (!delete_patterns(pt)){
+        return false;
+    }
+    for (size_t h = 1; h <= pt->ops->capacity; h++){
+        if (pt->ops->data[h].value == BAD_OP_VALUE){
+            pt->ops->data[h].value = EMPTY_OP_VALUE;
+            pt->ops->count--;
+            pt->ops->data[h].next_op_index = pt->ops->data[0].next_op_index;
+            pt->ops->data[0].next_op_index = h;
+        }
+    }
+    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
+    return true;
+}
+
 bool delete_patterns(struct pattern_trie *pt){
     size_t root = 1;
     struct stack *s_base = init_stack(16);
@@ -1305,21 +1328,44 @@ bool delete_patterns(struct pattern_trie *pt){
     return true;
 }
 
-bool delete_bad_patterns(struct pattern_trie *pt){
-    size_t old_op_cnt = pt->ops->count;
-    size_t old_trie_cnt = pt->t->occupied;
-    if (!delete_patterns(pt)){
+bool deallocate_node(struct trie *t, size_t t_index){
+    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
         return false;
     }
-    for (size_t h = 1; h <= pt->ops->capacity; h++){
-        if (pt->ops->data[h].value == BAD_OP_VALUE){
-            pt->ops->data[h].value = EMPTY_OP_VALUE;
-            pt->ops->count--;
-            pt->ops->data[h].next_op_index = pt->ops->data[0].next_op_index;
-            pt->ops->data[0].next_op_index = h;
-        }
+    t->occupied--;
+    return true;
+}
+
+bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
+    size_t lookup_index = get_aux(pt->t, t_index);
+    if (lookup_index == 0){
+        return true;
     }
-    printf("%zu nodes and %zu outputs deleted\n", old_trie_cnt - pt->t->occupied, old_op_cnt - pt->ops->count);
+    size_t op_index = pt->ops->lookup[lookup_index];
+    size_t free_list_head = pt->ops->data[0].next_op_index;
+    size_t h = 0;
+    pt->ops->data[0].next_op_index = op_index;
+    size_t n = pt->ops->data[0].next_op_index;
+    while (n > 0){
+        if (pt->ops->data[n].value == BAD_OP_VALUE){
+            pt->ops->data[h].next_op_index = pt->ops->data[n].next_op_index;
+        } else {
+            h = n;
+        }
+        n = pt->ops->data[h].next_op_index;
+    }
+    if (h == 0){
+        if (pt->ops->lookup[lookup_index] > 0){
+            pt->ops->lookup[lookup_index] = 0;
+            pt->ops->lookup_cnt--;
+        }
+        if (!set_aux(pt->t, t_index, 0)){
+            return false;
+        }
+    } else {
+        pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
+    }
+    pt->ops->data[0].next_op_index = free_list_head;
     return true;
 }
 
@@ -1991,14 +2037,6 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
-        return false;
-    }
-    t->occupied--;
-    return true;
-}
-
 @ Outputs.
 
 @c
@@ -2160,39 +2198,6 @@ bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t posit
     if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
         return false;
     }
-    return true;
-}
-
-bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
-    size_t lookup_index = get_aux(pt->t, t_index);
-    if (lookup_index == 0){
-        return true;
-    }
-    size_t op_index = pt->ops->lookup[lookup_index];
-    size_t free_list_head = pt->ops->data[0].next_op_index;
-    size_t h = 0;
-    pt->ops->data[0].next_op_index = op_index;
-    size_t n = pt->ops->data[0].next_op_index;
-    while (n > 0){
-        if (pt->ops->data[n].value == BAD_OP_VALUE){
-            pt->ops->data[h].next_op_index = pt->ops->data[n].next_op_index;
-        } else {
-            h = n;
-        }
-        n = pt->ops->data[h].next_op_index;
-    }
-    if (h == 0){
-        if (pt->ops->lookup[lookup_index] > 0){
-            pt->ops->lookup[lookup_index] = 0;
-            pt->ops->lookup_cnt--;
-        }
-        if (!set_aux(pt->t, t_index, 0)){
-            return false;
-        }
-    } else {
-        pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
-    }
-    pt->ops->data[0].next_op_index = free_list_head;
     return true;
 }
 
