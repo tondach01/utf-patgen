@@ -1048,6 +1048,29 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 }
 
 @ Pattern collection.
+After the dictionary has been processed, the count trie contains the number of good (supporting) and bad
+(contradicting) occurences of each candidate pattern found. There are 3 types of patterns based on these counts and the
+\goodwtpar, \badwtpar, and \threshpar :
+\begin{itemize}
+    \item \textbf{good patterns} for which inequality 
+        \begin{equation}
+            good * good\_wt - bad * bad\_wt \geq thresh
+        \end{equation}
+        holds. Good patterns are inserted into the pattern trie with corresponding hyphenation level.
+    \item \textbf{bad patterns}: for which inequality
+        \begin{equation}
+            good * good\_wt < thresh
+        \end{equation}
+        holds. Bad patterns are inserted into the pattern trie with a special \texttt{BAD\_OP\_VALUE} level of value
+        255. Neither them nor their superstrings can become good patterns and are deleted from the pattern trie in the
+        end of the hyphenation level iteration.
+    \item \textbf{undecided patterns}: for which none of the inequalities above holds. Some of their superstrings may
+        become good or bad patterns later, so need for further investigation is raised by setting the
+        \texttt{more\_to\_come} flag. 
+\end{itemize}
+The \texttt{collect\_count\_trie} method is an entry points for pattern collection. It calls
+\texttt{traverse\_count\_trie} that does the actual pattern evaluation, and then prints out the statistics from the
+process.
 
 @c
 bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps){
@@ -1100,7 +1123,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         root = get_top_value(s_base);
         pattern->data[pattern->size - 1] += 1;
         c = (uint8_t) pattern->data[pattern->size - 1];
-        if (c == 0){ // overflow, is this safe?
+        if (c == 0){ // overflow
             pattern->size--;
             s_base->top--;
             if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
