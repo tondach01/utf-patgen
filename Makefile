@@ -43,4 +43,4 @@ test/unit_test: $(NAME).c
 # Cleaning
 .PHONY: clean
 clean:
-	rm -f *.c *.tex $(NAME).pdf *.log *.toc *.idx *.scn *.aux $(NAME) test/unit_test pattmp.*
+	rm -f *.c $(NAME).tex $(NAME).pdf *.log *.toc *.idx *.scn *.aux $(NAME) test/unit_test pattmp.*
