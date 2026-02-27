@@ -1673,8 +1673,28 @@ uint8_t n_utf_following_bytes(uint8_t c){
 }
 
 @* Structures.
+This section focuses on the data structures we used in \utfpatgen and their components. Here you can find information
+about the basic structures such as tries, buffers, and stacks, as well as composite structures like the pattern and
+count trie, translate table, or word.
+
+We tried to name the methods for basic manipulation with the structures consistently across the whole implementation.
+Thanks to that, you will find several methods with common prefixes: \texttt{init\_XX} performs initial allocation of
+resources for structure \textit{XX}, \texttt{resize\_XX} reallocates them if the capacity threshold is reached,
+\texttt{reset\_XX} reverts the structure to initial state, and \texttt{destroy\_XX} frees all the resources to avoid
+memory leaks. Furthermore, we use \texttt{get\_YY} and \texttt{set\_YY} methods to read and write into the fields of
+given structure instead of direct access. This allows us to perform additional checks on the input values.
 
 @ Trie.
+The packed trie structure forms the backbone of both \patgen and \utfpatgen algorithms. The implementation is very
+similar in both cases, a set of arrays representing a n-ary tree, condensed for better space effectiveness. Single node
+of a trie comprises a \textit{value}, \textit{link} and \textit{aux} pointers, and \textit{base} indicator.
+
+If we want to traverse the trie, that means to find the node corresponding to given sequence of values $x_1 \dots x_n$
+(if such node exists), we start in the root node $r_0$. Our next destination is node $n_1 = r_0 + x_1$. Then we check
+whether $value(n_1) = x_1$ and if the equation holds, we set $r_1 = link(n_1)$ as the new root. If the equation does
+not hold or $r_1 = 0$, we can end the search and conclude that the sequence is not present in the trie. Otherwise, we
+repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired result. This is exactly what happens in
+\texttt{traverse\_trie} method.
 
 @c
 struct trie *init_trie(size_t capacity){
