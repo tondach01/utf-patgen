@@ -13,7 +13,7 @@
 \def\badwtpar{{\tt bad\_wt }}
 \def\threshpar{{\tt thresh }}
 
-@* Introduction.
+@** Introduction.
 This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen, we
 intend to overcome several limitations of the original, such as the number of hyphenation levels possible, inability to
 use some reserved characters in dictionary, and most importantly, we enable native usage of the UTF-8 encoding in
@@ -22,7 +22,7 @@ dictionaries that are no longer limited by the fixed number of lowercase charact
 We provide \utfpatgen open-source and free of charge under {\bf TODO} license. Please note that there is no warranty
 and despite our greatest effort, the program may contain bugs.
 
-@* Glossary.
+@** Terminology.
 Before diving into the implementation part of the program, it is useful to mention several terms occurring frequently
 throughout the text. It may come useful especially to those who are not thoroughly familiar with \patgen. The
 definitions here are mostly informal and intended to ease reader's understanding of the topic.
@@ -53,11 +53,10 @@ levels, the patterns are hyphenating, at even levels inhibiting.
 {\bf Trie} is a data structure for storing n-ary trees. It can implemented using an associated array with highly
 effective insertion, deletion and lookup. Furthermore, we can condense it via {\it packing} to save space.
 
-@* Implementation.
+@** Algorithm overview.
 In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find the
 names and functions similar to those in the \patgen technical report. We have nevertheless decided to rewrite several
 parts of the algorithm in more "modern" way to improve its readability and testability. The main points to mention are:
-
 
     \item{$\bullet$} the algorithm is implemented in CWEB (C being the laguage of the program), not WEB (with Pascal),
     \item{$\bullet$} instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated and
@@ -65,14 +64,13 @@ parts of the algorithm in more "modern" way to improve its readability and testa
     \item{$\bullet$} global variables are localized as much as possible,
     \item{$\bullet$} {\tt goto} statements are eliminated.
 
-
 You may also find a few unit tests appended to the code. These are by no means exhaustive, but feel free to run them
 and add your own.
 
 We decided to present \utfpatgen in top-down fashion -- starting with the full overview and moving to details in later
 sections. Same goes for the structures which have their own dedicated sections.
 
-@ Dependencies.
+@* Dependencies.
 All external libraries used in \utfpatgen come from the standard C package, so we hope it to be widely portable without
 greater trouble. All in all, we use fixed-size types from {\tt <stdint.h>} and {\tt <stdbool.h>}, IO support from
 {\tt <stdio.h>}, string manipulation methods from {\tt <string.h>}, and memory management provided by
@@ -82,7 +80,7 @@ greater trouble. All in all, we use fixed-size types from {\tt <stdint.h>} and {
 #include "utfpatgen.h"
 #include <string.h>
 
-@ Main body.
+@* Main method.
 The general flow of the program is rather simple: initialize structures, get the parameters, generate patterns, and
 optionally hyphenate the dictionary. For sure, it gets more complicated the deeper we dive.
 
@@ -112,17 +110,15 @@ int main(int argc, char *argv[]) {
 }
 # endif
 
-@ Initialization sequence.
+@* Initialization sequence.
 First, the input parameters provided to the program call are read, validated and processed. Unless asking for help
 ({\tt --help}) or version printout ({\tt --version}), \utfpatgen takes exactly 4 inputs, representing 4 files:
-
 
     \item{$\bullet$} {\bf Dictionary file}: contains set of hyphenated words.
     \item{$\bullet$} {\bf Patterns file}: stores patterns generated in previous runs.
     \item{$\bullet$} {\bf Output file}: where the patterns will be stored after the run.
     \item{$\bullet$} {\bf Translate file}: contains the mapping of characters from the dictionary and dictionary-specific
         parameters.
-
 
 The required formats of these files are the same as for the \patgen program and are discussed in dedicated sections.
 
@@ -159,7 +155,7 @@ if (!read_patterns(params, pt, tt, &ps)){
     return EXIT_FAILURE;
 }
 
-@ Level range specification.
+@* Level range specification.
 Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
 and \hyphfinishpar specify the range of hyphenation levels covered during the run. The program can generate patterns up
 to level 254.
@@ -185,7 +181,7 @@ if (hyph_start > hyph_finish){
     params->hyph_finish = (uint8_t) hyph_finish;
 }
 
-@ Pattern generation loop.
+@* Pattern generation loop.
 The algorithm runs for each level within the specified range, going from \hyphstartpar up. The program prompts for
 level-specific hyperparameters, generates and prunes the patterns.
 
@@ -211,7 +207,7 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
     printf("total of %zu patterns at hyph_level %u\n", ps.level_pattern_cnt, params->hyph_level);    
 }
 
-@ Level hyperparameters input.
+@* Level hyperparameters input.
 The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define the
 lenght range of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to 255.
 Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These define the
@@ -250,7 +246,7 @@ params->good_wt = (uint8_t) good_wt;
 params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
 
-@ Level generation.
+@* Level generation.
 The single pass of \utfpatgen at given hyphenation level comprises iterating through pattern lengths ({\tt pat\_len}
 parameter, in ascending order) and dot positions ({\tt pat\_dot}, from the middle toward the edges) and processing
 the dictionary. The algorithm collects supporting and contradicting occurences and eventually adds new patterns to the
@@ -287,7 +283,7 @@ for (size_t j = params->pat_start; j <= params->pat_finish; j++) {
 }
 
 
-@ Final pass.
+@* Final pass.
 If the user wishes, the dictionary is traversed one last time and hyphenated according to found patterns. The output is
 stored in file 'pattmp.X'.
 
@@ -315,16 +311,19 @@ if (c == 'y' || c == 'Y'){
     }
 }
 
-@* Algorithm.
-In this section we focus on the implementation details, each subsection devoted to one particular aspect of the
-algorithm.
+@** implementation details.
+In this section we focus on the building blocks, each subsection devoted to one particular aspect of the algorithm.
 
-@ IO procedures.
+@* IO procedures.
 Methods in this subsection stand on the interface between \utfpatgen and the user, together with the {\tt main}
 method. {\tt parse\_inputs} attempts to open the 4 files provided as inputs into streams and save them for later
 use. {\tt read\_line} is a utility to simplify reading from these streams that stores the information read into
 provided buffer. The {\tt print\_help} and {\tt print\_version} methods print out the desired information if the
 user does not wish to proceed to pattern generation.
+
+@ parse\_input.
+Attempts to open the 4 files provided as inputs into streams and save them for later use. Returns a boolean indicating
+whether all files have been opened successfully.
 
 @c
 bool parse_input(char *argv[], int argc, struct params *params){
@@ -365,6 +364,11 @@ bool parse_input(char *argv[], int argc, struct params *params){
     return true;
 }
 
+@ read\_line.
+Reads a line from given stream into a string buffer. If end of file is reached, it sets {\tt eof} flag of the buffer.
+Returns a boolean indicating whether the line has been read successfully.
+
+@c
 bool read_line(FILE *stream, struct string_buffer *buf){
     reset_buffer(buf);
     char c;
@@ -390,6 +394,10 @@ bool read_line(FILE *stream, struct string_buffer *buf){
     return true;
 }
 
+@ print\_help.
+Prints out a help message to the standard output.
+
+@c
 void print_help(){
     printf("Usage: utfpatgen [OPTION]... DICTIONARY PATTERNS OUTPUT TRANSLATE\n");
     printf("\tGenerate the OUTPUT hyphenation file for use with TeX\n");
@@ -398,11 +406,15 @@ void print_help(){
     printf("--version     output version information and exit\n");
 }
 
+@ print\_version.
+Prints out the version number of \utfpatgen to the standard output.
+
+@c
 void print_version(){
     printf("This is UTF-patgen version %s\n", UTFPATGEN_VERSION);
 }
 
-@ Translate file processing.
+@* Translate file processing.
 Once the translate file has been successfully opened and its stream pointer stored, it is read line by line into
 translate table. The purpose of the translate file is to list all the characters that occur in the dictionary, together
 with their uppercase variants. Later during the pattern generation, all of these variants are treated as though they
@@ -423,6 +435,11 @@ characters for hyphen symbols. Practically, this is not a problem.
 
 The translate file must be provided as an input to \utfpatgen, but may be left empty. In that case, the default values
 for parameters ASCII character mapping are used.
+
+@ read\_translate.
+Reads the contents of the translate file and parses its lines into a translate table. It includes parsing the optional
+header line and storing the parameters obtained. If the file is empty, the method fetches a default ASCII mapping.
+Returns a boolean indicating whether the file has been read successfully.
 
 @c
 bool read_translate(struct params *params, struct translate_table *tt){
@@ -460,14 +477,27 @@ bool read_translate(struct params *params, struct translate_table *tt){
     return true;
 }
 
+@ is\_integer.
+Returns a boolean indicating whether the given character is an ASCII numeric literal.
+
+@c
 bool is_integer(char c){
     return (c >= '0' && c <= '9');
 }
 
+@ is\_space.
+Returns a boolean indicating whether the given character is an ASCII whitespace (0x20). 
+
+@c
 bool is_space(char c){
     return (c == ' ');
 }
 
+@ parse\_two\_digit.
+Attempts to parse 2-character sequence from a buffer into 2-digit number. Returns a boolean indicating whether the
+sequence is representing a number and parsing was finished successfully.
+
+@c
 bool parse_two_digit(struct string_buffer *buf, size_t pos, int8_t *out){
     if (pos + 1 >= buf->size) {
         return false;
@@ -491,6 +521,11 @@ bool parse_two_digit(struct string_buffer *buf, size_t pos, int8_t *out){
     return true;
 }
 
+@ parse\_header.
+Attempts to parse the text stored in a buffer as though it was the header of a translate file. If successful, the
+values of parameters are stored in {\tt params}. Return value indicates whether the parsing succeeded.
+
+@c
 bool parse_header(struct string_buffer *buf, struct params *params){
     int8_t val = -1;
     if (!parse_two_digit(buf, 0, &val)) {
@@ -516,6 +551,12 @@ bool parse_header(struct string_buffer *buf, struct params *params){
     return true;
 }
 
+@ parse\_letters.
+Attempts to parse the text stored in a buffer as though it was a non-header line of a translate file. If successful,
+the respective letter and its uppercase variants are stored in the translation table. If any of the letters was already
+in the table, the method fails. Return values indicates the success of parsing.
+
+@c
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
     if (buf->size == 0){
         fprintf(stderr, "Empty line in translate file\n");
@@ -564,6 +605,10 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
     return true;
 }
 
+@ default\_ascii\_mapping.
+Fetches default ASCII character mapping into the translate table. Return value indicate the success of fetching.
+
+@c
 bool default_ascii_mapping(struct translate_table *tt){
     size_t out_index;
     size_t alphabet_index;
@@ -585,7 +630,7 @@ bool default_ascii_mapping(struct translate_table *tt){
     return true;
 }
 
-@ Pattern file processing.
+@* Pattern file processing.
 The user can provide \utfpatgen with initial set of patterns to work with. Similarly to the translate file, the pattern
 file must be given as input, but may be left empty. Each line of the file represents one pattern, with following format
 required:
@@ -598,8 +643,9 @@ simply as ASCII numeric literals '0' to '9'. On the other hand, \utfpatgen expec
 preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal value '0xfe', so the range is extended up to 253.
 This works thanks to the fact that '0xfe' byte is not used by any UTF-8 character by design.
 
-The {\tt read\_patterns} method iterates over the file, reads each entry into the buffer and proccesses it with
-{\tt parse\_pattern}. The parsed pattern is then inserted into the pattern trie by {\tt insert\_new\_pattern}.
+@ read\_patterns.
+Iterates over the pattern file and reads its entries into a pattern trie. Return value indicates whether the whole file
+has been read and parsed successfully.
 
 @c
 bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
@@ -638,6 +684,11 @@ bool read_patterns(struct params *params, struct pattern_trie *pt, struct transl
     return true;
 }
 
+@ parse\_pattern.
+Processes the pattern text from buffer, translates it to lowercase and inserts it into a pattern structure. Return
+value indicates the success of translation and parsing.
+
+@c
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
     reset_pattern(out_pattern);
     char c;
@@ -711,6 +762,11 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
     return true;
 }
 
+@ insert\_new\_pattern.
+Inserts the pattern into pattern trie and collects statistics along the way. Return value indicates the success of
+insertion.
+
+@c
 bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps){
     size_t hyphenation_value, node;
     size_t current_len = 0;
@@ -742,7 +798,7 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
     return true;
 }
 
-@ Dictionary file processing.
+@* Dictionary file processing.
 The dictionary is the main source of data for pattern generation. The file indeed has to be provided as input, and
 though no error is raised when it is empty, such case does not make much sense. Each line in the file represents single
 hyphenated word, with hyphens marked using {\tt GOOD\_HYF}, {\tt MISS\_HYF}, and {\tt BAD\_HYF}. Furthermore,
@@ -760,6 +816,10 @@ into the count trie ({\tt process\_word}).
 
 Since some patterns may be tied to the edges of the word, special byte symbol {\tt EDGE\_OF\_WORD} was introduced
 that marks the edges. Hexadecimal value of the symbol is '0xff' that is not used by the UTF-8 encoding.
+
+@ process\_dictionary.
+Reads and parses the dictionary, and generates new patterns afterwards. Statistics of the pass are printed out at the
+end of the method. Return value indicates the success of reading, parsing, and pattern generation.
 
 @c
 bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps){
@@ -796,6 +856,11 @@ bool process_dictionary(struct params *params, struct translate_table *tt, struc
     return true;
 }
 
+@ process\_all\_words.
+Iterates over the lines of the dictionary files and parses them to the count trie. Return value indicates whether the
+whole file has been processed successfully.
+
+@c
 bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct){
     rewind(params->dictionary_file);
     uint8_t dot_min = params->pat_dot;
@@ -847,6 +912,11 @@ bool process_all_words(struct params *params, struct translate_table *tt, struct
     return true;
 }
 
+@ parse\_word.
+Parses the text from buffer to {\tt word} structure. The text is translated to lowercase and hyphens are processed.
+Return value indicates successful parsing.
+
+@c
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
     reset_word(out_word);
     struct string_buffer *letter = init_buffer(4);
@@ -928,6 +998,10 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
     return true;
 }
 
+@ count\_dots.
+Collects statistics about the hyphens in parsed word.
+
+@c
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps){
     if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
         return;
@@ -966,6 +1040,11 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     }
 }
 
+@ process\_word.
+Generates all candidate patterns from the parsed word and inserts them to count trie. Return value indicates the success
+of generating and insertion.
+
+@c
 bool process_word(struct word *word, struct count_trie *ct, struct params *params){
     uint8_t dot_min = params->pat_dot;
     uint8_t dot_max = params->pat_len - params->pat_dot;
@@ -1045,7 +1124,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
     return true;
 }
 
-@ Pattern collection.
+@* Pattern collection.
 After the dictionary has been processed, the count trie contains the number of good (supporting) and bad
 (contradicting) occurences of each candidate pattern found. There are 3 types of patterns based on these counts and the
 \goodwtpar, \badwtpar, and \threshpar parameters:
@@ -1069,6 +1148,10 @@ After the dictionary has been processed, the count trie contains the number of g
 The {\tt collect\_count\_trie} method is an entry points for pattern collection. It calls
 {\tt traverse\_count\_trie} that does the actual pattern evaluation, and then prints out the statistics from the
 process.
+
+@ collect\_count\_trie.
+Generates new patterns from the count trie and prints out statistics. Return value indicates whether the generation
+ended successfully.
 
 @c
 bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps){
@@ -1098,6 +1181,11 @@ bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct p
     return true;
 }
 
+@ traverse\_count\_trie.
+Searches through the count trie and inserts accepted patterns to the pattern trie. Statistics are collected along the
+way. Return value indicates whether the whole trie was explored.
+
+@c
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps) {
     size_t root = 1;
     size_t current_len = 0;
@@ -1191,12 +1279,12 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
     return true;
 }
 
-@ Pattern pruning.
+@* Pattern pruning.
 Once all the required pattern lengths and dot positions were explored for given hyphenation level, the pattern trie is
-pruned of the patterns that were marked as bad. The {\tt delete\_bad\_patterns} method encompasses the process. It
-invokes {\tt delete\_patterns}, deletes bad outputs from the pattern trie, and prints out the statistics. The
-{\tt delete\_patterns} method does the deletion from trie itself, relinking its outputs ({\tt deallocate\_node}),
-and deallocating the nodes that are no longer needed ({\tt link\_around\_bad\_outputs}).
+pruned of the patterns that were marked as bad.
+
+@ delete\_bad\_patterns.
+Removes bad patterns from the pattern trie and prints out statistics. Return value indicates success of the operation.
 
 @c
 bool delete_bad_patterns(struct pattern_trie *pt){
@@ -1217,6 +1305,11 @@ bool delete_bad_patterns(struct pattern_trie *pt){
     return true;
 }
 
+@ delete\_patterns.
+Searches through the pattern trie and removes outputs pointing to the bad patterns. Nodes that are not used after the
+deletion are deleted as well. Return value indicates whether the whole trie was explored.
+
+@c
 bool delete_patterns(struct pattern_trie *pt){
     size_t root = 1;
     struct stack *s_base = init_stack(16);
@@ -1326,6 +1419,10 @@ bool delete_patterns(struct pattern_trie *pt){
     return true;
 }
 
+@ deallocate\_node.
+Removes unused node from a trie. Returns true upon success.
+
+@c
 bool deallocate_node(struct trie *t, size_t t_index){
     if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
         return false;
@@ -1334,6 +1431,10 @@ bool deallocate_node(struct trie *t, size_t t_index){
     return true;
 }
 
+@ link\_around\_bad\_outputs.
+Fixes the output linking to not contain the outputs that will be deleted. Returns true upon success.
+
+@c
 bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
     size_t lookup_index = get_aux(pt->t, t_index);
     if (lookup_index == 0){
@@ -1367,13 +1468,14 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
     return true;
 }
 
-@ Pattern output.
+@* Pattern output.
 At the end of the run, \utfpatgen prints out the final set of patterns to the output file. The format is the same as
 the required format of the input pattern file -- each value of a hyphenation level is preceded by the
-{\tt HYPHEN\_FLAG} symbol, the '.' character marking an edge of word. The method {\tt output\_patterns} traverses
-through the pattern trie and whenever it finds an non-empty output, {\tt output\_pattern} writes the pattern to the
-output file. The {\tt get\_highest\_level} method finds the highest hyphenation value amongst the outputs for given
-pattern that overrides all the others.
+{\tt HYPHEN\_FLAG} symbol, the '.' character marking an edge of word.
+
+@ output\_patterns.
+Traverses through the pattern trie and writes all the patterns present there to the output file. Returns true if the
+whole trie has been explored and patterns successfully written.
 
 @c
 bool output_patterns(struct pattern_trie *pt, FILE *output_file){
@@ -1428,6 +1530,10 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
     return true;
 }
 
+@ output\_pattern.
+Writes single pattern to the output trie.
+
+@c
 void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *output_file){
     if (op_index == 0){
         return;
@@ -1458,6 +1564,10 @@ void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t o
     fputc('\n', output_file);
 }
 
+@ get\_highest\_level.
+Selects the hyphenation level to be used in given dot position. Return the level value.
+
+@c
 size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position){
     size_t highest = 0;
     size_t op_index = ops->lookup[start_index];
@@ -1472,13 +1582,15 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
     return highest;
 }
 
-@ Hyphenation.
+@* Hyphenation.
 Hyphenation appears on several places in the algorithm. Already in the dictionary processing, the words are hyphenated
-with the current set of patterns ({\tt hyphenate\_word}). The other case occurs at the absolute end of \utfpatgen
-when the user wishes to see the hyphenated dictionary -- {\tt hyphenate\_dictionary} initiates the process and
-prints out statistics, {\tt hyphenate\_all\_words} iterates over the dictionary, {\tt hyphenate\_word} processes
-each word with the set of patterns from the pattern trie and {\tt output\_hyphenated\_word} writes the hyphenated
-word into 'pattmp.X' file. The 'X' marks the last hyphenation level explored.
+with the current set of patterns. The other case occurs at the absolute end of \utfpatgen when the user wishes to see
+the hyphenated dictionary -- the final set of patterns is used to hyphenate the dictionary entries into 'pattmp.X'
+file. The 'X' marks the last hyphenation level explored.
+
+@ hyphenate\_word.
+Hyphenates the given word according to the actual set of patterns from pattern trie. Found hyphens are stored in word's
+{\tt found\_hyphens} field. Returns true if hyphenation ended without errors.
 
 @c
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
@@ -1543,6 +1655,11 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     return true;
 }
 
+@ hyphenate\_dicitonary.
+Writes the hyphenated dictionary entries to newly created {\tt pattmp} file. Return value indicates whether the file
+creation and hyphenation finished successfully.
+
+@c
 bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt){
     params->word_weight = 1;
      char *filename = malloc(11 * sizeof(char));
@@ -1565,6 +1682,11 @@ bool hyphenate_dictionary(struct params *params, struct translate_table *tt, str
     return true;
 }
 
+@ hyphenate\_all\_words.
+Itearates over the words in the dictionary, parses, hyphenates, and writes them to the {\tt pattmp}
+file. Returns true if no error occurs.
+
+@c
 bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, FILE *pattmp){
     rewind(params->dictionary_file);
     struct string_buffer *buf = init_buffer(64);
@@ -1602,6 +1724,10 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
     return true;
 }
 
+@ output\_hyphenated\_word.
+Writes the parsed and hyphenated word to the {\tt pattmp} file.
+
+@c
 void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
     if (params->word_weight > 1){
         fprintf(pattmp, "%d", params->word_weight);
@@ -1642,22 +1768,29 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
     fputc('\n', pattmp);
 }
 
-@ UTF-8 specifics.
+@* UTF-8 specifics.
 Following methods greatly simplify dealing with UTF-8 encoding. We took advantage of the design that allows to easily
-determine whether a byte is the first one in UTF-8 character (the {\tt is\_utf\_start\_byte})-- its two highest bits
-are not '10'. The first byte also encodes the number of bytes that form the UTF-8 character. If the highest bit is '0',
-the character comprise the single byte and its meaning is the same as it would be in ASCII encoding. If the highest bit
-is '1', the number of '1' bits on the highest positions equals the number of bytes of the character (with the exception
-of '10' which is not allowed in the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3-byte
-UTF-8 character. The method {\tt n\_utf\_following\_bytes} returns the number of bytes following after a given
-leading byte. Although bytes '0xfe' and '0xff' are not formally allowed in UTF-8, we treat them as one-byte characters
-with special meaning ({\tt HYPHEN\_FLAG}, {\tt EDGE\_OF\_WORD} respectively).
+determine whether a byte is the first one in UTF-8 character -- its two highest bits are not '10'. The first byte also
+encodes the number of bytes that form the UTF-8 character. If the highest bit is '0', the character comprise the single
+byte and its meaning is the same as it would be in ASCII encoding. If the highest bit is '1', the number of '1' bits on
+the highest positions equals the number of bytes of the character (with the exception of '10' which is not allowed in
+the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3-byte UTF-8 character. Although bytes
+'0xfe' and '0xff' are not formally allowed in UTF-8, we treat them as one-byte characters with special meaning
+({\tt HYPHEN\_FLAG}, {\tt EDGE\_OF\_WORD} respectively).
+
+@ is\_utf\_start\_byte.
+Returns true if the given byte is the start byte of a UTF-8 character or a \utfpatgen special symbol.
 
 @c
 bool is_utf_start_byte(uint8_t byte){
     return (byte & 0xc0) != 0x80;
 }
 
+@ n\_utf\_following\_bytes.
+Returns the number of bytes in UTF-8 charcter following after the given start byte. If the byte is an \utfpatgen
+special symbol or it is not a start byte, 0 is returned.
+
+@c
 uint8_t n_utf_following_bytes(uint8_t c){
     if (c < 128 || c > 253){
         return 0;
@@ -1670,7 +1803,7 @@ uint8_t n_utf_following_bytes(uint8_t c){
     }
 }
 
-@* Structures.
+@** Structures.
 This section focuses on the data structures we used in \utfpatgen and their components. Here you can find information
 about the basic structures such as tries, buffers, and stacks, as well as composite structures like the pattern and
 count trie, translate table, or word.
@@ -1682,17 +1815,16 @@ resources for structure {\it XX}, {\tt resize\_XX} reallocates them if the capac
 memory leaks. Furthermore, we use {\tt get\_YY} and {\tt set\_YY} methods to read and write into the fields of
 given structure instead of direct access. This allows us to perform additional checks on the input values.
 
-@ Trie.
+@* Trie.
 The packed trie structure forms the backbone of both \patgen and \utfpatgen algorithms. The implementation is very
 similar in both cases, a set of arrays representing a n-ary tree, condensed for better space effectiveness. Single node
 of a trie comprises a {\it value}, {\it link} and {\it aux} pointers, and {\it base} indicator.
 
-If we want to traverse the trie, that means to find the node corresponding to given sequence of values $x_1 \dots x_n$
+If we want to traverse the trie, that means finding the node corresponding to given sequence of values $x_1 \dots x_n$
 (if such node exists), we start in the root node $r_0$. Our next destination is node $n_1 = r_0 + x_1$. Then we check
 whether $value(n_1) = x_1$ and if the equation holds, we set $r_1 = link(n_1)$ as the new root. If the equation does
 not hold or $r_1 = 0$, we can end the search and conclude that the sequence is not present in the trie. Otherwise, we
-repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired result. This is exactly what happens in
-{\tt traverse\_trie} method.
+repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired result.
 
 @c
 struct trie *init_trie(size_t capacity){
@@ -1858,6 +1990,10 @@ bool set_aux(struct trie *t, size_t index, size_t aux){
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
     if(!set_node(to, to_index, get_node(from, from_index)) || !set_link(to, to_index, get_link(from, from_index)) || !set_aux(to, to_index, get_aux(from, from_index))) {
         return false;
@@ -1891,6 +2027,10 @@ bool set_base_used(struct trie *t, size_t index, bool used){
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool set_links(struct trie *t, size_t from, size_t to){
     if (!set_link(t, from, to) || !set_aux(t, to, from)) {
         return false;
@@ -1898,10 +2038,18 @@ bool set_links(struct trie *t, size_t from, size_t to){
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool is_node_occupied(struct trie *t, size_t index){
     return get_node(t, index) != 0;
 }
 
+@ methods.
+description.
+
+@c
 bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
     size_t t_index;
     uint8_t offset;
@@ -1936,6 +2084,10 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, 
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
     size_t base;
     if (!find_base_for_first_fit(t, q, threshold, &base)) {
@@ -1955,6 +2107,10 @@ bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_ba
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool unpack(struct trie *from, size_t base, struct trie *to){
     to->node_max = 1;
     for (size_t i = 1; i < 256; i++){
@@ -1973,6 +2129,10 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     return true;
 }
 
+@ methods.
+description.
+
+@c
 size_t traverse_trie(struct trie *t, const char *pattern){
     size_t index = 1;
     size_t node = (uint8_t) pattern[0] + 1;
@@ -1992,11 +2152,19 @@ size_t traverse_trie(struct trie *t, const char *pattern){
     return node;
 }
 
+@ methods.
+description.
+
+@c
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
     size_t length = strlen(pattern);
     return insert_substring(t, pattern, length, length, out_op_index);
 }
 
+@ methods.
+description.
+
+@c
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
     size_t index = end - length;
     size_t base = 1;
@@ -2056,6 +2224,10 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     return true;
 }
 
+@ methods.
+description.
+
+@c
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
     if (!unpack(t, *base - (uint8_t) value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
         return false;
@@ -2072,7 +2244,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     return true;
 }
 
-@ Outputs.
+@* Outputs.
 
 @c
 size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
@@ -2166,7 +2338,7 @@ void destroy_outputs(struct outputs *ops){
     free(ops);
 }
 
-@ Pattern trie.
+@* Pattern trie.
 
 @c
 struct pattern_trie *init_pattern_trie(size_t trie_capacity, size_t outputs_capacity){
@@ -2236,7 +2408,7 @@ bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t posit
     return true;
 }
 
-@ Pattern counts.
+@* Pattern counts.
 
 @c
 struct pattern_counts *init_pattern_counts(size_t capacity){
@@ -2327,7 +2499,7 @@ bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
     return true;
 }
 
-@ Count trie.
+@* Count trie.
 
 @c
 struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity){
@@ -2360,7 +2532,7 @@ void destroy_count_trie(struct count_trie *ct){
     free(ct);
 }
 
-@ Translation table.
+@* Translation table.
 
 @c
 struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity){
@@ -2405,7 +2577,7 @@ char *get_lower(struct translate_table *tt, const char *letter){
     return tt->alphabet->data + get_aux(tt->mapping, index);
 }
 
-@ Params.
+@* Params.
 
 @c
 struct params *init_params(){
@@ -2453,9 +2625,9 @@ void destroy_params(struct params *p){
     free(p);
 }
 
-@ Pass stats.
+@* Pass stats.
 
-@ Stack.
+@* Stack.
 
 @c
 struct stack *init_stack(size_t capacity){
@@ -2519,7 +2691,7 @@ void set_top_value(struct stack *s, size_t value){
     s->data[s->top - 1] = value;
 }
 
-@ Word.
+@* Word.
 
 @c
 struct word *init_word(size_t capacity){
@@ -2685,7 +2857,7 @@ bool set_no_more(struct word *word, size_t index, bool value){
     return true;
 }
 
-@ Pattern.
+@* Pattern.
 
 @c
 struct pattern *init_pattern(size_t capacity){
@@ -2788,7 +2960,7 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
     return true;
 }
 
-@ String buffer.
+@* String buffer.
 Buffer is used for storing lines read from input files. We use dynamic allocation to allow for arbitrary length lines.
 
 @c
@@ -2855,5 +3027,5 @@ bool append_string(struct string_buffer *buf, const char *str, size_t len){
     return true;
 }
 
-@* Index.
+@** Index.
 Automatically generates the list of used identifiers
