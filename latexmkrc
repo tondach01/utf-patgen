@@ -1,3 +1,6 @@
+# Redirect pdflatex to pdftex
+$pdflatex = 'pdftex %O %S';
+
 # Directive to Overleaf: if you see .w file, use cweave and make .tex
 add_cus_dep('w', 'tex', 0, 'w2tex');
 
