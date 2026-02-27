@@ -18,8 +18,8 @@ all: clean $(NAME).pdf $(NAME) test/unit_test
 	cweave $<
 
 %.pdf: %.tex
-	pdflatex $<
-	pdflatex $<
+	pdftex $<
+	pdftex $<
 
 # Executable
 %.c : %.w

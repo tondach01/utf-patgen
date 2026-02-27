@@ -1,19 +1,17 @@
-% --- LIMBO SECTION (LaTeX settings) ---
-\documentclass[a4paper,11pt]{cweb} % Use cweb class
-\usepackage[utf8]{inputenc}        % UTF-8 encoding
-\newcommand{\utfpatgen}{\texttt{utf-patgen }}
-\newcommand{\patgen}{\texttt{patgen }}
-\newcommand{\lefthyphenminpar}{\texttt{lefthyphenmin }}
-\newcommand{\righthyphenminpar}{\texttt{righthyphenmin }}
-\newcommand{\hyphstartpar}{\texttt{hyph\_start }}
-\newcommand{\hyphfinishpar}{\texttt{hyph\_finish }}
-\newcommand{\patstartpar}{\texttt{pat\_start }}
-\newcommand{\patfinishpar}{\texttt{pat\_finish }}
-\newcommand{\goodwtpar}{\texttt{good\_wt }}
-\newcommand{\badwtpar}{\texttt{bad\_wt }}
-\newcommand{\threshpar}{\texttt{thresh }}
-
-\begin{document}
+% --- LIMBO SECTION (TeX settings) ---
+% \documentclass[a4paper,11pt]{cweb} % Use cweb class
+% \usepackage[utf8]{inputenc}        % UTF-8 encoding
+\def\utfpatgen{{\tt utf-patgen }}
+\def\patgen{{\tt patgen }}
+\def\lefthyphenminpar{{\tt lefthyphenmin }}
+\def\righthyphenminpar{{\tt righthyphenmin }}
+\def\hyphstartpar{{\tt hyph\_start }}
+\def\hyphfinishpar{{\tt hyph\_finish }}
+\def\patstartpar{{\tt pat\_start }}
+\def\patfinishpar{{\tt pat\_finish }}
+\def\goodwtpar{{\tt good\_wt }}
+\def\badwtpar{{\tt bad\_wt }}
+\def\threshpar{{\tt thresh }}
 
 @* Introduction.
 This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen, we
@@ -21,7 +19,7 @@ intend to overcome several limitations of the original, such as the number of hy
 use some reserved characters in dictionary, and most importantly, we enable native usage of the UTF-8 encoding in
 dictionaries that are no longer limited by the fixed number of lowercase characters permitted by \patgen.
 
-We provide \utfpatgen open-source and free of charge under \textbf{TODO} license. Please note that there is no warranty
+We provide \utfpatgen open-source and free of charge under {\bf TODO} license. Please note that there is no warranty
 and despite our greatest effort, the program may contain bugs.
 
 @* Glossary.
@@ -29,44 +27,44 @@ Before diving into the implementation part of the program, it is useful to menti
 throughout the text. It may come useful especially to those who are not thoroughly familiar with \patgen. The
 definitions here are mostly informal and intended to ease reader's understanding of the topic.
 
-\textbf{Hyphenation} is a process of splitting words so that they fit better to the paragraphs when typeset. It follows
+{\bf Hyphenation} is a process of splitting words so that they fit better to the paragraphs when typeset. It follows
 the linguistic rules set for the language in which the text is written.
 
-\textbf{Pattern} is a sequence of characters containing hyphenation information tied to some position (\textbf{dot
+{\bf Pattern} is a sequence of characters containing hyphenation information tied to some position ({\bf dot
 position}) on the edges of the pattern or in between the characters. Whether this information tells that the position
-should or should not be hyphenated, we distinguish between \textbf{hyphenating} and \textbf{inhibiting patterns}.
+should or should not be hyphenated, we distinguish between {\bf hyphenating} and {\bf inhibiting patterns}.
 
-\textbf{Hyphen} (in context of \patgen and \utfpatgen) is a mark between two characters holding the information whether
+{\bf Hyphen} (in context of \patgen and \utfpatgen) is a mark between two characters holding the information whether
 that position should be split during hyphenation and whether this split was detected by current patterns. There are
-therefore 4 types of hyphens: \textbf{NO\_HYF} (not in the data, not marked), \textbf{MISS\_HYF} (in the data, not
-marked), \textbf{BAD\_HYF} (not in the data, marked), and \textbf{GOOD\_HYF} (in the data, marked). Strictly speaking,
+therefore 4 types of hyphens: {\bf NO\_HYF} (not in the data, not marked), {\bf MISS\_HYF} (in the data, not
+marked), {\bf BAD\_HYF} (not in the data, marked), and {\bf GOOD\_HYF} (in the data, marked). Strictly speaking,
 there is a hyphen between each pair of neighboring characters in the data, but NO\_HYF marking is omitted implicitly.
 
-\textbf{Supporting occurences} of a pattern in the data are those that are in favor of the hyphenation information it
+{\bf Supporting occurences} of a pattern in the data are those that are in favor of the hyphenation information it
 holds. For hyphenating patterns, these are the cases where the word has a MISS\_HYF on the dot position pointed by the
-pattern. For inhibiting patterns, dot position with a BAD\_HYF is a supporting one. \textbf{Contradicting occurences}
+pattern. For inhibiting patterns, dot position with a BAD\_HYF is a supporting one. {\bf Contradicting occurences}
 are those that would break a correct hyphen, thus NO\_HYF for hyphenating, and GOOD\_HYF for inhibiting patterns. Note
 that a occurence of a pattern can be neither supporting nor contradicting.
 
-\textbf{Hyphenation level} marks the strength of a hyphenation. It is represented by a non-negative integer and creates
+{\bf Hyphenation level} marks the strength of a hyphenation. It is represented by a non-negative integer and creates
 a hierarchy of patterns. Pattern with higher level always takes precedence over any pattern with lower level. At odd
 levels, the patterns are hyphenating, at even levels inhibiting.
 
-\textbf{Trie} is a data structure for storing n-ary trees. It can implemented using an associated array with highly
-effective insertion, deletion and lookup. Furthermore, we can condense it via \textit{packing} to save space.
+{\bf Trie} is a data structure for storing n-ary trees. It can implemented using an associated array with highly
+effective insertion, deletion and lookup. Furthermore, we can condense it via {\it packing} to save space.
 
 @* Implementation.
 In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find the
 names and functions similar to those in the \patgen technical report. We have nevertheless decided to rewrite several
 parts of the algorithm in more "modern" way to improve its readability and testability. The main points to mention are:
 
-\begin{itemize}
-    \item the algorithm is implemented in CWEB (C being the laguage of the program), not WEB (with Pascal),
-    \item instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated and
+
+    \item{$\bullet$} the algorithm is implemented in CWEB (C being the laguage of the program), not WEB (with Pascal),
+    \item{$\bullet$} instead of statically defining the sizes of structures (tries, buffers, etc.), these are allocated and
         reallocated dynamically, allowing for greater flexibility and possibly space savings,
-    \item global variables are localized as much as possible,
-    \item \texttt{goto} statements are eliminated.
-\end{itemize}
+    \item{$\bullet$} global variables are localized as much as possible,
+    \item{$\bullet$} {\tt goto} statements are eliminated.
+
 
 You may also find a few unit tests appended to the code. These are by no means exhaustive, but feel free to run them
 and add your own.
@@ -76,9 +74,9 @@ sections. Same goes for the structures which have their own dedicated sections.
 
 @ Dependencies.
 All external libraries used in \utfpatgen come from the standard C package, so we hope it to be widely portable without
-greater trouble. All in all, we use fixed-size types from \texttt{<stdint.h>} and \texttt{<stdbool.h>}, IO support from
-\texttt{<stdio.h>}, string manipulation methods from \texttt{<string.h>}, and memory management provided by
-\texttt{<stdlib.h>}.
+greater trouble. All in all, we use fixed-size types from {\tt <stdint.h>} and {\tt <stdbool.h>}, IO support from
+{\tt <stdio.h>}, string manipulation methods from {\tt <string.h>}, and memory management provided by
+{\tt <stdlib.h>}.
 
 @<Library includes@>=
 #include "utfpatgen.h"
@@ -116,15 +114,15 @@ int main(int argc, char *argv[]) {
 
 @ Initialization sequence.
 First, the input parameters provided to the program call are read, validated and processed. Unless asking for help
-(\texttt{--help}) or version printout (\texttt{--version}), \utfpatgen takes exactly 4 inputs, representing 4 files:
+({\tt --help}) or version printout ({\tt --version}), \utfpatgen takes exactly 4 inputs, representing 4 files:
 
-\begin{itemize}
-    \item \textbf{Dictionary file}: contains set of hyphenated words.
-    \item \textbf{Patterns file}: stores patterns generated in previous runs.
-    \item \textbf{Output file}: where the patterns will be stored after the run.
-    \item \textbf{Translate file}: contains the mapping of characters from the dictionary and dictionary-specific
+
+    \item{$\bullet$} {\bf Dictionary file}: contains set of hyphenated words.
+    \item{$\bullet$} {\bf Patterns file}: stores patterns generated in previous runs.
+    \item{$\bullet$} {\bf Output file}: where the patterns will be stored after the run.
+    \item{$\bullet$} {\bf Translate file}: contains the mapping of characters from the dictionary and dictionary-specific
         parameters.
-\end{itemize}
+
 
 The required formats of these files are the same as for the \patgen program and are discussed in dedicated sections.
 
@@ -218,10 +216,10 @@ The program again prompts for hyperparameter input. Firstly, it asks for \patsta
 lenght range of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to 255.
 Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These define the
 acceptance criteria for candidate patterns -- in order to accept the pattern during the ongoing iteration, its number
-of \textit{good} (supporting) and \textit{bad} (contradicting) occurences must make the following inequality to hold:
-\begin{equation}
+of {\it good} (supporting) and {\it bad} (contradicting) occurences must make the following inequality to hold:
+$
     good * good\_wt - bad * bad\_wt \geq thresh
-\end{equation}
+$
 The maximum value for the weights and threshold in \utfpatgen is set to 255.
 
 @<Level hyperparameters input@>=
@@ -253,8 +251,8 @@ params->bad_wt = (uint8_t) bad_wt;
 params->thresh = (uint8_t) thresh;
 
 @ Level generation.
-The single pass of \utfpatgen at given hyphenation level comprises iterating through pattern lengths (\texttt{pat\_len}
-parameter, in ascending order) and dot positions (\texttt{pat\_dot}, from the middle toward the edges) and processing
+The single pass of \utfpatgen at given hyphenation level comprises iterating through pattern lengths ({\tt pat\_len}
+parameter, in ascending order) and dot positions ({\tt pat\_dot}, from the middle toward the edges) and processing
 the dictionary. The algorithm collects supporting and contradicting occurences and eventually adds new patterns to the
 set. It can happen that an iteration is skipped if it is known in advance that it will not yield any new patterns.
 
@@ -322,10 +320,10 @@ In this section we focus on the implementation details, each subsection devoted 
 algorithm.
 
 @ IO procedures.
-Methods in this subsection stand on the interface between \utfpatgen and the user, together with the \texttt{main}
-method. \texttt{parse\_inputs} attempts to open the 4 files provided as inputs into streams and save them for later
-use. \texttt{read\_line} is a utility to simplify reading from these streams that stores the information read into
-provided buffer. The \texttt{print\_help} and \texttt{print\_version} methods print out the desired information if the
+Methods in this subsection stand on the interface between \utfpatgen and the user, together with the {\tt main}
+method. {\tt parse\_inputs} attempts to open the 4 files provided as inputs into streams and save them for later
+use. {\tt read\_line} is a utility to simplify reading from these streams that stores the information read into
+provided buffer. The {\tt print\_help} and {\tt print\_version} methods print out the desired information if the
 user does not wish to proceed to pattern generation.
 
 @c
@@ -411,15 +409,15 @@ with their uppercase variants. Later during the pattern generation, all of these
 were the same character. Besides, the first line of the file may redefine the language-specific parameters
 \lefthyphenminpar, \righthyphenminpar, and the symbols used for marking hyphens in the dictionary. The format of the
 translate file follows the same pattern as required by \patgen:
-\begin{itemize}
-    \item first line (optional): 'LLRR BMG', where 'LL' is the value of \lefthyphenminpar, 'RR' the value of
-        \righthyphenminpar, 'B' the symbol for \texttt{BAD\_HYF}, 'M' the symbol for \texttt{MISS\_HYF}, and 'G' the
-        symbol for \texttt{GOOD\_HYF}. Should any of these parameters stay blank, the default is used:
-        \lefthyphenminpar$=2$, \righthyphenminpar$=3$, \texttt{BAD\_HYF} '.', \texttt{MISS\_HYF} '-',
-        \texttt{GOOD\_HYF} '*'.
-    \item consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lowercase letter, '$Y_k$' an arbitrary (even 0)
-        number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
-\end{itemize}
+
+\item{$\bullet$} first line (optional): 'LLRR BMG', where 'LL' is the value of \lefthyphenminpar, 'RR' the value of
+    \righthyphenminpar, 'B' the symbol for {\tt BAD\_HYF}, 'M' the symbol for {\tt MISS\_HYF}, and 'G' the
+    symbol for {\tt GOOD\_HYF}. Should any of these parameters stay blank, the default is used:
+    \lefthyphenminpar$=2$, \righthyphenminpar$=3$, {\tt BAD\_HYF} '.', {\tt MISS\_HYF} '-',
+    {\tt GOOD\_HYF} '*'.
+\item{$\bullet$} consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lowercase letter, '$Y_k$' an arbitrary
+    (even 0) number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
+
 Note that this format allows two-digit values of \lefthyphenminpar and \righthyphenminpar at most and one-byte
 characters for hyphen symbols. Practically, this is not a problem.
 
@@ -591,17 +589,17 @@ bool default_ascii_mapping(struct translate_table *tt){
 The user can provide \utfpatgen with initial set of patterns to work with. Similarly to the translate file, the pattern
 file must be given as input, but may be left empty. Each line of the file represents one pattern, with following format
 required:
-\begin{quote}
+{\narrower
     $<hyph. level><character><hyph. level>\dots<hyph. level>$
-\end{quote}
+\par}
 Zero levels are omitted implicitly. The special character '.' denotes edges of the word (it can be only used as the
 first or last character of a pattern). The original \patgen program that supports only levels up to 9 represents them
 simply as ASCII numeric literals '0' to '9'. On the other hand, \utfpatgen expects each byte representing a level
-preceded with a special \texttt{HYPHEN\_FLAG} byte of hexadecimal value '0xfe', so the range is extended up to 253.
+preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal value '0xfe', so the range is extended up to 253.
 This works thanks to the fact that '0xfe' byte is not used by any UTF-8 character by design.
 
-The \texttt{read\_patterns} method iterates over the file, reads each entry into the buffer and proccesses it with
-\texttt{parse\_pattern}. The parsed pattern is then inserted into the pattern trie by \texttt{insert\_new\_pattern}.
+The {\tt read\_patterns} method iterates over the file, reads each entry into the buffer and proccesses it with
+{\tt parse\_pattern}. The parsed pattern is then inserted into the pattern trie by {\tt insert\_new\_pattern}.
 
 @c
 bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps){
@@ -747,20 +745,20 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
 @ Dictionary file processing.
 The dictionary is the main source of data for pattern generation. The file indeed has to be provided as input, and
 though no error is raised when it is empty, such case does not make much sense. Each line in the file represents single
-hyphenated word, with hyphens marked using \texttt{GOOD\_HYF}, \texttt{MISS\_HYF}, and \texttt{BAD\_HYF}. Furthermore,
-both the whole word and separate hyphens can be weighted by preceding the with \texttt{HYPHEN\_FLAG} and a value.
+hyphenated word, with hyphens marked using {\tt GOOD\_HYF}, {\tt MISS\_HYF}, and {\tt BAD\_HYF}. Furthermore,
+both the whole word and separate hyphens can be weighted by preceding the with {\tt HYPHEN\_FLAG} and a value.
 Similarly to the pattern file, the possible range of weights is increased to 253. If the hyphen weight is omitted, word
 weight is used. If the word weight is omitted, \utfpatgen uses the default value 1. The lines of the dictionary file
 thus look like this:
-\begin{quote}
+{\narrower
     $<word weigth><character><hyphen weight><hyphen><character>\dots<character>$
-\end{quote}
-The \texttt{process\_dictionary} method encompasses both reading through the dictionary file and generating patterns
-afterwards. The reading itself is implemented in \texttt{process\_all\_words}: each word is read, translated to
-lowercase and parsed (\texttt{parse\_word}), hyphenated, statistics collected (\texttt{count\_dots}), and processed
-into the count trie (\texttt{process\_word}).
+\par}
+The {\tt process\_dictionary} method encompasses both reading through the dictionary file and generating patterns
+afterwards. The reading itself is implemented in {\tt process\_all\_words}: each word is read, translated to
+lowercase and parsed ({\tt parse\_word}), hyphenated, statistics collected ({\tt count\_dots}), and processed
+into the count trie ({\tt process\_word}).
 
-Since some patterns may be tied to the edges of the word, special byte symbol \texttt{EDGE\_OF\_WORD} was introduced
+Since some patterns may be tied to the edges of the word, special byte symbol {\tt EDGE\_OF\_WORD} was introduced
 that marks the edges. Hexadecimal value of the symbol is '0xff' that is not used by the UTF-8 encoding.
 
 @c
@@ -1051,25 +1049,25 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 After the dictionary has been processed, the count trie contains the number of good (supporting) and bad
 (contradicting) occurences of each candidate pattern found. There are 3 types of patterns based on these counts and the
 \goodwtpar, \badwtpar, and \threshpar parameters:
-\begin{itemize}
-    \item \textbf{good patterns} for which inequality 
-        \begin{equation}
+
+    \item{$\bullet$} {\bf good patterns} for which inequality 
+        $
             good * good\_wt - bad * bad\_wt \geq thresh
-        \end{equation}
+        $
         holds. Good patterns are inserted into the pattern trie with corresponding hyphenation level.
-    \item \textbf{bad patterns}: for which inequality
-        \begin{equation}
+    \item{$\bullet$} {\bf bad patterns}: for which inequality
+        $
             good * good\_wt < thresh
-        \end{equation}
-        holds. Bad patterns are inserted into the pattern trie with a special \texttt{BAD\_OP\_VALUE} level of value
+        $
+        holds. Bad patterns are inserted into the pattern trie with a special {\tt BAD\_OP\_VALUE} level of value
         255. Neither them nor their superstrings can become good patterns and are deleted from the pattern trie in the
         end of the hyphenation level iteration.
-    \item \textbf{undecided patterns}: for which none of the inequalities above holds. Some of their superstrings may
+    \item{$\bullet$} {\bf undecided patterns}: for which none of the inequalities above holds. Some of their superstrings may
         become good or bad patterns later, so need for further investigation is raised by setting the
-        \texttt{more\_to\_come} flag. 
-\end{itemize}
-The \texttt{collect\_count\_trie} method is an entry points for pattern collection. It calls
-\texttt{traverse\_count\_trie} that does the actual pattern evaluation, and then prints out the statistics from the
+        {\tt more\_to\_come} flag. 
+
+The {\tt collect\_count\_trie} method is an entry points for pattern collection. It calls
+{\tt traverse\_count\_trie} that does the actual pattern evaluation, and then prints out the statistics from the
 process.
 
 @c
@@ -1195,10 +1193,10 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
 
 @ Pattern pruning.
 Once all the required pattern lengths and dot positions were explored for given hyphenation level, the pattern trie is
-pruned of the patterns that were marked as bad. The \texttt{delete\_bad\_patterns} method encompasses the process. It
-invokes \texttt{delete\_patterns}, deletes bad outputs from the pattern trie, and prints out the statistics. The
-\texttt{delete\_patterns} method does the deletion from trie itself, relinking its outputs (\texttt{deallocate\_node}),
-and deallocating the nodes that are no longer needed (\texttt{link\_around\_bad\_outputs}).
+pruned of the patterns that were marked as bad. The {\tt delete\_bad\_patterns} method encompasses the process. It
+invokes {\tt delete\_patterns}, deletes bad outputs from the pattern trie, and prints out the statistics. The
+{\tt delete\_patterns} method does the deletion from trie itself, relinking its outputs ({\tt deallocate\_node}),
+and deallocating the nodes that are no longer needed ({\tt link\_around\_bad\_outputs}).
 
 @c
 bool delete_bad_patterns(struct pattern_trie *pt){
@@ -1372,9 +1370,9 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
 @ Pattern output.
 At the end of the run, \utfpatgen prints out the final set of patterns to the output file. The format is the same as
 the required format of the input pattern file -- each value of a hyphenation level is preceded by the
-\texttt{HYPHEN\_FLAG} symbol, the '.' character marking an edge of word. The method \texttt{output\_patterns} traverses
-through the pattern trie and whenever it finds an non-empty output, \texttt{output\_pattern} writes the pattern to the
-output file. The \texttt{get\_highest\_level} method finds the highest hyphenation value amongst the outputs for given
+{\tt HYPHEN\_FLAG} symbol, the '.' character marking an edge of word. The method {\tt output\_patterns} traverses
+through the pattern trie and whenever it finds an non-empty output, {\tt output\_pattern} writes the pattern to the
+output file. The {\tt get\_highest\_level} method finds the highest hyphenation value amongst the outputs for given
 pattern that overrides all the others.
 
 @c
@@ -1476,10 +1474,10 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
 
 @ Hyphenation.
 Hyphenation appears on several places in the algorithm. Already in the dictionary processing, the words are hyphenated
-with the current set of patterns (\texttt{hyphenate\_word}). The other case occurs at the absolute end of \utfpatgen
-when the user wishes to see the hyphenated dictionary -- \texttt{hyphenate\_dictionary} initiates the process and
-prints out statistics, \texttt{hyphenate\_all\_words} iterates over the dictionary, \texttt{hyphenate\_word} processes
-each word with the set of patterns from the pattern trie and \texttt{output\_hyphenated\_word} writes the hyphenated
+with the current set of patterns ({\tt hyphenate\_word}). The other case occurs at the absolute end of \utfpatgen
+when the user wishes to see the hyphenated dictionary -- {\tt hyphenate\_dictionary} initiates the process and
+prints out statistics, {\tt hyphenate\_all\_words} iterates over the dictionary, {\tt hyphenate\_word} processes
+each word with the set of patterns from the pattern trie and {\tt output\_hyphenated\_word} writes the hyphenated
 word into 'pattmp.X' file. The 'X' marks the last hyphenation level explored.
 
 @c
@@ -1646,14 +1644,14 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
 
 @ UTF-8 specifics.
 Following methods greatly simplify dealing with UTF-8 encoding. We took advantage of the design that allows to easily
-determine whether a byte is the first one in UTF-8 character (the \texttt{is\_utf\_start\_byte})-- its two highest bits
+determine whether a byte is the first one in UTF-8 character (the {\tt is\_utf\_start\_byte})-- its two highest bits
 are not '10'. The first byte also encodes the number of bytes that form the UTF-8 character. If the highest bit is '0',
 the character comprise the single byte and its meaning is the same as it would be in ASCII encoding. If the highest bit
 is '1', the number of '1' bits on the highest positions equals the number of bytes of the character (with the exception
 of '10' which is not allowed in the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3-byte
-UTF-8 character. The method \texttt{n\_utf\_following\_bytes} returns the number of bytes following after a given
+UTF-8 character. The method {\tt n\_utf\_following\_bytes} returns the number of bytes following after a given
 leading byte. Although bytes '0xfe' and '0xff' are not formally allowed in UTF-8, we treat them as one-byte characters
-with special meaning (\texttt{HYPHEN\_FLAG}, \texttt{EDGE\_OF\_WORD} respectively).
+with special meaning ({\tt HYPHEN\_FLAG}, {\tt EDGE\_OF\_WORD} respectively).
 
 @c
 bool is_utf_start_byte(uint8_t byte){
@@ -1678,23 +1676,23 @@ about the basic structures such as tries, buffers, and stacks, as well as compos
 count trie, translate table, or word.
 
 We tried to name the methods for basic manipulation with the structures consistently across the whole implementation.
-Thanks to that, you will find several methods with common prefixes: \texttt{init\_XX} performs initial allocation of
-resources for structure \textit{XX}, \texttt{resize\_XX} reallocates them if the capacity threshold is reached,
-\texttt{reset\_XX} reverts the structure to initial state, and \texttt{destroy\_XX} frees all the resources to avoid
-memory leaks. Furthermore, we use \texttt{get\_YY} and \texttt{set\_YY} methods to read and write into the fields of
+Thanks to that, you will find several methods with common prefixes: {\tt init\_XX} performs initial allocation of
+resources for structure {\it XX}, {\tt resize\_XX} reallocates them if the capacity threshold is reached,
+{\tt reset\_XX} reverts the structure to initial state, and {\tt destroy\_XX} frees all the resources to avoid
+memory leaks. Furthermore, we use {\tt get\_YY} and {\tt set\_YY} methods to read and write into the fields of
 given structure instead of direct access. This allows us to perform additional checks on the input values.
 
 @ Trie.
 The packed trie structure forms the backbone of both \patgen and \utfpatgen algorithms. The implementation is very
 similar in both cases, a set of arrays representing a n-ary tree, condensed for better space effectiveness. Single node
-of a trie comprises a \textit{value}, \textit{link} and \textit{aux} pointers, and \textit{base} indicator.
+of a trie comprises a {\it value}, {\it link} and {\it aux} pointers, and {\it base} indicator.
 
 If we want to traverse the trie, that means to find the node corresponding to given sequence of values $x_1 \dots x_n$
 (if such node exists), we start in the root node $r_0$. Our next destination is node $n_1 = r_0 + x_1$. Then we check
 whether $value(n_1) = x_1$ and if the equation holds, we set $r_1 = link(n_1)$ as the new root. If the equation does
 not hold or $r_1 = 0$, we can end the search and conclude that the sequence is not present in the trie. Otherwise, we
 repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired result. This is exactly what happens in
-\texttt{traverse\_trie} method.
+{\tt traverse\_trie} method.
 
 @c
 struct trie *init_trie(size_t capacity){
@@ -2859,5 +2857,3 @@ bool append_string(struct string_buffer *buf, const char *str, size_t len){
 
 @* Index.
 Automatically generates the list of used identifiers
-
-\end{document}

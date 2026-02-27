@@ -125,6 +125,7 @@
 \ifxetex\pdftrue\fi % XeTeX produces PDF output
 \ifpdf \def\pdflinkcolor{0 0 1} \fi % the RGB values for hyperlink color
 \let\ifacro=\ifpdf
+\ifx\ifhint\undefined \newif\ifhint \fi
 \newif\ifacrohint \ifacro\acrohinttrue\fi \ifhint\acrohinttrue\fi
 \newif\ifpdflua \ifluatex\pdfluatrue\fi \ifpdftex\pdfluatrue\fi
 \ifpdflua % luaTeX and pdfTeX produce PDF output if \pdfoutput>0 (default)
