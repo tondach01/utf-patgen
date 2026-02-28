@@ -15,9 +15,10 @@ test/unit_test
 # VS Code configurations
 .vscode
 
-# outputs of pdflatex
+# outputs of pdftex
 *.pdf
 *.log
 *.aux
 *.scn
 *.idx
+*.toc
