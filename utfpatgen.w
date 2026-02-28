@@ -2276,26 +2276,28 @@ size_t traverse_trie(struct trie *t, const char *pattern){
 }
 
 @* Outputs.
+The hyphenation information associated to a pattern is stored as a triplet in {\tt output} structure:
+
+    \item{$\bullet$} {\bf value}: the hyphenation level,
+    \item{$\bullet$} {\bf position}: the dot position,
+    \item{$\bullet$} {\bf next\_op\_index}: the pointer to next output of the same pattern.
+
+For space-saving purposes, several patterns may share a single output. This means that, for example, for all patterns
+having single hyphen of level 1 at position 3 we store only one such output to which all the patterns point. It is thus
+necessary to access the outputs as effectively as possible. \utfpatgen uses a "hash table" with indirect addressing --
+simple function $(next\_op\_index + 313*position + 361*value) \% table\_capacity) + 1$ computes the index of an output
+in the {\tt lookup} array that contains pointers to the real outputs. The whole structure has these fields:
+
+    \item{$\bullet$} {\bf capacity}: the capacity of the array of outputs,
+    \item{$\bullet$} {\bf count}: the number of outputs currently in the array,
+    \item{$\bullet$} {\bf data}: the array of outputs,
+    \item{$\bullet$} {\bf lookup\_cap}: the capacity of the lookup table,
+    \item{$\bullet$} {\bf lookup\_cnt}: the number of entries currently in the lookup,
+    \item{$\bullet$} {\bf lookup}: the array of lookup entries.
+
+The sizes of data and lookup are independent to some extent, so the corresponding arrays are resized independently.
 
 @c
-size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
-    size_t hash = ((next_op_index + 313*position + 361*value) % ops->lookup_cap) + 1;
-    size_t op_index;
-    while (true) {
-        op_index = ops->lookup[hash];
-        if (op_index == 0) {
-            return hash;
-        } else if (ops->data[op_index].value == value && ops->data[op_index].position == position && ops->data[op_index].next_op_index == next_op_index) {
-            return hash;
-        } else if (hash > 1) {
-            hash -= 1;
-        } else {
-            hash = ops->lookup_cap;
-        }
-    }
-    return 0;
-}
-
 struct outputs *init_outputs(size_t capacity){
     struct outputs *ops = malloc(sizeof(struct outputs));
     if (ops == NULL) {
@@ -2336,6 +2338,12 @@ struct outputs *resize_outputs(struct outputs *ops, size_t capacity){
     return ops;
 }
 
+void destroy_outputs(struct outputs *ops){
+    free(ops->data);
+    free(ops->lookup);
+    free(ops);
+}
+
 bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
     size_t *new_lookup = calloc(new_cap, sizeof(size_t));
     size_t *old_lookup = ops->lookup;
@@ -2363,10 +2371,27 @@ bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
     return true;
 }
 
-void destroy_outputs(struct outputs *ops){
-    free(ops->data);
-    free(ops->lookup);
-    free(ops);
+@ hash\_trie\_output.
+Computes the value of the hash function for given output and finds a free index in the lookup that will store it. If
+successful, returns the hash value.
+
+@c
+size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next_op_index){
+    size_t hash = ((next_op_index + 313*position + 361*value) % ops->lookup_cap) + 1;
+    size_t op_index;
+    while (true) {
+        op_index = ops->lookup[hash];
+        if (op_index == 0) {
+            return hash;
+        } else if (ops->data[op_index].value == value && ops->data[op_index].position == position && ops->data[op_index].next_op_index == next_op_index) {
+            return hash;
+        } else if (hash > 1) {
+            hash -= 1;
+        } else {
+            hash = ops->lookup_cap;
+        }
+    }
+    return 0;
 }
 
 @* Pattern trie.
