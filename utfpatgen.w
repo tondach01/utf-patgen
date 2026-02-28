@@ -1818,13 +1818,29 @@ given structure instead of direct access. This allows us to perform additional c
 @* Trie.
 The packed trie structure forms the backbone of both \patgen and \utfpatgen algorithms. The implementation is very
 similar in both cases, a set of arrays representing a n-ary tree, condensed for better space effectiveness. Single node
-of a trie comprises a {\it value}, {\it link} and {\it aux} pointers, and {\it base} indicator.
+of a trie comprises a {\it value}, {\it link} and {\it aux} pointers, and {\it base} indicator. Every admissible index
+of the arrays is either occupied by a node, or it is an empty space (its value is 0). Index 0 is left empty and serves
+as the head of empty space chain, index 1 is the root node of the trie itself.
 
 If we want to traverse the trie, that means finding the node corresponding to given sequence of values $x_1 \dots x_n$
 (if such node exists), we start in the root node $r_0$. Our next destination is node $n_1 = r_0 + x_1$. Then we check
 whether $value(n_1) = x_1$ and if the equation holds, we set $r_1 = link(n_1)$ as the new root. If the equation does
 not hold or $r_1 = 0$, we can end the search and conclude that the sequence is not present in the trie. Otherwise, we
 repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired result.
+
+The internal representation of the trie consists a structure with following fields:
+
+    \item{$\bullet$} {\bf capacity}: maximal node index that can be inserted,
+    \item{$\bullet$} {\bf occupied}: number of nodes currently in the trie,
+    \item{$\bullet$} {\bf node\_max}: the highest occupied node index,
+    \item{$\bullet$} {\bf base\_max}: the highest base index,
+    \item{$\bullet$} {\bf pattern\_count}: number of patterns (sequences) in the trie,
+    \item{$\bullet$} {\bf nodes}: array of values, 
+    \item{$\bullet$} {\bf links}: array of links, pointing either to the base of occupied node's subtree, or to the
+        next empty index in case of an empty space,
+    \item{$\bullet$} {\bf aux}: array of links, pointing either to occupied node's output, or to the previous empty
+        index in case of an empty space,
+    \item{$\bullet$} {\bf taken}: bit array storing the information about whether indices are used as bases.
 
 @c
 struct trie *init_trie(size_t capacity){
@@ -1860,6 +1876,11 @@ struct trie *init_trie(size_t capacity){
     return t;
 }
 
+@ put\_first\_level.
+Inserts the set of one-byte sequences '0x01' to '0xff' into the trie. It can be called during trie initialization,
+since these nodes will never be moved elsewhere. Return value indicates whether all the insertions succeeded.
+
+@c
 bool put_first_level(struct trie *t){
     size_t root = 1;
     size_t n_bytes = 256;
@@ -1925,6 +1946,10 @@ void destroy_trie(struct trie *t){
     free(t);
 }
 
+@ relink\_trie.
+Connects all empty spaces in the trie.
+
+@c
 void relink_trie(struct trie *t){
     size_t last_free = 0;
     for (size_t node = 2; node < t->capacity; node++){
@@ -1990,8 +2015,8 @@ bool set_aux(struct trie *t, size_t index, size_t aux){
     return true;
 }
 
-@ methods.
-description.
+@ copy\_node.
+Replicates a node between two tries. Return value indicates the success of the operation.
 
 @c
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
@@ -2027,8 +2052,9 @@ bool set_base_used(struct trie *t, size_t index, bool used){
     return true;
 }
 
-@ methods.
-description.
+@ set\_links.
+Sets the relevant ({\tt link} and {\tt aux}) pointers to link two empty spaces next to each other. Return value
+indicates the success of the operation.
 
 @c
 bool set_links(struct trie *t, size_t from, size_t to){
@@ -2038,122 +2064,17 @@ bool set_links(struct trie *t, size_t from, size_t to){
     return true;
 }
 
-@ methods.
-description.
+@ is\_node\_occupied.
+Returns true if the given trie index is occupied by a node.
 
 @c
 bool is_node_occupied(struct trie *t, size_t index){
     return get_node(t, index) != 0;
 }
 
-@ methods.
-description.
-
-@c
-bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
-    size_t t_index;
-    uint8_t offset;
-    t_index = 0;
-    while (true) {
-        t_index = get_link(t, t_index);
-        if (t_index == 0) {
-            if (!resize_trie(t, 2*t->capacity)){
-                return false;
-            }
-            continue;
-        }
-        offset = (uint8_t) get_node(q, 1);
-        if (t_index <= offset) {
-            continue;
-        }
-        *out_base = t_index - offset;
-        if (get_base_used(t, *out_base)) {
-            continue;
-        }
-        bool conflict = false;
-        for (size_t q_index = q->node_max; q_index >= 2; q_index--) {
-            if(is_node_occupied(t, *out_base + (uint8_t) get_node(q, q_index))){
-                conflict = true;
-                break;
-            }
-        }
-        if (!conflict) {
-            break;
-        }
-    }
-    return true;
-}
-
-@ methods.
-description.
-
-@c
-bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base){
-    size_t base;
-    if (!find_base_for_first_fit(t, q, threshold, &base)) {
-        return false;
-    }
-    for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
-        size_t t_index = base + (uint8_t) get_node(q, q_index);
-        if (!copy_node(q, q_index, t, t_index)) {
-            return false;
-        }
-    }
-    relink_trie(t);
-    if (!set_base_used(t, base, true)){
-        return false;
-    }
-    *out_base = base;
-    return true;
-}
-
-@ methods.
-description.
-
-@c
-bool unpack(struct trie *from, size_t base, struct trie *to){
-    to->node_max = 1;
-    for (size_t i = 1; i < 256; i++){
-        size_t from_index = base + i;
-        if ((uint8_t) get_node(from, from_index) == i) {
-            if (!copy_node(from, from_index, to, to->node_max) || !set_node(from, from_index, 0)) {
-                return false;
-            }
-            to->node_max++;
-        }
-    }
-    relink_trie(from);
-    if (!set_base_used(from, base, false)) {
-        return false;
-    }
-    return true;
-}
-
-@ methods.
-description.
-
-@c
-size_t traverse_trie(struct trie *t, const char *pattern){
-    size_t index = 1;
-    size_t node = (uint8_t) pattern[0] + 1;
-    size_t base = get_link(t, node);
-    while (index < strlen(pattern) && base > 0) {
-        base += (uint8_t) pattern[index];
-        if (get_node(t, base) != pattern[index]) {
-            return 0;
-        }
-        node = base;
-        base = get_link(t, node);
-        index++;
-    }
-    if (index < strlen(pattern)) {
-        return 0;
-    }
-    return node;
-}
-
-@ methods.
-description.
+@ insert\_pattern.
+Attempts to put the given pattern into the trie, possibly creating nodes along the way. If the insertion is successful,
+true is returned and the resulting index is stored in {\tt out\_op\_index}.
 
 @c
 bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
@@ -2161,8 +2082,9 @@ bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
     return insert_substring(t, pattern, length, length, out_op_index);
 }
 
-@ methods.
-description.
+@ insert\_substring.
+Attempts to put substring $[end-length, end)$ of the given pattern into the trie, possibly creating nodes along the
+way. If the insertion is successful, true is returned and the resulting index is stored in {\tt out\_op\_index}.
 
 @c
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
@@ -2206,7 +2128,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     }
     q->node_max = 1;
     while (index < end) {
-        if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, 5, &fit) || !set_link(t, node, fit)) {
+        if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, &fit) || !set_link(t, node, fit)) {
             destroy_trie(q);
             return false;
         }
@@ -2224,8 +2146,9 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     return true;
 }
 
-@ methods.
-description.
+@ repack.
+Attempts to move a subtree of the trie, so that it fits new node with given value. If the repacking finishes
+successfully, the index for new node is stored in {\tt base} and true is returned.
 
 @c
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
@@ -2233,7 +2156,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
         return false;
     }
     size_t fit;
-    if (!first_fit(t, q, 5, &fit)) {
+    if (!first_fit(t, q, &fit)) {
         return false;
     }
     *base = fit;
@@ -2242,6 +2165,114 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     }
     *base += (uint8_t) value;
     return true;
+}
+
+@ unpack.
+Moves all nodes with the given base to auxiliary trie.
+
+@c
+bool unpack(struct trie *from, size_t base, struct trie *to){
+    to->node_max = 1;
+    for (size_t i = 1; i < 256; i++){
+        size_t from_index = base + i;
+        if ((uint8_t) get_node(from, from_index) == i) {
+            if (!copy_node(from, from_index, to, to->node_max) || !set_node(from, from_index, 0)) {
+                return false;
+            }
+            to->node_max++;
+        }
+    }
+    relink_trie(from);
+    if (!set_base_used(from, base, false)) {
+        return false;
+    }
+    return true;
+}
+
+@ first\_fit.
+Finds the base of trie {\tt t} that fits the nodes from auxiliary trie {\tt q} and copies them into their new indices.
+Return true if the search and copying finishes successfully.
+
+@c
+bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
+    size_t base;
+    if (!find_base_for_first_fit(t, q, &base)) {
+        return false;
+    }
+    for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
+        size_t t_index = base + (uint8_t) get_node(q, q_index);
+        if (!copy_node(q, q_index, t, t_index)) {
+            return false;
+        }
+    }
+    relink_trie(t);
+    if (!set_base_used(t, base, true)){
+        return false;
+    }
+    *out_base = base;
+    return true;
+}
+
+@ find\_base\_for\_first\_fit.
+Searches through the trie {\tt t} to find base index that fits the nodes from the {\tt q} trie. If the search is
+successful, resulting index is stored in {\tt out\_base} and true is returned.
+
+@c
+bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
+    size_t t_index;
+    uint8_t offset;
+    t_index = 0;
+    while (true) {
+        t_index = get_link(t, t_index);
+        if (t_index == 0) {
+            if (!resize_trie(t, 2*t->capacity)){
+                return false;
+            }
+            continue;
+        }
+        offset = (uint8_t) get_node(q, 1);
+        if (t_index <= offset) {
+            continue;
+        }
+        *out_base = t_index - offset;
+        if (get_base_used(t, *out_base)) {
+            continue;
+        }
+        bool conflict = false;
+        for (size_t q_index = q->node_max; q_index >= 2; q_index--) {
+            if(is_node_occupied(t, *out_base + (uint8_t) get_node(q, q_index))){
+                conflict = true;
+                break;
+            }
+        }
+        if (!conflict) {
+            break;
+        }
+    }
+    return true;
+}
+
+@ traverse\_trie.
+Returns the index of the node corresponding to the given pattern, or 0 if such node does not exist.
+
+@c
+size_t traverse_trie(struct trie *t, const char *pattern){
+    size_t index = 1;
+    size_t node = (uint8_t) pattern[0] + 1;
+    size_t base = get_link(t, node);
+    while (index < strlen(pattern) && base > 0) {
+        base += (uint8_t) pattern[index];
+        if (get_node(t, base) != pattern[index]) {
+            return 0;
+        }
+        node = base;
+        base = get_link(t, node);
+        index++;
+    }
+    if (index < strlen(pattern)) {
+        return 0;
+    }
+    return node;
 }
 
 @* Outputs.

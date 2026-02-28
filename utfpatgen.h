@@ -44,8 +44,8 @@ bool set_links(struct trie *t, size_t from, size_t to);
 
 bool is_node_occupied(struct trie *t, size_t index);
 
-bool find_base_for_first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
-bool first_fit(struct trie *t, struct trie *q, uint8_t threshold, size_t *out_base);
+bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base);
+bool first_fit(struct trie *t, struct trie *q, size_t *out_base);
 bool unpack(struct trie *from, size_t base, struct trie *to);
 size_t traverse_trie(struct trie *t, const char *pattern);
 
