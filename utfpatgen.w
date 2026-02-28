@@ -1145,10 +1145,6 @@ After the dictionary has been processed, the count trie contains the number of g
         become good or bad patterns later, so need for further investigation is raised by setting the
         {\tt more\_to\_come} flag. 
 
-The {\tt collect\_count\_trie} method is an entry points for pattern collection. It calls
-{\tt traverse\_count\_trie} that does the actual pattern evaluation, and then prints out the statistics from the
-process.
-
 @ collect\_count\_trie.
 Generates new patterns from the count trie and prints out statistics. Return value indicates whether the generation
 ended successfully.
