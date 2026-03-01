@@ -2705,7 +2705,16 @@ bool append_string(struct string_buffer *buf, const char *str){
     return true;
 }
 
-@* Translation table.
+@* Translate table.
+We use this structure to hold the information about character mapping. The translate file documents the relationships
+between "lowercase" letters and their "uppercase" variants, and the translate table allows easy conversion. Technically
+the structure is just a combination of 2 substructures:
+
+    \item{$\bullet$} {\bf mapping}: a trie that stores all the characters (both variants),
+    \item{$\bullet$} {\bf alphabet}: a string buffer containing all lowercase characters separated by '0x00'.
+
+In the {\tt aux} field of the trie nodes corresponding to a character we store index of the beginning of its lowercase
+representation in {\tt alphabet}.
 
 @c
 struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity){
@@ -2742,6 +2751,10 @@ void destroy_tr_table(struct translate_table *tt){
     free(tt);
 }
 
+@ get\_lower.
+Returns the lowercase representation of the given letter, or NULL if the letter does not exist in the translate table.
+
+@c
 char *get_lower(struct translate_table *tt, const char *letter){
     size_t index = traverse_trie(tt->mapping, letter);
     if (index == 0 || get_aux(tt->mapping, index) >= tt->alphabet->size){
