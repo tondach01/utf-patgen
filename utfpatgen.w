@@ -2585,9 +2585,9 @@ contributes to count trie with its substrings as candidate patterns. In implemen
     \item{$\bullet$} {\bf t}: a trie storing the patterns,
     \item{$\bullet$} {\bf cnts}: pattern counts with the numbers of occurences.
 
-Note that the count trie does not need any outputs, since the only pattern template that is explored in current
-iteration is defined by {\tt pat\_len} and {\tt pat\_dot} parameters. This allows us to store pointers to pattern
-counts in the {\tt aux} field of occupied trie nodes instead.
+Note that the count trie does not need any outputs, since the only pattern template that the current iteration explores
+is defined by {\tt pat\_len} and {\tt pat\_dot} parameters. This allows us to store pointers to pattern counts in the
+{\tt aux} field of occupied trie nodes instead.
 
 @c
 struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity){
