@@ -588,7 +588,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
                 return false;
             }
             if (lower) {
-                if (!append_string(tt->alphabet, letter->data, letter->size)) {
+                if (!append_string(tt->alphabet, letter->data)) {
                     destroy_buffer(letter);
                     return false;
                 }
@@ -616,7 +616,7 @@ bool default_ascii_mapping(struct translate_table *tt){
     for (char c = 'a'; c <= 'z'; c++){
         alphabet_index = tt->alphabet->size;
         upper = c - ('a' - 'A');
-        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'}, 2)) {
+        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
             return false;
         }
         if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
@@ -624,7 +624,7 @@ bool default_ascii_mapping(struct translate_table *tt){
         }
     }
     alphabet_index = tt->alphabet->size;
-    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'}, 2)) {
+    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
         return false;
     }
     return true;
@@ -2620,6 +2620,91 @@ void destroy_count_trie(struct count_trie *ct){
     free(ct);
 }
 
+@* String buffer.
+We use buffer for storing text, usually lines read from input files. The structure contains following fields:
+
+    \item{$\bullet$} {\bf capacity}: the maximum length of the string that the buffer can hold (including the ending
+        '0x00'),
+    \item{$\bullet$} {\bf size}: the current length of string stored in the buffer,
+    \item{$\bullet$} {\bf data}: the array storing the string,
+    \item{$\bullet$} {\bf eof}: if the buffer is used to read lines from a file, this flag indicates whether the end of
+        file was reached..
+
+@c
+struct string_buffer *init_buffer(size_t capacity){
+    struct string_buffer *buf = malloc(sizeof(struct string_buffer));
+    if (buf == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    buf->capacity = capacity;
+    buf->size = 0;
+    buf->data = malloc(capacity*sizeof(char));
+    buf->eof = false;
+    if (buf->data == NULL) {
+        fputs("Allocation error\n", stderr);
+        free(buf);
+        return NULL;
+    }
+    buf->data[0] = '\0';
+    return buf;
+}
+
+struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity){
+    char *new_ptr = realloc(buf->data, new_capacity);
+    if (new_ptr == NULL) {
+        fputs("Allocation error\n", stderr);
+        return NULL;
+    }
+    buf->data = new_ptr;
+    buf->capacity = new_capacity;
+    return buf;
+}
+
+void reset_buffer(struct string_buffer *buf){
+    buf->eof = false;
+    buf->size = 0;
+    buf->data[0] = '\0';
+}
+
+void destroy_buffer(struct string_buffer *buf){
+    free(buf->data);
+    free(buf);
+}
+
+@ append\_char.
+Puts the given character to the current end of buffer. Note that the operation may overwrite the ending '0x00', and
+the caller should whether it is not the case. Returns true upon successful write.
+
+@c
+bool append_char(struct string_buffer *buf, char c){
+    if (buf->size + 1 >= buf->capacity) {
+        if (resize_buffer(buf, 2*buf->capacity) == NULL) {
+            return false;
+        }
+    }
+    buf->data[buf->size] = c;
+    buf->size++;
+    return true;
+}
+
+@ append\_string.
+Copies the given string to the current end of buffer. Provided string contains the '0x00' at its end by design, and the
+character is copied to the buffer as well. Returns true if the copying finished successfully.
+
+@c
+bool append_string(struct string_buffer *buf, const char *str){
+    size_t len = strlen(str) + 1;
+    if (buf->size + len >= buf->capacity) {
+        if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
+            return false;
+        }
+    }
+    strcpy(&buf->data[buf->size], str);
+    buf->size += len;
+    return true;
+}
+
 @* Translation table.
 
 @c
@@ -3045,73 +3130,6 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
         return false;
     }
     pat->hyphens[index] = value;
-    return true;
-}
-
-@* String buffer.
-Buffer is used for storing lines read from input files. We use dynamic allocation to allow for arbitrary length lines.
-
-@c
-struct string_buffer *init_buffer(size_t capacity){
-    struct string_buffer *buf = malloc(sizeof(struct string_buffer));
-    if (buf == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    buf->capacity = capacity;
-    buf->size = 0;
-    buf->data = (char *)malloc(capacity);
-    buf->eof = false;
-    if (buf->data == NULL) {
-        fputs("Allocation error\n", stderr);
-        free(buf);
-        return NULL;
-    }
-    buf->data[0] = '\0';
-    return buf;
-}
-
-struct string_buffer *resize_buffer(struct string_buffer *buf, size_t new_capacity){
-    char *new_ptr = realloc(buf->data, new_capacity);
-    if (new_ptr == NULL) {
-        fputs("Allocation error\n", stderr);
-        return NULL;
-    }
-    buf->data = new_ptr;
-    buf->capacity = new_capacity;
-    return buf;
-}
-
-void reset_buffer(struct string_buffer *buf){
-    buf->eof = false;
-    buf->size = 0;
-    buf->data[0] = '\0';
-}
-
-void destroy_buffer(struct string_buffer *buf){
-    free(buf->data);
-    free(buf);
-}
-
-bool append_char(struct string_buffer *buf, char c){
-    if (buf->size + 1 >= buf->capacity) {
-        if (resize_buffer(buf, 2*buf->capacity) == NULL) {
-            return false;
-        }
-    }
-    buf->data[buf->size] = c;
-    buf->size++;
-    return true;
-}
-
-bool append_string(struct string_buffer *buf, const char *str, size_t len){
-    if (buf->size + len >= buf->capacity) {
-        if (resize_buffer(buf, 2*(buf->size + len)) == NULL) {
-            return false;
-        }
-    }
-    strcpy(&buf->data[buf->size], str);
-    buf->size += len;
     return true;
 }
 

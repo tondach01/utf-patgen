@@ -238,7 +238,7 @@ size_t get_highest_level(struct outputs *ops, size_t start_index, size_t positio
 
 bool read_line(FILE *stream, struct string_buffer *buf);
 bool append_char(struct string_buffer *buf, char c);
-bool append_string(struct string_buffer *buf, const char *str, size_t len);
+bool append_string(struct string_buffer *buf, const char *str);
 
 struct translate_table {
     struct trie *mapping;
