@@ -2857,6 +2857,13 @@ of the pattern generation, and present it on standard output. Following fields a
         level.
 
 @* Stack.
+We decided to implement a stack-like structure to break the recursive functions from \patgen. In most cases the stack
+holds data related to previous iterations of a method, for instance, the trie bases on the path to current node. There
+are only 3 fields:
+
+    \item{$\bullet$} {\bf capacity}: the highest index that can be accessed,
+    \item{$\bullet$} {\bf top}: the index where the last value was inserted,
+    \item{$\bullet$} {\bf data}: the array of values currently on the stack.
 
 @c
 struct stack *init_stack(size_t capacity){
@@ -2894,6 +2901,10 @@ void destroy_stack(struct stack *s){
     free(s);
 }
 
+@ put\_on\_stack.
+Appends the given value to the top of the stack. Returns true if the insertion finishes successfully.
+
+@c
 bool put_on_stack(struct stack *s, size_t value){
     if (s->top >= s->capacity){
         size_t new_capacity = 2*(s->top)*sizeof(size_t);
@@ -2906,6 +2917,10 @@ bool put_on_stack(struct stack *s, size_t value){
     return true;
 }
 
+@ get\_top\_value.
+Returns the value currently at {\tt top} index. Does not change anything on the stack.
+
+@c
 size_t get_top_value(struct stack *s){
     if (s->top == 0){
         return 0;
@@ -2913,6 +2928,10 @@ size_t get_top_value(struct stack *s){
     return s->data[s->top - 1];
 }
 
+@ set\_top\_value.
+Changes the value at {\tt top} index to the given one.
+
+@c
 void set_top_value(struct stack *s, size_t value){
     if (s->top == 0){
         return;
