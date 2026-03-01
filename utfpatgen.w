@@ -2396,7 +2396,7 @@ size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size
 The structure that holds already generated set of patterns. It is simply a aggregation of two other structures:
 
     \item{$\bullet$} {\bf t}: a trie storing the patterns,
-    \itemb$\bullet$} {\bf ops}: outputs array storing the hyphenation inforrmation.
+    \itemb$\bullet$} {\bf ops}: outputs array storing the hyphenation information.
 
 Technically speaking, the {\tt aux} pointer of each node that corresponds to a pattern contains the lookup index of its
 output.
