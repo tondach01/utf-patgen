@@ -1,17 +1,14 @@
-% --- LIMBO SECTION (TeX settings) ---
-% \documentclass[a4paper,11pt]{cweb} % Use cweb class
-% \usepackage[utf8]{inputenc}        % UTF-8 encoding
-\def\utfpatgen{{\tt utf-patgen }}
-\def\patgen{{\tt patgen }}
-\def\lefthyphenminpar{{\tt lefthyphenmin }}
-\def\righthyphenminpar{{\tt righthyphenmin }}
-\def\hyphstartpar{{\tt hyph\_start }}
-\def\hyphfinishpar{{\tt hyph\_finish }}
-\def\patstartpar{{\tt pat\_start }}
-\def\patfinishpar{{\tt pat\_finish }}
-\def\goodwtpar{{\tt good\_wt }}
-\def\badwtpar{{\tt bad\_wt }}
-\def\threshpar{{\tt thresh }}
+\def\utfpatgen{{\tt utf-patgen}}
+\def\patgen{{\tt patgen}}
+\def\lefthyphenminpar{{\tt lefthyphenmin}}
+\def\righthyphenminpar{{\tt righthyphenmin}}
+\def\hyphstartpar{{\tt hyph\_start}}
+\def\hyphfinishpar{{\tt hyph\_finish}}
+\def\patstartpar{{\tt pat\_start}}
+\def\patfinishpar{{\tt pat\_finish}}
+\def\goodwtpar{{\tt good\_wt}}
+\def\badwtpar{{\tt bad\_wt}}
+\def\threshpar{{\tt thresh}}
 
 @** Introduction.
 This is \utfpatgen -- reimplementation of the classic \patgen program for pattern generation. With \utfpatgen, we
