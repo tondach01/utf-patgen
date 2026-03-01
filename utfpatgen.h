@@ -204,7 +204,7 @@ void destroy_word(struct word *word);
 bool append_char_to_word(struct word *word, char c);
 bool append_string_to_word(struct word *word, char *s, size_t length);
 
-char get_char(struct word *word, size_t index);
+char get_byte(struct word *word, size_t index);
 
 size_t get_true_hyphen(struct word *word, size_t index);
 bool set_true_hyphen(struct word *word, size_t index, size_t value);
