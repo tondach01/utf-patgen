@@ -2479,6 +2479,14 @@ bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t posit
 }
 
 @* Pattern counts.
+The structure that stores the numbers of supporting and contradicting occurences for patterns. It comprises 4 fields:
+
+    \item{$\bullet$} {\bf capacity}: the maximum index that can be used,
+    \item{$\bullet$} {\bf size}: the highest index currently in use,
+    \item{$\bullet$} {\bf good}: array of supporting occurence counts,
+    \item{$\bullet$} {\bf bad}: array of contradicting occurence counts.
+
+The counts on given index correspond to the same pattern.
 
 @c
 struct pattern_counts *init_pattern_counts(size_t capacity){
