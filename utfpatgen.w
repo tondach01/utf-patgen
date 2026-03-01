@@ -2764,6 +2764,35 @@ char *get_lower(struct translate_table *tt, const char *letter){
 }
 
 @* Params.
+This structure encompasses all the parameters that influence the computation of \utfpatgen. We can sort them by their
+scope of into {\bf global} (usually defined once and used throughout the whole run), {\bf level-specific} (defined
+specificallly for each hyphenation level), and {\bf pass-specific} (defined specifically for each iteration within
+a level):
+
+    \item{$\bullet$} {\bf left\_hyphen\_min} (global): the length of prefix of a word that should not be hyphenated,
+    \item{$\bullet$} {\bf right\_hyphen\_min} (global): the length of suffix of a word that should not be hyphenated,
+    \item{$\bullet$} {\bf bad\_hyphen} (global): the symbol representing incorrectly placed hyphen in the dictionary,
+    \item{$\bullet$} {\bf missed\_hyphen} (global): the symbol representing missing hyphen in the dictionary,
+    \item{$\bullet$} {\bf good\_hyphen} (global): the symbol representing correctly placed hyphen in the dictionary,
+    \item{$\bullet$} {\bf hyph\_start} (global): the lowest hyphenation level to be generated,
+    \item{$\bullet$} {\bf hyph\_finish} (global): the highest hyphenation level to be generated,
+    \item{$\bullet$} {\bf word\_weight} (global): the default weight of a hyphen in a word from dictionary,
+    \item{$\bullet$} {\bf dictionary\_file} (global): a pointer to opened file with dictionary entries,
+    \item{$\bullet$} {\bf pattern\_file} (global): a pointer to opened file with initial set of patterns,
+    \item{$\bullet$} {\bf output\_file} (global): a pointer to opened file where the final set of patterns will be
+        written,
+    \item{$\bullet$} {\bf translate\_file} (global): a pointer to opened file with character mapping and
+        language-specific parameters,
+    \item{$\bullet$} {\bf hyph\_level} (level-specific): the current hyphenation level,
+    \item{$\bullet$} {\bf pat\_start} (level-specific): the shortest pattern length,
+    \item{$\bullet$} {\bf pat\_finish} (level-specific): the longest pattern length,
+    \item{$\bullet$} {\bf good\_wt} (level-specific): the supporting occurence weight,
+    \item{$\bullet$} {\bf bad\_wt} (level-specific): the contradicting occurence weight,
+    \item{$\bullet$} {\bf thresh} (level-specific): the pattern acceptance threshold,
+    \item{$\bullet$} {\bf good\_dot} (level-specific): the hyphen type considered as correct,
+    \item{$\bullet$} {\bf bad\_dot} (level-specific): the hyphen type considered as incorrect,
+    \item{$\bullet$} {\bf pat\_len} (pass-specific): the current pattern length,
+    \item{$\bullet$} {\bf pat\_dot} (pass-specific): the current dot position.
 
 @c
 struct params *init_params(){
