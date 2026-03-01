@@ -2841,6 +2841,20 @@ void destroy_params(struct params *p){
 }
 
 @* Pass stats.
+This structure groups together variables with mostly statistical meaning. We use them to map the progress and quality
+of the pattern generation, and present it on standard output. Following fields are monitored:
+
+    \item{$\bullet$} {\bf good\_pat\_cnt}: the number of new good patterns from an iteration,
+    \item{$\bullet$} {\bf bad\_pat\_cnt}: the number of new bad patterns from an iteration,
+    \item{$\bullet$} {\bf good\_cnt}: the number of hyphens from the dictionary correctly identified with current set
+        of patterns,
+    \item{$\bullet$} {\bf bad\_cnt}: the number of hyphens from the dictionary incorrectly identified with current set
+        of patterns,
+    \item{$\bullet$} {\bf miss\_cnt}: the number of hyphens from the dictionary missed with current set of patterns,
+    \item{$\bullet$} {\bf level\_pattern\_cnt}: the number of patterns generated on current hyphenation level,
+    \item{$\bullet$} {\bf max\_level}: the highest hyphenation level found in the initial patterns,
+    \item{$\bullet$} {\bf more\_to\_come}: a flag indicating that undecided patterns were found on current hyphenation
+        level.
 
 @* Stack.
 
