@@ -139,8 +139,8 @@ struct params {
     uint8_t good_wt;
     uint8_t bad_wt;
     uint8_t thresh;
-    enum hyphen_class good_dot;
-    enum hyphen_class bad_dot;
+    enum hyphen_type good_dot;
+    enum hyphen_type bad_dot;
     // pass specific
     uint8_t pat_len;
     uint8_t pat_dot;
