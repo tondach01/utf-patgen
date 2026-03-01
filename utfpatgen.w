@@ -2293,7 +2293,7 @@ in the {\tt lookup} array that contains pointers to the real outputs. The whole 
 
 The sizes of data and lookup are independent to some extent, so the corresponding arrays are resized independently.
 Since we do not want to fill the lookup fully at any time due to efficiency reasons, we trigger its resize already at
-75 \% capacity.
+75 \% capacity. Lookup index 0 does not point to any output and the program interprets it as "no output present".
 
 @c
 struct outputs *init_outputs(size_t capacity){
@@ -2578,6 +2578,16 @@ bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
 }
 
 @* Count trie.
+This structure stores candidate patterns and their occurence counts. During dictionary file processing, every word
+contributes to count trie with its substrings as candidate patterns. In implementation, the count trie is composed from
+2 distinct substructures:
+
+    \item{$\bullet$} {\bf t}: a trie storing the patterns,
+    \item{$\bullet$} {\bf cnts}: pattern counts with the numbers of occurences.
+
+Note that the count trie does not need any outputs, since the only pattern template that is explored in current
+iteration is defined by {\tt pat\_len} and {\tt pat\_dot} parameters. This allows us to store pointers to pattern
+counts in the {\tt aux} field of occupied trie nodes instead.
 
 @c
 struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity){
