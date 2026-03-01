@@ -309,7 +309,7 @@ if (c == 'y' || c == 'Y'){
     }
 }
 
-@** implementation details.
+@** Implementation details.
 In this section we focus on the building blocks, each subsection devoted to one particular aspect of the algorithm.
 
 @* IO procedures.
