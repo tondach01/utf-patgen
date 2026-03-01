@@ -3249,4 +3249,4 @@ bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
 }
 
 @** Index.
-Automatically generates the list of used identifiers
+List of used identifiers
