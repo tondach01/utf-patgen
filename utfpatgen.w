@@ -806,13 +806,10 @@ both the whole word and separate hyphens can be weighted by preceding the with {
 Similarly to the pattern file, the possible range of weights is increased to 253. If the hyphen weight is omitted, word
 weight is used. If the word weight is omitted, \utfpatgen uses the default value 1. The lines of the dictionary file
 thus look like this:
+
 {\narrower
     $<word weigth><character><hyphen weight><hyphen><character>\dots<character>$
 \par}
-The {\tt process\_dictionary} method encompasses both reading through the dictionary file and generating patterns
-afterwards. The reading itself is implemented in {\tt process\_all\_words}: each word is read, translated to
-lowercase and parsed ({\tt parse\_word}), hyphenated, statistics collected ({\tt count\_dots}), and processed
-into the count trie ({\tt process\_word}).
 
 Since some patterns may be tied to the edges of the word, special byte symbol {\tt EDGE\_OF\_WORD} was introduced
 that marks the edges. Hexadecimal value of the symbol is '0xff' that is not used by the UTF-8 encoding.
