@@ -111,7 +111,7 @@ struct count_trie {
 struct count_trie *init_count_trie(size_t trie_capacity, size_t counts_capacity);
 void destroy_count_trie(struct count_trie *ct);
 
-enum hyphen_class { // 2-bit logic: upper = hyphen was found, lower = hyphen is present
+enum hyphen_type { // 2-bit logic: upper = hyphen was found, lower = hyphen is present
     NO_HYF = 0,
     MISS_HYF = 1,
     BAD_HYF = 2,

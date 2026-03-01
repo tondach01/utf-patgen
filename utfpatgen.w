@@ -924,7 +924,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         return false;
     }
     uint8_t weight = params->word_weight;
-    enum hyphen_class hyf = NO_HYF;
+    enum hyphen_type hyf = NO_HYF;
     if (!append_char_to_word(out_word, EDGE_OF_WORD)){
         destroy_buffer(letter);
         return false;
@@ -1010,7 +1010,7 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     size_t current_pos = word->length;
     bool odd_level;
     size_t dot_index, hyphenation_value, weight;
-    enum hyphen_class hyf;
+    enum hyphen_type hyf;
     for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= (uint8_t) (params->left_hyphen_min + 1); dot_pos--){
         while (current_pos > dot_pos){
             current_index--;
@@ -1058,7 +1058,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
     size_t current_pos = word->length;
     size_t current_index = word->size;
     bool good_pattern;
-    enum hyphen_class hyf;
+    enum hyphen_type hyf;
     for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
         while (current_pos > dot_pos){
             current_index--;
