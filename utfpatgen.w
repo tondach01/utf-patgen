@@ -2292,6 +2292,8 @@ in the {\tt lookup} array that contains pointers to the real outputs. The whole 
     \item{$\bullet$} {\bf lookup}: the array of lookup entries.
 
 The sizes of data and lookup are independent to some extent, so the corresponding arrays are resized independently.
+Since we do not want to fill the lookup fully at any time due to efficiency reasons, we trigger its resize already at
+75 \% capacity.
 
 @c
 struct outputs *init_outputs(size_t capacity){
@@ -2391,6 +2393,13 @@ size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size
 }
 
 @* Pattern trie.
+The structure that holds already generated set of patterns. It is simply a aggregation of two other structures:
+
+    \item{$\bullet$} {\bf t}: a trie storing the patterns,
+    \itemb$\bullet$} {\bf ops}: outputs array storing the hyphenation inforrmation.
+
+Technically speaking, the {\tt aux} pointer of each node that corresponds to a pattern contains the lookup index of its
+output.
 
 @c
 struct pattern_trie *init_pattern_trie(size_t trie_capacity, size_t outputs_capacity){
@@ -2423,6 +2432,10 @@ void destroy_pattern_trie(struct pattern_trie *pt){
     free(pt);
 }
 
+@ new\_trie\_output.
+Creates an entry for the given output. If successful, returns true and stores output's lookup index to {\tt op\_index}.
+
+@c
 bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next_op_index, size_t *op_index){
     if (pt->ops->count >= pt->ops->capacity - 1) {
         if (resize_outputs(pt->ops, pt->ops->capacity * 2) == NULL) {
@@ -2452,6 +2465,11 @@ bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, siz
     return true;
 }
 
+@ set\_output.
+Creates a new output and links it to given node in the trie. Returns true if the creation and assignment finished
+successfully.
+
+@c
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
     if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
