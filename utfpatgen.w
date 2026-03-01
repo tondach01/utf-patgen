@@ -3130,6 +3130,14 @@ bool append_string_to_word(struct word *word, char *s, size_t length){
 }
 
 @* Pattern.
+This structure's purpose is to hold information about a pattern parsed from the pattern file. It has similar fields as
+{\tt word}, but is stripped of the arrays it does not need:
+
+    \item{$\bullet$} {\bf capacity}: the maximum length of the pattern in bytes,
+    \item{$\bullet$} {\bf size}: current length of the pattern in bytes,
+    \item{$\bullet$} {\bf length}: current length of the pattern in characters,
+    \item{$\bullet$} {\bf text}: the pattern translated to lowercase characters according to the translate table,
+    \item{$\bullet$} {\bf hyphens}: array of hyphenation levels of the pattern.
 
 @c
 struct pattern *init_pattern(size_t capacity){
@@ -3187,6 +3195,25 @@ void destroy_pattern(struct pattern *pat){
     free(pat);
 }
 
+uint8_t get_hyphen(struct pattern *pat, size_t index){
+    if (index >= pat->capacity){
+        return 0;
+    }
+    return pat->hyphens[index];
+}
+
+bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
+    if (index >= pat->capacity){
+        return false;
+    }
+    pat->hyphens[index] = value;
+    return true;
+}
+
+@ append\_char\_to\_pattern.
+Puts the given byte to the end of pattern. Returns true if the insertion was successful.
+
+@c
 bool append_char_to_pattern(struct pattern *pat, char c){
     if(pat->size >= pat->capacity - 1){
         if(!resize_pattern(pat, 2*pat->capacity)){
@@ -3201,6 +3228,10 @@ bool append_char_to_pattern(struct pattern *pat, char c){
     return true;
 }
 
+@ append\_string\_to\_pattern.
+Adds the given number of bytes of character array to the end of pattern. Returns true if the insertion was successful.
+
+@c
 bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
     if(pat->size >= pat->capacity - length){
         if(!resize_pattern(pat, 2*(pat->capacity + length))){
@@ -3214,21 +3245,6 @@ bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
         pat->text[pat->size] = s[i];
         pat->size++;
     }
-    return true;
-}
-
-uint8_t get_hyphen(struct pattern *pat, size_t index){
-    if (index >= pat->capacity){
-        return 0;
-    }
-    return pat->hyphens[index];
-}
-
-bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
-    if (index >= pat->capacity){
-        return false;
-    }
-    pat->hyphens[index] = value;
     return true;
 }
 
