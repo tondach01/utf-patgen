@@ -209,7 +209,7 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
 
 @* Level hyperparameters input.
 The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define the
-lenght range of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to 255.
+length range of patterns for respective level. The maximum length of a pattern in \utfpatgen is set to 255.
 Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These define the
 acceptance criteria for candidate patterns -- in order to accept the pattern during the ongoing iteration, its number
 of {\it good} (supporting) and {\it bad} (contradicting) occurences must make the following inequality to hold:
