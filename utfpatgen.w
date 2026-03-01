@@ -1,3 +1,4 @@
+\def\title{UTF-PATGEN}
 \def\utfpatgen{{\tt utf-patgen}}
 \def\patgen{{\tt patgen}}
 \def\lefthyphenminpar{{\tt lefthyphenmin}}
