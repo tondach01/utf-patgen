@@ -1783,11 +1783,11 @@ special symbol or it is not a start byte, 0 is returned.
 
 @c
 uint8_t n_utf_following_bytes(uint8_t c){
-    if (c < 128 || c > 253){
+    if (c < 128 || c >= 248){
         return 0;
-    } else if (c < 208){
+    } else if (c < 224){
         return 1;
-    } else if (c < 216){
+    } else if (c < 240){
         return 2;
     } else {
         return 3;
