@@ -9,11 +9,11 @@ pattmp.*
 test/output*
 
 # binaries
-utfpatgen
-test/unit_test
+build
 
-# VS Code configurations
+# VS Code  and CLion configurations
 .vscode
+.idea
 
 # outputs of pdftex
 *.pdf
