@@ -97,14 +97,6 @@ void test_parse_header(){
     }
 }
 
-void print_trie(struct trie *t) {
-    printf("Trie capacity: %zu, occupied: %zu, node_max: %zu, base_max: %zu\n", t->capacity, t->occupied, t->node_max, t->base_max);
-    printf("Index|Node|Link| Aux|Base|\n");
-    for (size_t i = 0; i < t->capacity; i++) {
-        if ((i > 256 && get_node(t, i) != 0) || get_aux(t, i) == 2) printf("%5ld|%4d|%4zu|%4zu|%4d|\n", i, (uint8_t) t->nodes[i], t->links[i], t->aux[i], get_base_used(t, i));
-    }
-}
-
 void test_trie() {
     printf("\n---- Trie Test ----\n");
     struct pattern_trie *pt = init_pattern_trie(4, 2);
