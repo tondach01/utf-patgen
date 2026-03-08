@@ -1,36 +1,45 @@
-# Project name
-NAME = utfpatgen
-
 # Build
 CXX = gcc
-CXXFLAGS = -O2 -Wall -Wextra -pedantic
-
-.PHONY: debug
-debug:
-	$(eval CXXFLAGS = -g)
+CXXFLAGS = -Wall -Wextra -pedantic
+OPTIFLAG = -O2
+DEBUGFLAG = -g
+COVFLAG = --coverage
+PROFFLAG = -pg
 
 # Targets
-.PHONY: all
-all: clean $(NAME).pdf $(NAME) test/unit_test
+.PHONY: all coverage profile debug execute
+all: clean utfpatgen.pdf
+
+execute: test/unit_test.c | utfpatgen.c build
+	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -DTEST -o build/unit_test utfpatgen.c test/unit_test.c
+
+coverage: | utfpatgen.c test/unit_test.c build
+	$(CXX) $(CXXFLAGS) $(COVFLAG) -o build/utfpatgen_cov utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(COVFLAG) -DTEST -o build/unit_test_cov utfpatgen.c test/unit_test.c
+
+profile: | utfpatgen.c test/unit_test.c build
+	$(CXX) $(CXXFLAGS) $(PROFFLAG) -o build/utfpatgen_prof utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(PROFFLAG) -DTEST -o build/unit_test_prof utfpatgen.c test/unit_test.c
+
+debug: | utfpatgen.c test/unit_test.c build
+	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -o build/utfpatgen_debug utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -DTEST -o build/unit_test_debug utfpatgen.c test/unit_test.c
+
+build:
+	mkdir build
 
 # PDF documentation
-%.tex: %.w
+utfpatgen.tex: utfpatgen.w
 	cweave $<
 
-%.pdf: %.tex
+utfpatgen.pdf: utfpatgen.tex
 	pdftex $<
 	pdftex $<
 
 # Executable
-%.c : %.w
+utfpatgen.c : utfpatgen.w
 	ctangle $<
-
-%: %.c
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-# Unit tests
-test/unit_test: $(NAME).c
-	$(CXX) $(CXXFLAGS) -DTEST -o test/unit_test $(NAME).c test/unit_test.c
 
 # File translation from patgen to utfpatgen format and vice versa
 # this creates a circular dependency, but make deals with it
@@ -43,4 +52,4 @@ test/unit_test: $(NAME).c
 # Cleaning
 .PHONY: clean
 clean:
-	rm -f *.c $(NAME).tex $(NAME).pdf *.log *.toc *.idx *.scn *.aux $(NAME) test/unit_test pattmp.*
+	rm -f *.c utfpatgen.tex utfpatgen.pdf *.log *.toc *.idx *.scn *.aux build pattmp.*
