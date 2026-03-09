@@ -15,6 +15,10 @@ build
 .vscode
 .idea
 
+# profiling output
+gmon.out
+profile_visual.png
+
 # outputs of pdftex
 *.pdf
 *.log
