@@ -80,8 +80,8 @@ void destroy_pattern_trie(struct pattern_trie *pt);
 bool new_trie_output(struct pattern_trie *pt, size_t value, size_t position, size_t next, size_t *op_index);
 size_t hash_trie_output(struct outputs *ops, size_t value, size_t position, size_t next);
 
-bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index);
-bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index);
+bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index, struct trie *helper_trie);
+bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index, struct trie *helper_trie);
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *link, char value);
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position);
 
@@ -250,8 +250,8 @@ void destroy_tr_table(struct translate_table *tt);
 
 bool read_translate(struct params *params, struct translate_table *tt);
 bool parse_header(struct string_buffer *buf, struct params *params);
-bool parse_letters(struct string_buffer *buf, struct translate_table *tt);
-bool default_ascii_mapping(struct translate_table *tt);
+bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct trie *helper_trie);
+bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie);
 char *get_lower(struct translate_table *tt, const char *letter);
 
 #ifndef EDGE_OF_WORD
@@ -265,7 +265,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps);
 void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
 
-bool process_word(struct word *word, struct count_trie *ct, struct params *params);
+bool process_word(struct word *word, struct count_trie *ct, struct params *params, struct trie *helper_trie);
 
 bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
 bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
@@ -298,7 +298,7 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value);
 
 bool read_patterns(struct params *params, struct pattern_trie *pt, struct translate_table *tt, struct pass_stats *ps);
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt);
-bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps);
+bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps, struct trie *helper_trie);
 
 bool parse_input(char *argv[], int argc, struct params *params);
 void print_help();

@@ -103,11 +103,16 @@ void test_trie() {
     if (pt == NULL) {
         return;
     }
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_pattern_trie(pt);
+        return;
+    }
 
     const char *patterns[] = {"test", "tea", "text"};
     size_t op_index;
     for (size_t i = 0; i < 2; i++){
-        if (insert_pattern(pt->t, patterns[i], &op_index) && set_output(pt, op_index, (uint8_t)(i+1), i + 1)) {
+        if (insert_pattern(pt->t, patterns[i], &op_index, helper_trie) && set_output(pt, op_index, (uint8_t)(i+1), i + 1)) {
             printf("Pattern '%s' inserted successfully.\n", patterns[i]);
         } else {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
@@ -123,6 +128,7 @@ void test_trie() {
         }
     }
     
+    destroy_trie(helper_trie);
     destroy_pattern_trie(pt);
 }
 
@@ -134,7 +140,15 @@ void test_read_letters() {
         destroy_buffer(buf);
         return;
     }
-    if (!default_ascii_mapping(tt)) {
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_tr_table(tt);
+        destroy_buffer(buf);
+        return;
+    }
+
+    if (!default_ascii_mapping(tt, helper_trie)) {
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_buffer(buf);
         return;
@@ -151,7 +165,7 @@ void test_read_letters() {
         }
     }
     
-    if (parse_letters(buf, tt)) {
+    if (parse_letters(buf, tt, helper_trie)) {
         printf("Parsed line '%s' successfully.\n", buf->data);
     } else {
         printf("Failed to parse line '%s'.\n", buf->data);
@@ -163,6 +177,7 @@ void test_read_letters() {
         printf("Letter '%s' not found in trie.\n", letters[1]);
     }
 
+    destroy_trie(helper_trie);
     destroy_tr_table(tt);
     destroy_buffer(buf);
 }
@@ -187,7 +202,14 @@ void test_read_translate() {
         destroy_params(params);
         return;
     }
-    if (!default_ascii_mapping(tt)) {
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_tr_table(tt);
+        destroy_params(params);
+        return;
+    }
+    if (!default_ascii_mapping(tt, helper_trie)) {
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_params(params);
         return;
@@ -210,6 +232,7 @@ void test_read_translate() {
         }
     }
 
+    destroy_trie(helper_trie);
     destroy_tr_table(tt);
     destroy_params(params);
 }
@@ -225,7 +248,14 @@ void test_parse_word() {
         destroy_params(params);
         return;
     }
-    if (!default_ascii_mapping(tt)) {
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_tr_table(tt);
+        destroy_params(params);
+        return;
+    }
+    if (!default_ascii_mapping(tt, helper_trie)) {
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_params(params);
         return;
@@ -233,6 +263,7 @@ void test_parse_word() {
     printf("Default mapping loaded successfully.\n");
     struct word *word = init_word(8);
     if (word == NULL){
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_params(params);
         return;
@@ -241,6 +272,7 @@ void test_parse_word() {
     struct string_buffer *buf = mock_buffer("\xfe\x07te\xfe\x02-S.t");
 
     if (!parse_word(buf, tt, params, word)){
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_params(params);
         destroy_buffer(buf);
@@ -254,6 +286,7 @@ void test_parse_word() {
     }
     printf("|\n");
 
+    destroy_trie(helper_trie);
     destroy_tr_table(tt);
     destroy_params(params);
     destroy_buffer(buf);
@@ -278,13 +311,20 @@ void test_hyphenate_word(){
         destroy_word(word);
         return;
     }
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_word(word);
+        destroy_pattern_trie(pt);
+        return;
+    }
 
     const char *patterns[4] = {"\xffte", "ing\xff", "tex", "ti"};
     size_t positions[4] = {2, 0, 2, 1};
     uint8_t values[4] = {2, 1, 2, 3};
     size_t index;
     for (size_t i = 0; i < 4; i++) {
-        if (!insert_pattern(pt->t, patterns[i], &index) || index == 0 || !set_output(pt, index, values[i], positions[i])){
+        if (!insert_pattern(pt->t, patterns[i], &index, helper_trie) || index == 0 || !set_output(pt, index, values[i], positions[i])){
+            destroy_trie(helper_trie);
             destroy_pattern_trie(pt);
             destroy_word(word);
             return;
@@ -293,6 +333,7 @@ void test_hyphenate_word(){
     printf("Patterns inserted successfully.\n");
 
     if (!hyphenate_word(word, pt, &params)){
+        destroy_trie(helper_trie);
         destroy_pattern_trie(pt);
         destroy_word(word);
         return;
@@ -301,6 +342,7 @@ void test_hyphenate_word(){
     size_t true_hyphens[] = {0,8,4,4,5,4,4,0};
     for (size_t i = 0; i < 8; i++){
         if (!set_true_hyphen(word, i, true_hyphens[i])){
+            destroy_trie(helper_trie);
             destroy_pattern_trie(pt);
             destroy_word(word);
             return;
@@ -309,6 +351,7 @@ void test_hyphenate_word(){
 
     printf("Hyphenated word: ");
     output_hyphenated_word(stdout, word, &params);
+    destroy_trie(helper_trie);
     destroy_pattern_trie(pt);
     destroy_word(word);
 }
@@ -324,7 +367,14 @@ void test_patterns(){
         destroy_buffer(buf);
         return;
     }
-    if (!default_ascii_mapping(tt)){
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_tr_table(tt);
+        destroy_buffer(buf);
+        return;
+    }
+    if (!default_ascii_mapping(tt, helper_trie)){
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_buffer(buf);
         return;
@@ -332,12 +382,14 @@ void test_patterns(){
     printf("Default mapping inserted succesfully.\n");
     struct pattern *pat = init_pattern(16);
     if (pat == NULL){
+        destroy_trie(helper_trie);
         destroy_tr_table(tt);
         destroy_buffer(buf);
         return;
     }
     struct pattern_trie *pt = init_pattern_trie(256, 2);
     if (pt == NULL){
+        destroy_trie(helper_trie);
         destroy_pattern(pat);
         destroy_tr_table(tt);
         destroy_buffer(buf); 
@@ -345,6 +397,7 @@ void test_patterns(){
     }
 
     if (!parse_pattern(buf, pat, tt)){
+        destroy_trie(helper_trie);
         destroy_pattern_trie(pt);
         destroy_pattern(pat);
         destroy_tr_table(tt);
@@ -353,7 +406,8 @@ void test_patterns(){
     }
     printf("Pattern %s parsed.\n", buf->data);
     struct pass_stats ps;
-    if (!insert_new_pattern(pat, pt, &ps)){
+    if (!insert_new_pattern(pat, pt, &ps, helper_trie)){
+        destroy_trie(helper_trie);
         destroy_pattern_trie(pt);
         destroy_pattern(pat);
         destroy_tr_table(tt);
@@ -368,6 +422,7 @@ void test_patterns(){
         printf("No output found for pattern '%s'.\n", pat->text);
     }
 
+    destroy_trie(helper_trie);
     destroy_pattern_trie(pt);
     destroy_pattern(pat);
     destroy_tr_table(tt);

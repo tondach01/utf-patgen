@@ -446,12 +446,19 @@ bool read_translate(struct params *params, struct translate_table *tt){
     if (buf == NULL) {
         return false;
     }
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL) {
+        destroy_buffer(buf);
+        return false;
+    }
     if (!read_line(params->translate_file, buf)) {
+        destroy_trie(helper_trie);
         destroy_buffer(buf);
         return false;
     }
     if (buf->eof) {
-        bool default_mapping = default_ascii_mapping(tt);
+        bool default_mapping = default_ascii_mapping(tt, helper_trie);
+        destroy_trie(helper_trie);
         destroy_buffer(buf);
         return default_mapping;
     }
@@ -459,17 +466,20 @@ bool read_translate(struct params *params, struct translate_table *tt){
     while (!buf->eof) {
         if (first_line && parse_header(buf, params)) {
             // header parsed successfully
-        } else if (!parse_letters(buf, tt)) {
+        } else if (!parse_letters(buf, tt, helper_trie)) {
+            destroy_trie(helper_trie);
             destroy_buffer(buf);
             return false;
         }
         first_line = false;
         reset_buffer(buf);
         if (!read_line(params->translate_file, buf)) {
+            destroy_trie(helper_trie);
             destroy_buffer(buf);
             return false;
         }
     }
+    destroy_trie(helper_trie);
     destroy_buffer(buf);
     printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
     return true;
@@ -555,7 +565,7 @@ the respective letter and its uppercase variants are stored in the translation t
 in the table, the method fails. Return values indicates the success of parsing.
 
 @c
-bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
+bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct trie *helper_trie){
     if (buf->size == 0){
         fprintf(stderr, "Empty line in translate file\n");
         return false;
@@ -581,7 +591,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
             if (letter->size == 0){
                 break;
             }
-            if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
+            if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index)) {
                 destroy_buffer(letter);
                 return false;
             }
@@ -607,22 +617,22 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt){
 Fetches default ASCII character mapping into the translate table. Return value indicate the success of fetching.
 
 @c
-bool default_ascii_mapping(struct translate_table *tt){
+bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie){
     size_t out_index;
     size_t alphabet_index;
     char upper;
     for (char c = 'a'; c <= 'z'; c++){
         alphabet_index = tt->alphabet->size;
         upper = c - ('a' - 'A');
-        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
+        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
             return false;
         }
-        if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index)) {
+        if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index)) {
             return false;
         }
     }
     alphabet_index = tt->alphabet->size;
-    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
+    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
         return false;
     }
     return true;
@@ -653,23 +663,21 @@ bool read_patterns(struct params *params, struct pattern_trie *pt, struct transl
     if (buf == NULL){
         return false;
     }
+    buf->eof = false;
     struct pattern *pat = init_pattern(16);
     if (pat == NULL){
         destroy_buffer(buf);
         return false;
     }
-    if (!read_line(params->pattern_file, buf)){
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
         destroy_pattern(pat);
         destroy_buffer(buf);
         return false;
     }
     while (!buf->eof){
-        if (!parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps)){
-            destroy_pattern(pat);
-            destroy_buffer(buf);
-            return false;
-        }
-        if (!read_line(params->pattern_file, buf)){
+        if (!read_line(params->pattern_file, buf) || !parse_pattern(buf, pat, tt) || !insert_new_pattern(pat, pt, ps, helper_trie)){
+            destroy_trie(helper_trie);
             destroy_pattern(pat);
             destroy_buffer(buf);
             return false;
@@ -677,6 +685,7 @@ bool read_patterns(struct params *params, struct pattern_trie *pt, struct transl
     }
     printf("%zu patterns read in\n", ps->level_pattern_cnt);
     printf("pattern trie has %zu nodes, trie_max = %zu, %zu outputs\n", pt->t->occupied, pt->t->node_max, pt->ops->count);
+    destroy_trie(helper_trie);
     destroy_pattern(pat);
     destroy_buffer(buf);
     return true;
@@ -765,10 +774,10 @@ Inserts the pattern into pattern trie and collects statistics along the way. Ret
 insertion.
 
 @c
-bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps){
+bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pass_stats *ps, struct trie *helper_trie){
     size_t hyphenation_value, node;
     size_t current_len = 0;
-    if (!insert_pattern(pt->t, pat->text, &node)){
+    if (!insert_pattern(pt->t, pat->text, &node, helper_trie)){
         return false;
     }
     for (size_t i = 0; i < pat->size; i++){
@@ -871,37 +880,36 @@ bool process_all_words(struct params *params, struct translate_table *tt, struct
     if (buf == NULL){
         return false;
     }
+    buf->eof = false;
     struct word *word = init_word(16);
     if (word == NULL){
         destroy_buffer(buf);
         return false;
     }
-
-    if (!read_line(params->dictionary_file, buf)){
-        destroy_buffer(buf);
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
         destroy_word(word);
+        destroy_buffer(buf);
         return false;
     }
     while (!buf->eof){
-        if (!parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+        if (!read_line(params->dictionary_file, buf) || !parse_word(buf, tt, params, word) || !hyphenate_word(word, pt, params)){
+            destroy_trie(helper_trie);
             destroy_buffer(buf);
             destroy_word(word);
             return false;
         }
         count_dots(word, params, ps);
         if (word->length >= dot_len){
-            if (!process_word(word, ct, params)){
+            if (!process_word(word, ct, params, helper_trie)){
+                destroy_trie(helper_trie);
                 destroy_buffer(buf);
                 destroy_word(word);
                 return false;
             }
         }
-        if (!read_line(params->dictionary_file, buf)){
-            destroy_buffer(buf);
-            destroy_word(word);
-            return false;
-        }
     }
+    destroy_trie(helper_trie);
     destroy_buffer(buf);
     destroy_word(word);
     return true;
@@ -1040,7 +1048,7 @@ Generates all candidate patterns from the parsed word and inserts them to count 
 of generating and insertion.
 
 @c
-bool process_word(struct word *word, struct count_trie *ct, struct params *params){
+bool process_word(struct word *word, struct count_trie *ct, struct params *params, struct trie *helper_trie){
     uint8_t dot_min = params->pat_dot;
     uint8_t dot_max = params->pat_len - params->pat_dot;
     if (dot_min < params->left_hyphen_min + 1){
@@ -1092,7 +1100,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
                 end_pos++;
             }
         }
-        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node)){
+        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node, helper_trie)){
             return false;
         }
         if (ct->cnts->size >= ct->cnts->capacity) {
@@ -1110,6 +1118,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             ct->cnts->size++;
         }
         weight = get_true_hyphen(word, dot_index) / 4;
+        if (weight == 0) weight = params->word_weight;
         if (good_pattern){
             ct->cnts->good[cnt_index] += weight;
         } else {
@@ -1190,7 +1199,14 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         destroy_buffer(pattern);
         return false;
     }
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL){
+        destroy_buffer(pattern);
+        destroy_stack(s_base);
+        return false;
+    }
     if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+        destroy_trie(helper_trie);
         destroy_buffer(pattern);
         destroy_stack(s_base);
         return false;
@@ -1224,24 +1240,28 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             cnt_index = get_aux(ct->t, node);
             good = get_good(ct->cnts, cnt_index);
             bad = get_bad(ct->cnts, cnt_index);
-            if (params->good_wt * good < params->thresh){
-                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
-                    destroy_buffer(pattern);
-                    destroy_stack(s_base);
-                    return false;
+            if (good > 0 || bad > 0){
+                if (params->good_wt * good < params->thresh){
+                    if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index, helper_trie) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
+                        destroy_trie(helper_trie);
+                        destroy_buffer(pattern);
+                        destroy_stack(s_base);
+                        return false;
+                    }
+                    ps->bad_pat_cnt++;
+                } else if (params->good_wt * good >= params->thresh + params->bad_wt * bad) {
+                    if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index, helper_trie) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
+                        destroy_trie(helper_trie);
+                        destroy_buffer(pattern);
+                        destroy_stack(s_base);
+                        return false;
+                    }
+                    ps->good_pat_cnt++;
+                    ps->good_cnt += good;
+                    ps->bad_cnt += bad;
+                } else {
+                    ps->more_to_come = true;
                 }
-                ps->bad_pat_cnt++;
-            } else if (params->good_wt * good >= params->thresh + params->bad_wt * bad) {
-                if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index) || !set_output(pt, op_index, params->hyph_level, params->pat_dot)){
-                    destroy_buffer(pattern);
-                    destroy_stack(s_base);
-                    return false;
-                }
-                ps->good_pat_cnt++;
-                ps->good_cnt += good;
-                ps->bad_cnt += bad;
-            } else {
-                ps->more_to_come = true;
             }
             if (is_utf_start_byte(c)) {
                 current_len--;
@@ -1260,11 +1280,13 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             continue;
         }
         if (!append_char(pattern, '\0') || !put_on_stack(s_base, root)){
+            destroy_trie(helper_trie);
             destroy_buffer(pattern);
             destroy_stack(s_base);
             return false;
         }        
     }
+    destroy_trie(helper_trie);
     destroy_buffer(pattern);
     destroy_stack(s_base);
     return true;
@@ -2068,9 +2090,9 @@ Attempts to put the given pattern into the trie, possibly creating nodes along t
 true is returned and the resulting index is stored in {\tt out\_op\_index}.
 
 @c
-bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index){
+bool insert_pattern(struct trie *t, const char *pattern, size_t *out_op_index, struct trie *helper_trie){
     size_t length = strlen(pattern);
-    return insert_substring(t, pattern, length, length, out_op_index);
+    return insert_substring(t, pattern, length, length, out_op_index, helper_trie);
 }
 
 @ insert\_substring.
@@ -2078,32 +2100,26 @@ Attempts to put substring $[end-length, end)$ of the given pattern into the trie
 way. If the insertion is successful, true is returned and the resulting index is stored in {\tt out\_op\_index}.
 
 @c
-bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index){
+bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index, struct trie *helper_trie){
     size_t index = end - length;
     size_t base = 1;
     size_t node = base + (uint8_t) pattern[index];
     size_t fit;
     size_t node_prev = 0;
-    struct trie *q = init_trie(256);
-    if (q == NULL) {
-        return false;
-    }
     bool new_pattern = false;
     while (index < end && base > 0) {
         node = base + (uint8_t) pattern[index];
         if (get_node(t, node) != pattern[index]) {
             new_pattern = true;
-            if (get_node(t, node) == 0) {
-                if (!set_links(t, get_aux(t, node), get_link(t, node)) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
-                    destroy_trie(q);
+            if (t->nodes[node] == 0) {
+                if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
                 if (node > t->node_max) {
                     t->node_max = node;
                 }
             } else {
-                if (!repack(t, q, &node_prev, &node, pattern[index])) {
-                    destroy_trie(q);
+                if (!repack(t, helper_trie, &node_prev, &node, pattern[index])) {
                     return false;
                 }
             }
@@ -2113,14 +2129,12 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         node_prev = node;
         base = get_link(t, node);
     }
-    if (!set_link(q, 1, 0) || !set_aux(q, 1, 0)) {
-        destroy_trie(q);
+    if (!set_link(helper_trie, 1, 0) || !set_aux(helper_trie, 1, 0)) {
         return false;
     }
-    q->node_max = 1;
+    helper_trie->node_max = 1;
     while (index < end) {
-        if (!set_node(q, 1, pattern[index]) || !first_fit(t, q, &fit) || !set_link(t, node, fit)) {
-            destroy_trie(q);
+        if (!set_node(helper_trie, 1, pattern[index]) || !first_fit(t, helper_trie, &fit) || !set_link(t, node, fit)) {
             return false;
         }
         base = fit;
@@ -2133,7 +2147,6 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     if (new_pattern){
         t->pattern_count++;
     }
-    destroy_trie(q);
     return true;
 }
 
