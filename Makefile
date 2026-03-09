@@ -4,27 +4,56 @@ CXXFLAGS = -Wall -Wextra -pedantic
 OPTIFLAG = -O2
 DEBUGFLAG = -g
 COVFLAG = --coverage
-PROFFLAG = -pg
+PROFFLAG = -g -pg
+
+# Executables
+UTFPATGEN_BIN = ./build/utfpatgen
+UNITTEST_BIN = ./build/unit_test
+
+ifeq ($(OS),Windows_NT)
+    EXT = .exe
+    EMPTY = NUL
+else
+    EXT =
+    EMPTY = /dev/null
+endif
 
 # Targets
-.PHONY: all coverage profile debug execute
+.PHONY: all coverage build-profile build-debug build-execute analyze-cov run run-tests
 all: clean utfpatgen.pdf
 
-execute: test/unit_test.c | utfpatgen.c build
+run:
+	$(UTFPATGEN_BIN) ./test/wortliste10k.wlh $(EMPTY) ./test/output.pat ./test/german.tr
+
+run-tests:
+	$(UNITEST_BIN)
+
+build-execute: test/unit_test.c | utfpatgen.c build
 	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen utfpatgen.c
 	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -DTEST -o build/unit_test utfpatgen.c test/unit_test.c
+	$(eval UTFPATGEN_BIN = ./build/utfpatgen)
+	$(eval UNITTEST_BIN = ./build/unit_test)
 
-coverage: | utfpatgen.c test/unit_test.c build
+build-coverage: test/unit_test.c | utfpatgen.c build
 	$(CXX) $(CXXFLAGS) $(COVFLAG) -o build/utfpatgen_cov utfpatgen.c
 	$(CXX) $(CXXFLAGS) $(COVFLAG) -DTEST -o build/unit_test_cov utfpatgen.c test/unit_test.c
+	$(eval UTFPATGEN_BIN = ./build/utfpatgen_cov)
+	$(eval UNITTEST_BIN = ./build/unit_test_cov)
 
-profile: | utfpatgen.c test/unit_test.c build
+build-profile: test/unit_test.c | utfpatgen.c build
 	$(CXX) $(CXXFLAGS) $(PROFFLAG) -o build/utfpatgen_prof utfpatgen.c
 	$(CXX) $(CXXFLAGS) $(PROFFLAG) -DTEST -o build/unit_test_prof utfpatgen.c test/unit_test.c
+	$(eval UTFPATGEN_BIN = ./build/utfpatgen_prof)
+	$(eval UNITTEST_BIN = ./build/unit_test_prof)
 
-debug: | utfpatgen.c test/unit_test.c build
+analyze-prof: build-profile run
+	gprof -b $(UTFPATGEN_BIN)$(EXT) ./gmon.out | gprof2dot | dot -Tpng -o profile_visual.png
+
+build-debug: test/unit_test.c | utfpatgen.c build
 	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -o build/utfpatgen_debug utfpatgen.c
 	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -DTEST -o build/unit_test_debug utfpatgen.c test/unit_test.c
+	$(eval UTFPATGEN_BIN = ./build/utfpatgen_debug)
+	$(eval UNITTEST_BIN = ./build/unit_test_debug)
 
 build:
 	mkdir build
@@ -38,7 +67,7 @@ utfpatgen.pdf: utfpatgen.tex
 	pdftex $<
 
 # Executable
-utfpatgen.c : utfpatgen.w
+utfpatgen.c: utfpatgen.w
 	ctangle $<
 
 # File translation from patgen to utfpatgen format and vice versa
