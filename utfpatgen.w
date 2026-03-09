@@ -2022,6 +2022,7 @@ bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_
     if(!set_node(to, to_index, from->nodes[from_index]) || !set_link(to, to_index, from->links[from_index]) || !set_aux(to, to_index, get_aux(from, from_index))) {
         return false;
     }
+    to->occupied++;
     return true;
 }
 
@@ -2101,6 +2102,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
                 if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
+                t->occupied++;
                 if (node > t->node_max) {
                     t->node_max = node;
                 }
