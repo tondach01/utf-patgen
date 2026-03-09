@@ -2962,20 +2962,20 @@ struct word *init_word(size_t capacity){
         return NULL;
     }
     word->true_hyphens = calloc(capacity, sizeof(size_t));
-    if (word->lowercase == NULL){
+    if (word->true_hyphens == NULL){
         free(word->lowercase);
         free(word);
         return NULL;
     }
     word->found_hyphens = calloc(capacity, sizeof(uint8_t));
-    if (word->lowercase == NULL){
+    if (word->found_hyphens == NULL){
         free(word->lowercase);
         free(word->true_hyphens);
         free(word);
         return NULL;
     }
     word->no_more = calloc(capacity, sizeof(bool));
-    if (word->lowercase == NULL){
+    if (word->no_more == NULL){
         free(word->lowercase);
         free(word->true_hyphens);
         free(word->found_hyphens);
