@@ -1227,7 +1227,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             continue;
         }
         node = root + c;
-        if ((uint8_t) get_node(ct->t, node) != c){
+        if ((uint8_t) ct->t->nodes[node] != c){
             continue;
         }
         if (is_utf_start_byte(c)) {
@@ -1270,7 +1270,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             }
             continue;
         }
-        root = get_link(ct->t, node);
+        root = ct->t->links[node];
         if (root == 0){
             if (is_utf_start_byte(c)) {
                 current_len--;
@@ -1393,7 +1393,7 @@ bool delete_patterns(struct pattern_trie *pt){
             continue;
         }
         node = root + c;
-        if ((uint8_t) get_node(pt->t, node) != c){
+        if ((uint8_t) pt->t->nodes[node] != c){
             continue;
         }
         if (!link_around_bad_outputs(pt, node)){
@@ -1405,7 +1405,7 @@ bool delete_patterns(struct pattern_trie *pt){
         if (get_aux(pt->t, node) > 0 || root == 1){
             set_top_value(s_freed, (size_t) false);
         } else {
-            if (get_link(pt->t, node) == 0){
+            if (pt->t->links[node] == 0){
                 if (!deallocate_node(pt->t, node)){
                     destroy_stack(s_base);
                     destroy_stack(s_offset);
@@ -1415,7 +1415,7 @@ bool delete_patterns(struct pattern_trie *pt){
                 continue;
             }
         }
-        root = get_link(pt->t, node);
+        root = pt->t->links[node];
         if (root == 0){
             continue;
         }
@@ -1437,7 +1437,7 @@ Removes unused node from a trie. Returns true upon success.
 
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, t_index, get_link(t, 0)) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
+    if (!set_links(t, t_index, t->links[0]) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
         return false;
     }
     t->occupied--;
@@ -1522,13 +1522,13 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
             continue;
         }
         node = root + c;
-        if ((uint8_t) get_node(pt->t, node) != c){
+        if ((uint8_t) pt->t->nodes[node] != c){
             continue;
         }
         if (get_aux(pt->t, node) > 0){
             output_pattern(pattern, pt->ops, get_aux(pt->t, node), output_file);
         }
-        root = get_link(pt->t, node);
+        root = pt->t->links[node];
         if (root == 0){
             continue;
         }
@@ -1627,7 +1627,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
         end_index = current_index;
         end_pos = current_pos + 1;
         node = 1 + (uint8_t) get_byte(word, start_index);
-        while (get_node(pt->t, node) == get_byte(word, end_index)){
+        while (pt->t->nodes[node] == get_byte(word, end_index)){
             end_index++;
             if (is_utf_start_byte(get_byte(word, end_index))){
                 end_pos++;
@@ -1658,7 +1658,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 }
                 op_index = op.next_op_index;
             }
-            base = get_link(pt->t, node);
+            base = pt->t->links[node];
             if (base == 0){
                 break;
             }
@@ -1974,13 +1974,6 @@ void relink_trie(struct trie *t){
     set_links(t, last_free, 0);
 }
 
-char get_node(struct trie *t, size_t index){
-    if (index >= t->capacity) {
-        return '\0';
-    }
-    return t->nodes[index];
-}
-
 bool set_node(struct trie *t, size_t index, char value){
     if (index >= t->capacity) {
         size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
@@ -1990,13 +1983,6 @@ bool set_node(struct trie *t, size_t index, char value){
     }
     t->nodes[index] = value;
     return true;
-}
-
-size_t get_link(struct trie *t, size_t index){
-    if (index >= t->capacity) {
-        return 0;
-    }
-    return t->links[index];
 }
 
 bool set_link(struct trie *t, size_t index, size_t link){
@@ -2033,7 +2019,7 @@ Replicates a node between two tries. Return value indicates the success of the o
 
 @c
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
-    if(!set_node(to, to_index, get_node(from, from_index)) || !set_link(to, to_index, get_link(from, from_index)) || !set_aux(to, to_index, get_aux(from, from_index))) {
+    if(!set_node(to, to_index, from->nodes[from_index]) || !set_link(to, to_index, from->links[from_index]) || !set_aux(to, to_index, get_aux(from, from_index))) {
         return false;
     }
     return true;
@@ -2082,7 +2068,7 @@ Returns true if the given trie index is occupied by a node.
 
 @c
 bool is_node_occupied(struct trie *t, size_t index){
-    return get_node(t, index) != 0;
+    return t->nodes[index] != 0;
 }
 
 @ insert\_pattern.
@@ -2109,7 +2095,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     bool new_pattern = false;
     while (index < end && base > 0) {
         node = base + (uint8_t) pattern[index];
-        if (get_node(t, node) != pattern[index]) {
+        if (t->nodes[node] != pattern[index]) {
             new_pattern = true;
             if (t->nodes[node] == 0) {
                 if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
@@ -2127,7 +2113,7 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         }
         index++;
         node_prev = node;
-        base = get_link(t, node);
+        base = t->links[node];
     }
     if (!set_link(helper_trie, 1, 0) || !set_aux(helper_trie, 1, 0)) {
         return false;
@@ -2179,8 +2165,8 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     to->node_max = 1;
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
-        if ((uint8_t) get_node(from, from_index) == i) {
-            if (!copy_node(from, from_index, to, to->node_max) || !set_node(from, from_index, 0)) {
+        if ((uint8_t) from->nodes[from_index] == i) {
+            if (!copy_node(from, from_index, to, to->node_max) || !deallocate_node(from, from_index)) {
                 return false;
             }
             to->node_max++;
@@ -2204,8 +2190,8 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
         return false;
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
-        size_t t_index = base + (uint8_t) get_node(q, q_index);
-        if (!copy_node(q, q_index, t, t_index)) {
+        size_t t_index = base + (uint8_t) q->nodes[q_index];
+        if (/*!set_links(t, get_aux(t, t_index), t->links[t_index]) ||*/ !copy_node(q, q_index, t, t_index)) {
             return false;
         }
     }
@@ -2227,14 +2213,14 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
     uint8_t offset;
     t_index = 0;
     while (true) {
-        t_index = get_link(t, t_index);
+        t_index = t->links[t_index];
         if (t_index == 0) {
             if (!resize_trie(t, 2*t->capacity)){
                 return false;
             }
             continue;
         }
-        offset = (uint8_t) get_node(q, 1);
+        offset = (uint8_t) q->nodes[1];
         if (t_index <= offset) {
             continue;
         }
@@ -2244,7 +2230,7 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
         }
         bool conflict = false;
         for (size_t q_index = q->node_max; q_index >= 2; q_index--) {
-            if(is_node_occupied(t, *out_base + (uint8_t) get_node(q, q_index))){
+            if(is_node_occupied(t, *out_base + (uint8_t) q->nodes[q_index])){
                 conflict = true;
                 break;
             }
@@ -2263,14 +2249,14 @@ Returns the index of the node corresponding to the given pattern, or 0 if such n
 size_t traverse_trie(struct trie *t, const char *pattern){
     size_t index = 1;
     size_t node = (uint8_t) pattern[0] + 1;
-    size_t base = get_link(t, node);
+    size_t base = t->links[node];
     while (index < strlen(pattern) && base > 0) {
         base += (uint8_t) pattern[index];
-        if (get_node(t, base) != pattern[index]) {
+        if (t->nodes[base] != pattern[index]) {
             return 0;
         }
         node = base;
-        base = get_link(t, node);
+        base = t->links[node];
         index++;
     }
     if (index < strlen(pattern)) {

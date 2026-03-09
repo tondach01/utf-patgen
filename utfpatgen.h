@@ -26,10 +26,8 @@ void destroy_trie(struct trie *t);
 
 bool put_first_level(struct trie *t);
 
-char get_node(struct trie *t, size_t index);
 bool set_node(struct trie *t, size_t index, char value);
 
-size_t get_link(struct trie *t, size_t index);
 bool set_link(struct trie *t, size_t index, size_t link);
 
 size_t get_aux(struct trie *t, size_t index);
