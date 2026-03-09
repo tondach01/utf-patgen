@@ -1499,7 +1499,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
         return false;
     }
 
-    struct stack *s_base = init_stack(16 * sizeof(size_t));
+    struct stack *s_base = init_stack(16);
     if (s_base == NULL) {
         destroy_buffer(pattern);
         return false;
@@ -2525,8 +2525,8 @@ struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t n
 
 void reset_pattern_counts(struct pattern_counts *pc){
     pc->size = 0;
-    memset(pc->good, 0, pc->capacity);
-    memset(pc->bad, 0, pc->capacity);
+    memset(pc->good, 0, pc->capacity * sizeof(size_t));
+    memset(pc->bad, 0, pc->capacity * sizeof(size_t));
 }
 
 void destroy_pattern_counts(struct pattern_counts *pc){
@@ -2901,7 +2901,7 @@ Appends the given value to the top of the stack. Returns true if the insertion f
 @c
 bool put_on_stack(struct stack *s, size_t value){
     if (s->top >= s->capacity){
-        size_t new_capacity = 2*(s->top)*sizeof(size_t);
+        size_t new_capacity = 2 * (s->top);
         if (resize_stack(s, new_capacity) == NULL){
             return false;
         }
