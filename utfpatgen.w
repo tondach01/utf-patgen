@@ -1438,8 +1438,21 @@ Removes unused node from a trie. Returns true upon success.
 
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
-    if (!set_links(t, t_index, t->links[0]) || !set_links(t, 0, t_index) || !set_node(t, t_index, 0)){
+    if (t_index >= t->capacity) {
         return false;
+    }
+    size_t next_free = t->links[0];
+    if (next_free >= t->capacity) {
+        return false;
+    }
+    if (!set_node(t, t_index, 0)){
+        return false;
+    }
+    t->links[t_index] = next_free;
+    t->aux[t_index] = 0;
+    t->links[0] = t_index;
+    if (next_free > 0) {
+        t->aux[next_free] = t_index;
     }
     t->occupied--;
     return true;
