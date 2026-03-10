@@ -85,6 +85,8 @@ optionally hyphenate the dictionary. For sure, it gets more complicated the deep
 @c
 @<Library includes@>@;
 
+bool trace_deallocate = false;
+
 # ifndef TEST
 int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
@@ -1439,7 +1441,6 @@ Removes unused node from a trie. Returns true upon success.
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
     static size_t dealloc_count = 0;
-    extern bool trace_deallocate;
     dealloc_count++;
     if (trace_deallocate) {
         printf("      [TRACE] deallocate_node #%zu:\n", dealloc_count);
@@ -2218,7 +2219,6 @@ Moves all nodes with the given base to auxiliary trie.
 @c
 bool unpack(struct trie *from, size_t base, struct trie *to){
     static size_t unpack_count = 0;
-    static bool trace_deallocate = false;
     unpack_count++;
     if (unpack_count == 195) {
         printf("  [TRACE] unpack #%zu: base=%zu, occupied=%zu, free_head=%zu\n",
