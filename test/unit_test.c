@@ -814,12 +814,23 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
 
     for (size_t i = 0; i < 8; i += 2) {
         printf("Deallocating node %zu (pattern '%s'), occupied before=%zu\n", trie_indices[i], patterns[i], test_trie->occupied);
+        printf("  Free list before: head->%zu\n", test_trie->links[0]);
         if (!deallocate_node(test_trie, trie_indices[i])) {
             printf("Failed to deallocate node %zu\n", trie_indices[i]);
             destroy_trie(test_trie);
             return;
         }
+        printf("  Free list after: head->%zu, node[%zu].links=%zu, node[%zu].aux=%zu\n",
+               test_trie->links[0], trie_indices[i], test_trie->links[trie_indices[i]],
+               trie_indices[i], test_trie->aux[trie_indices[i]]);
         printf("  occupied after=%zu\n", test_trie->occupied);
+
+        /* Check for immediate loop */
+        size_t check = test_trie->links[0];
+        for (int j = 0; j < 5 && check != 0; j++) {
+            printf("    Free list: %zu -> %zu\n", check, test_trie->links[check]);
+            check = test_trie->links[check];
+        }
     }
 
     size_t occupied_after_dealloc = test_trie->occupied;
@@ -831,6 +842,7 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
         printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_insert - 4, occupied_after_dealloc);
     }
 
+    printf("\nAttempting to insert new patterns...\n");
     size_t occupied_before_reinsert = test_trie->occupied;
     const char *new_patterns[] = {"xyz", "uvw"};
     for (size_t i = 0; i < 2; i++) {
