@@ -253,14 +253,12 @@ void test_read_translate(struct test_context *ctx) {
     } else {
         printf("Failed to read translate table.\n");
     }
-
-    fclose(file);
 }
 
 void test_parse_word(struct test_context *ctx) {
     printf("\n---- Parse Word Test ----\n");
 
-    strcpy(ctx->buf->data, " te-st ");
+    strcpy(ctx->buf->data, "te-st");
     ctx->buf->size = strlen(ctx->buf->data);
 
     if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
@@ -271,7 +269,7 @@ void test_parse_word(struct test_context *ctx) {
         printf("Word parsed: '%s', length=%zu\n", ctx->word->lowercase, ctx->word->length);
         printf("True hyphens at positions: ");
         for (size_t i = 0; i < ctx->word->length; i++) {
-            if (get_true_hyphen(ctx->word, i) > 0) {
+            if (get_true_hyphen(ctx->word, i) % 4 > 0) {
                 printf("%zu ", i);
             }
         }
@@ -284,13 +282,13 @@ void test_parse_word(struct test_context *ctx) {
 void test_hyphenate_word(struct test_context *ctx){
     printf("\n---- Hyphenate Word Test ----\n");
 
-    strcpy(ctx->buf->data, ".test.");
+    strcpy(ctx->buf->data, "\xfftest\xff");
     ctx->buf->size = strlen(ctx->buf->data);
 
     ctx->params->hyph_level = 1;
 
     size_t op_index;
-    if (!insert_pattern(ctx->pt->t, ".te", &op_index, ctx->helper_trie) ||
+    if (!insert_pattern(ctx->pt->t, "\xffte", &op_index, ctx->helper_trie) ||
         !set_output(ctx->pt, op_index, 1, 2)){
         printf("Failed to insert pattern.\n");
         return;
@@ -321,7 +319,7 @@ void test_hyphenate_word(struct test_context *ctx){
 void test_patterns(struct test_context *ctx){
     printf("\n---- Patterns Test ----\n");
 
-    strcpy(ctx->buf->data, ".te2st.");
+    strcpy(ctx->buf->data, "\xfe\x02st\xff");
     ctx->buf->size = strlen(ctx->buf->data);
 
     if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
@@ -372,7 +370,7 @@ void test_free_list_integrity(struct test_context *ctx) {
     struct trie *t = ctx->pt->t;
 
     /* Check for loops in free list */
-    printf("Checking free list for loops...\n");
+    printf("Checking free list for loops...");
     size_t visited[1024] = {0};
     size_t current = t->links[0];
     size_t count = 0;
@@ -399,7 +397,7 @@ void test_free_list_integrity(struct test_context *ctx) {
     }
 
     /* Verify all free nodes have value 0 */
-    printf("Verifying free nodes have value 0...\n");
+    printf("Verifying free nodes have value 0...");
     size_t free_with_value = 0;
     current = t->links[0];
     while (current != 0 && current < t->capacity) {
@@ -417,7 +415,7 @@ void test_free_list_integrity(struct test_context *ctx) {
     }
 
     /* Verify occupied count matches actual occupied nodes */
-    printf("Verifying occupied count...\n");
+    printf("Verifying occupied count...");
     size_t actual_occupied = 0;
     for (size_t i = 0; i < t->capacity; i++) {
         if (t->nodes[i] != 0) {
