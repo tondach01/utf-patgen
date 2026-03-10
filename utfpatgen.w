@@ -1450,9 +1450,15 @@ bool deallocate_node(struct trie *t, size_t t_index){
                t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
         // Check if links[t_index] points to a free node
         size_t old_link = t->links[t_index];
-        if (old_link < t->capacity && t->nodes[old_link] == 0) {
-            printf("             WARNING: links[%zu]=%zu points to FREE node (value=%d)\n",
-                   t_index, old_link, t->nodes[old_link]);
+        if (old_link > 0 && old_link < t->capacity) {
+            if (t->nodes[old_link] == 0) {
+                printf("             WARNING: links[%zu]=%zu points to FREE node (value=%d)\n",
+                       t_index, old_link, t->nodes[old_link]);
+                printf("                      This occupied node's link is already part of free list!\n");
+            } else {
+                printf("             links[%zu]=%zu points to occupied node (value=%d)\n",
+                       t_index, old_link, t->nodes[old_link]);
+            }
         }
         // Check taken flag for base
         size_t base = (t_index > 255) ? (t_index / 256) * 256 : 0;
