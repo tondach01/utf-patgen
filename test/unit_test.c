@@ -717,6 +717,285 @@ void test_free_list_head_validity(struct test_context *ctx) {
     }
 }
 
+void test_resize_during_insertion(struct test_context *ctx) {
+    printf("\n---- Test: Resize During Insertion ----\n");
+
+    struct trie *small_trie = init_trie(32);
+    if (small_trie == NULL) {
+        printf("Failed to create small trie\n");
+        return;
+    }
+
+    if (!put_first_level(small_trie)) {
+        printf("Failed to put first level\n");
+        destroy_trie(small_trie);
+        return;
+    }
+
+    size_t initial_capacity = small_trie->capacity;
+    printf("Initial capacity: %zu\n", initial_capacity);
+
+    const char *patterns[] = {
+        "test", "testing", "tester", "pattern", "patterns",
+        "resize", "resizing", "trigger", "capacity", "expansion"
+    };
+
+    size_t op_index;
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+        if (!insert_pattern(small_trie, patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert pattern '%s'\n", patterns[i]);
+            destroy_trie(small_trie);
+            return;
+        }
+    }
+
+    printf("Final capacity: %zu (resized: %s)\n", small_trie->capacity,
+           small_trie->capacity > initial_capacity ? "yes" : "no");
+
+    size_t current = small_trie->links[0];
+    size_t count = 0;
+    bool loop_detected = false;
+
+    while (current != 0 && count < small_trie->capacity) {
+        if (current >= small_trie->capacity) {
+            printf("ERROR: Free list corrupted after resize\n");
+            loop_detected = true;
+            break;
+        }
+        current = small_trie->links[current];
+        count++;
+    }
+
+    if (!loop_detected) {
+        printf("Free list integrity maintained after resize\n");
+    }
+
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < small_trie->capacity; i++) {
+        if (small_trie->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == small_trie->occupied) {
+        printf("Occupied count correct: %zu\n", small_trie->occupied);
+    } else {
+        printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", small_trie->occupied, actual_occupied);
+    }
+
+    destroy_trie(small_trie);
+}
+
+void test_sequential_insertion_deletion(struct test_context *ctx) {
+    printf("\n---- Test: Sequential Insertion and Deletion ----\n");
+
+    const char *patterns[] = {"a", "b", "c", "d", "e", "f", "g", "h"};
+    size_t op_indices[8];
+
+    for (size_t i = 0; i < 8; i++) {
+        if (!insert_pattern(ctx->pt->t, patterns[i], &op_indices[i], ctx->helper_trie)) {
+            printf("Failed to insert pattern '%s'\n", patterns[i]);
+            return;
+        }
+    }
+
+    size_t occupied_after_insert = ctx->pt->t->occupied;
+    printf("Occupied after insertions: %zu\n", occupied_after_insert);
+
+    for (size_t i = 0; i < 8; i += 2) {
+        if (!deallocate_node(ctx->pt->t, op_indices[i])) {
+            printf("Failed to deallocate node %zu\n", op_indices[i]);
+            return;
+        }
+    }
+
+    size_t occupied_after_dealloc = ctx->pt->t->occupied;
+    printf("Occupied after deallocations: %zu\n", occupied_after_dealloc);
+
+    if (occupied_after_dealloc == occupied_after_insert - 4) {
+        printf("Occupied count correct after 4 deallocations\n");
+    } else {
+        printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_insert - 4, occupied_after_dealloc);
+    }
+
+    const char *new_patterns[] = {"x", "y", "z", "w"};
+    for (size_t i = 0; i < 4; i++) {
+        size_t new_op;
+        if (!insert_pattern(ctx->pt->t, new_patterns[i], &new_op, ctx->helper_trie)) {
+            printf("Failed to insert new pattern '%s'\n", new_patterns[i]);
+            return;
+        }
+    }
+
+    size_t occupied_after_reinsert = ctx->pt->t->occupied;
+    printf("Occupied after re-insertions: %zu\n", occupied_after_reinsert);
+
+    size_t current = ctx->pt->t->links[0];
+    size_t count = 0;
+    while (current != 0 && count < ctx->pt->t->capacity) {
+        if (current >= ctx->pt->t->capacity) {
+            printf("ERROR: Free list corrupted\n");
+            return;
+        }
+        current = ctx->pt->t->links[current];
+        count++;
+    }
+
+    printf("Free list intact with %zu free nodes\n", count);
+}
+
+void test_alternating_patterns(struct test_context *ctx) {
+    printf("\n---- Test: Alternating Short and Long Patterns ----\n");
+
+    const char *short_patterns[] = {"a", "b", "c"};
+    const char *long_patterns[] = {"testing", "patterns", "alternating"};
+    size_t op_index;
+
+    for (size_t i = 0; i < 3; i++) {
+        if (!insert_pattern(ctx->pt->t, short_patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert short pattern '%s'\n", short_patterns[i]);
+            return;
+        }
+        if (!insert_pattern(ctx->pt->t, long_patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert long pattern '%s'\n", long_patterns[i]);
+            return;
+        }
+    }
+
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < ctx->pt->t->capacity; i++) {
+        if (ctx->pt->t->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == ctx->pt->t->occupied) {
+        printf("Occupied count correct: %zu\n", ctx->pt->t->occupied);
+    } else {
+        printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", ctx->pt->t->occupied, actual_occupied);
+    }
+
+    printf("Successfully inserted %zu patterns\n", 6);
+}
+
+void test_overlapping_patterns(struct test_context *ctx) {
+    printf("\n---- Test: Overlapping Patterns ----\n");
+
+    const char *patterns[] = {
+        "test", "testing", "tester", "tested",
+        "pat", "pattern", "patterns",
+        "free", "freedom", "freeze", "freezing"
+    };
+
+    size_t op_index;
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+        if (!insert_pattern(ctx->pt->t, patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert pattern '%s'\n", patterns[i]);
+            return;
+        }
+    }
+
+    printf("Inserted %zu overlapping patterns\n", sizeof(patterns) / sizeof(patterns[0]));
+
+    size_t found = 0;
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+        size_t index = traverse_trie(ctx->pt->t, patterns[i]);
+        if (index != 0) {
+            found++;
+        } else {
+            printf("ERROR: Pattern '%s' not found after insertion\n", patterns[i]);
+        }
+    }
+
+    printf("Found %zu/%zu patterns\n", found, sizeof(patterns) / sizeof(patterns[0]));
+
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < ctx->pt->t->capacity; i++) {
+        if (ctx->pt->t->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == ctx->pt->t->occupied) {
+        printf("Occupied count correct: %zu\n", ctx->pt->t->occupied);
+    } else {
+        printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", ctx->pt->t->occupied, actual_occupied);
+    }
+}
+
+void test_repack_operations(struct test_context *ctx) {
+    printf("\n---- Test: Repack Operations ----\n");
+
+    const char *initial_patterns[] = {"abc", "def", "ghi"};
+    size_t op_index;
+
+    for (size_t i = 0; i < 3; i++) {
+        if (!insert_pattern(ctx->pt->t, initial_patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert initial pattern '%s'\n", initial_patterns[i]);
+            return;
+        }
+    }
+
+    size_t occupied_before_repack = ctx->pt->t->occupied;
+    printf("Occupied before repack-triggering insertions: %zu\n", occupied_before_repack);
+
+    const char *conflict_patterns[] = {"ab", "de", "gh", "abcdef", "ghijkl"};
+    for (size_t i = 0; i < 5; i++) {
+        if (!insert_pattern(ctx->pt->t, conflict_patterns[i], &op_index, ctx->helper_trie)) {
+            printf("Failed to insert conflict pattern '%s'\n", conflict_patterns[i]);
+            return;
+        }
+    }
+
+    size_t occupied_after = ctx->pt->t->occupied;
+    printf("Occupied after insertions: %zu\n", occupied_after);
+
+    size_t current = ctx->pt->t->links[0];
+    size_t free_count = 0;
+    bool loop_detected = false;
+
+    while (current != 0 && free_count < ctx->pt->t->capacity) {
+        if (current >= ctx->pt->t->capacity) {
+            printf("ERROR: Free list corrupted\n");
+            loop_detected = true;
+            break;
+        }
+        current = ctx->pt->t->links[current];
+        free_count++;
+    }
+
+    if (!loop_detected) {
+        printf("Free list integrity maintained after repack\n");
+    }
+
+    size_t found = 0;
+    for (size_t i = 0; i < 3; i++) {
+        if (traverse_trie(ctx->pt->t, initial_patterns[i]) != 0) {
+            found++;
+        }
+    }
+    for (size_t i = 0; i < 5; i++) {
+        if (traverse_trie(ctx->pt->t, conflict_patterns[i]) != 0) {
+            found++;
+        }
+    }
+
+    printf("Found %zu/8 patterns after repack\n", found);
+
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < ctx->pt->t->capacity; i++) {
+        if (ctx->pt->t->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == ctx->pt->t->occupied) {
+        printf("Occupied count correct: %zu\n", ctx->pt->t->occupied);
+    } else {
+        printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", ctx->pt->t->occupied, actual_occupied);
+    }
+}
+
 int main(void) {
     run_test(test_read_line);
     run_test(test_parse_header);
@@ -733,6 +1012,11 @@ int main(void) {
     run_test(test_long_patterns);
     run_test(test_deallocate_and_reallocate);
     run_test(test_free_list_head_validity);
+    run_test(test_resize_during_insertion);
+    run_test(test_sequential_insertion_deletion);
+    run_test(test_alternating_patterns);
+    run_test(test_overlapping_patterns);
+    run_test(test_repack_operations);
 
     return 0;
 }
