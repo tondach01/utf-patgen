@@ -645,11 +645,12 @@ required:
 {\narrower
     $<hyph. level><character><hyph. level>\dots<hyph. level>$
 \par}
-Zero levels are omitted implicitly. The special character '.' denotes edges of the word (it can be only used as the
-first or last character of a pattern). The original \patgen program that supports only levels up to 9 represents them
-simply as ASCII numeric literals '0' to '9'. On the other hand, \utfpatgen expects each byte representing a level
-preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal value '0xfe', so the range is extended up to 253.
-This works thanks to the fact that '0xfe' byte is not used by any UTF-8 character by design.
+Zero levels are omitted implicitly. A special character ('.' in \patgen, \tt EDGE\_OF\_WORD '0xff' in \utfpatgen}
+denotes edges of the word (it can be only used as the first or last character of a pattern). The original \patgen
+program that supports only levels up to 9 represents them simply as ASCII numeric literals '0' to '9'. On the other
+hand, \utfpatgen expects each byte representing a level preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal
+value '0xfe', so the range is extended up to 253. The '0xfe' and '0xff' bytes are not used by any UTF-8 character by
+design.
 
 @ read\_patterns.
 Iterates over the pattern file and reads its entries into a pattern trie. Return value indicates whether the whole file
