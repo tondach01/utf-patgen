@@ -649,6 +649,50 @@ void test_deallocate_and_reallocate(struct test_context *ctx) {
     }
 }
 
+void test_free_list_head_validity(struct test_context *ctx) {
+    printf("\n---- Test: Free List Head Validity ----\n");
+
+    struct trie *t = ctx->pt->t;
+
+    /* Check if head points to itself (invalid state unless trie is full) */
+    if (t->links[0] == 0) {
+        if (t->occupied == t->capacity) {
+            printf("Head points to itself: trie is full (valid)\n");
+        } else {
+            printf("ERROR: Head points to itself but trie not full (occupied=%zu, capacity=%zu)\n",
+                   t->occupied, t->capacity);
+        }
+    } else {
+        printf("Head points to node %zu (valid)\n", t->links[0]);
+    }
+
+    /* Verify first free node's aux points back to 0 */
+    size_t first_free = t->links[0];
+    if (first_free != 0) {
+        size_t first_free_prev = get_aux(t, first_free);
+        if (first_free_prev == 0) {
+            printf("First free node's aux correctly points to head\n");
+        } else {
+            printf("ERROR: First free node's aux points to %zu instead of 0\n", first_free_prev);
+        }
+    }
+
+    /* Count free nodes and verify against occupied */
+    size_t free_count = 0;
+    size_t current = t->links[0];
+    while (current != 0 && free_count < t->capacity) {
+        free_count++;
+        current = t->links[current];
+    }
+
+    size_t expected_free = t->capacity - t->occupied;
+    if (free_count == expected_free) {
+        printf("Free node count matches: %zu free nodes\n", free_count);
+    } else {
+        printf("ERROR: Free node count mismatch! Expected %zu, got %zu\n", expected_free, free_count);
+    }
+}
+
 int main(void) {
     run_test(test_read_line);
     run_test(test_parse_header);
@@ -664,6 +708,7 @@ int main(void) {
     run_test(test_empty_and_single_char_patterns);
     run_test(test_long_patterns);
     run_test(test_deallocate_and_reallocate);
+    run_test(test_free_list_head_validity);
 
     return 0;
 }
