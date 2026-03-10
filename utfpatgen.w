@@ -2259,6 +2259,12 @@ successful, resulting index is stored in {\tt out\_base} and true is returned.
 
 @c
 bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
+    static size_t find_count = 0;
+    find_count++;
+    if (find_count >= 1 && find_count <= 2000) {
+        printf("  [TRACE] find_base_for_first_fit #%zu: occupied=%zu, capacity=%zu, free_head=%zu\n",
+               find_count, t->occupied, t->capacity, t->links[0]);
+    }
     size_t t_index;
     uint8_t offset;
     t_index = 0;
