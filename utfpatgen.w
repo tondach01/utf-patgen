@@ -2336,6 +2336,16 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
+        if (trace_deallocate) {
+            printf("[FIRST_FIT] Processing q_index=%zu, t_index=%zu\n", q_index, t_index);
+            printf("            t->nodes[%zu]=%d (should be 0/free)\n", t_index, t->nodes[t_index]);
+            if (t->nodes[t_index] != 0) {
+                printf("            ERROR: Trying to allocate t_index=%zu but it's OCCUPIED (value=%d)!\n",
+                       t_index, t->nodes[t_index]);
+                printf("            get_aux(t, %zu)=%zu, t->links[%zu]=%zu\n",
+                       t_index, get_aux(t, t_index), t_index, t->links[t_index]);
+            }
+        }
         if (!set_links(t, get_aux(t, t_index), t->links[t_index])){
             return false;
         }
