@@ -2108,7 +2108,7 @@ way. If the insertion is successful, true is returned and the resulting index is
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index, struct trie *helper_trie){
     static size_t call_count = 0;
     call_count++;
-    if (call_count >= 2000 && call_count <= 5000) {
+    if (call_count >= 4400 && call_count <= 4600) {
         printf("  [TRACE %zu] insert_substring: pattern[%zu:%zu], occupied=%zu\n",
                call_count, end - length, end, t->occupied);
     }
