@@ -2235,6 +2235,24 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     if (unpack_count >= 250 && unpack_count <= 260) {
         printf("  [TRACE] unpack #%zu done: deallocated %zu nodes, occupied now=%zu, free_head=%zu\n",
                unpack_count, dealloc_in_this_unpack, from->occupied, from->links[0]);
+        printf("  [TRACE] Checking free list integrity after unpack #%zu...\n", unpack_count);
+        size_t check = from->links[0];
+        size_t check_count = 0;
+        bool visited[1024] = {false};
+        while (check != 0 && check_count < from->capacity) {
+            if (check >= from->capacity) {
+                printf("  [ERROR] Free list node %zu out of bounds (capacity=%zu)\n", check, from->capacity);
+                return false;
+            }
+            if (visited[check]) {
+                printf("  [ERROR] Loop detected in free list at node %zu\n", check);
+                return false;
+            }
+            visited[check] = true;
+            check = from->links[check];
+            check_count++;
+        }
+        printf("  [TRACE] Free list OK after unpack #%zu: %zu free nodes\n", unpack_count, check_count);
     }
     if (!set_base_used(from, base, false)) {
         return false;
