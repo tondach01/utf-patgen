@@ -1104,6 +1104,21 @@ void test_process_dictionary_loop(struct test_context *ctx) {
             continue;
         }
 
+        /* Stop before word 465 to examine it */
+        if (words_processed == 464) {
+            printf("\n==== About to process word 465 ====\n");
+            printf("Word 465: '%s' (length=%zu, size=%zu)\n",
+                   ctx->word->lowercase, ctx->word->length, ctx->word->size);
+            printf("True hyphens: ");
+            for (size_t i = 0; i < ctx->word->size; i++) {
+                printf("%zu ", get_true_hyphen(ctx->word, i));
+            }
+            printf("\n");
+            printf("Before processing: occupied=%zu, capacity=%zu\n",
+                   ctx->ct->t->occupied, ctx->ct->t->capacity);
+            printf("Free list head points to: %zu\n", ctx->ct->t->links[0]);
+        }
+
         if (first_word_logged < 3) {
             printf("  Word %zu: '%s' (length=%zu, size=%zu)\n",
                    words_processed + 1, ctx->word->lowercase, ctx->word->length, ctx->word->size);
