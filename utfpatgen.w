@@ -2106,6 +2106,12 @@ way. If the insertion is successful, true is returned and the resulting index is
 
 @c
 bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t length, size_t *out_op_index, struct trie *helper_trie){
+    static size_t call_count = 0;
+    call_count++;
+    if (call_count >= 1300 && call_count <= 1350) {
+        printf("  [TRACE %zu] insert_substring: pattern[%zu:%zu], occupied=%zu\n",
+               call_count, end - length, end, t->occupied);
+    }
     size_t index = end - length;
     size_t base = 1;
     size_t node = base + (uint8_t) pattern[index];
@@ -2166,6 +2172,12 @@ successfully, the index for new node is stored in {\tt base} and true is returne
 
 @c
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
+    static size_t repack_count = 0;
+    repack_count++;
+    if (repack_count >= 1 && repack_count <= 50) {
+        printf("  [TRACE] repack #%zu: node=%zu, base=%zu, value='%c', occupied=%zu\n",
+               repack_count, *node, *base, value, t->occupied);
+    }
     if (!unpack(t, *base - (uint8_t) value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
         return false;
     }
@@ -2208,6 +2220,12 @@ Return true if the search and copying finishes successfully.
 
 @c
 bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
+    static size_t first_fit_count = 0;
+    first_fit_count++;
+    if (first_fit_count >= 1 && first_fit_count <= 50) {
+        printf("  [TRACE] first_fit #%zu: occupied=%zu, capacity=%zu\n",
+               first_fit_count, t->occupied, t->capacity);
+    }
     size_t base;
     if (!find_base_for_first_fit(t, q, &base)) {
         return false;
