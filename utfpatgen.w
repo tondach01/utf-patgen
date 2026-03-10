@@ -1451,6 +1451,10 @@ bool deallocate_node(struct trie *t, size_t t_index){
             printf("             WARNING: links[%zu]=%zu points to FREE node (value=%d)\n",
                    t_index, old_link, t->nodes[old_link]);
         }
+        // Check taken flag for base
+        size_t base = (t_index > 255) ? (t_index / 256) * 256 : 0;
+        bool base_taken = get_base_used(t, base);
+        printf("             base=%zu, taken=%s\n", base, base_taken ? "true" : "false");
     }
     if (t_index >= t->capacity) {
         return false;
