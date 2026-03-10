@@ -1067,8 +1067,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     ctx->params->translate_file = tr_file;
     ctx->params->dictionary_file = dict_file;
     ctx->params->hyph_level = 1;
-    ctx->params->pat_len = 2;
-    ctx->params->pat_dot = 0;
+    ctx->params->pat_len = 4;
+    ctx->params->pat_dot = 1;
 
     if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
@@ -1077,6 +1077,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
 
     printf("Processing dictionary with hyph_level=%d, pat_len=%d, pat_dot=%d\n",
            ctx->params->hyph_level, ctx->params->pat_len, ctx->params->pat_dot);
+    printf("  left_hyphen_min=%d, right_hyphen_min=%d\n",
+           ctx->params->left_hyphen_min, ctx->params->right_hyphen_min);
 
     size_t words_processed = 0;
 
