@@ -720,15 +720,9 @@ void test_free_list_head_validity(struct test_context *ctx) {
 void test_resize_during_insertion(struct test_context *ctx) {
     printf("\n---- Test: Resize During Insertion ----\n");
 
-    struct trie *small_trie = init_trie(32);
+    struct trie *small_trie = init_trie(8);
     if (small_trie == NULL) {
         printf("Failed to create small trie\n");
-        return;
-    }
-
-    if (!put_first_level(small_trie)) {
-        printf("Failed to put first level\n");
-        destroy_trie(small_trie);
         return;
     }
 
@@ -736,8 +730,8 @@ void test_resize_during_insertion(struct test_context *ctx) {
     printf("Initial capacity: %zu\n", initial_capacity);
 
     const char *patterns[] = {
-        "test", "testing", "tester", "pattern", "patterns",
-        "resize", "resizing", "trigger", "capacity", "expansion"
+        "a", "ab", "abc", "abcd", "abcde", "abcdef",
+        "b", "bc", "bcd", "bcde"
     };
 
     size_t op_index;
