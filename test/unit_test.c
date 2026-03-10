@@ -76,6 +76,17 @@ void teardown_test_context(struct test_context *ctx) {
     free(ctx);
 }
 
+/* Run a test function with automatic setup and teardown */
+void run_test(void (*test_func)(struct test_context *)) {
+    struct test_context *ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_func(ctx);
+        teardown_test_context(ctx);
+    } else {
+        printf("ERROR: Failed to setup test context\n");
+    }
+}
+
 /* Helper function to get pattern output */
 struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
     size_t trie_index = traverse_trie(pt->t, pattern);
@@ -422,61 +433,15 @@ void test_free_list_integrity(struct test_context *ctx) {
 }
 
 int main(void) {
-    struct test_context *ctx;
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_read_line(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_parse_header(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_trie(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_read_letters(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_read_translate(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_parse_word(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_hyphenate_word(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_patterns(ctx);
-        teardown_test_context(ctx);
-    }
-
-    ctx = setup_test_context();
-    if (ctx != NULL) {
-        test_free_list_integrity(ctx);
-        teardown_test_context(ctx);
-    }
+    run_test(test_read_line);
+    run_test(test_parse_header);
+    run_test(test_trie);
+    run_test(test_read_letters);
+    run_test(test_read_translate);
+    run_test(test_parse_word);
+    run_test(test_hyphenate_word);
+    run_test(test_patterns);
+    run_test(test_free_list_integrity);
 
     return 0;
 }
