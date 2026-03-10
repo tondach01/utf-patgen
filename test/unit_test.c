@@ -1147,6 +1147,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
             if (loop_detected) {
                 printf("Last processed word: '%s'\n", ctx->word->lowercase);
                 return;
+            } else {
+                printf("  Free list OK at word %zu (traversed %zu free nodes)\n", words_processed, count);
             }
         }
 
