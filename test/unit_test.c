@@ -430,6 +430,225 @@ void test_free_list_integrity(struct test_context *ctx) {
     }
 }
 
+void test_stress_patterns(struct test_context *ctx) {
+    printf("\n---- Stress Test: Many Patterns ----\n");
+
+    /* Insert a large number of patterns to stress test the trie */
+    const char *prefixes[] = {"a", "b", "c", "d", "e", "f", "g", "h"};
+    const char *middles[] = {"t", "n", "s", "r", "l"};
+    const char *suffixes[] = {"ing", "ed", "er", "ly", "tion"};
+
+    size_t op_index;
+    size_t success_count = 0;
+    size_t total_patterns = 0;
+
+    /* Generate combinations */
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++) {
+        for (size_t j = 0; j < sizeof(middles) / sizeof(middles[0]); j++) {
+            for (size_t k = 0; k < sizeof(suffixes) / sizeof(suffixes[0]); k++) {
+                char pattern[64];
+                snprintf(pattern, sizeof(pattern), "%s%s%s", prefixes[i], middles[j], suffixes[k]);
+                total_patterns++;
+                if (insert_pattern(ctx->pt->t, pattern, &op_index, ctx->helper_trie)) {
+                    success_count++;
+                }
+            }
+        }
+    }
+
+    printf("Inserted %zu/%zu patterns successfully\n", success_count, total_patterns);
+
+    /* Verify free list integrity after stress test */
+    struct trie *t = ctx->pt->t;
+    size_t current = t->links[0];
+    size_t count = 0;
+    bool loop_detected = false;
+
+    while (current != 0 && count < t->capacity) {
+        if (current >= t->capacity) {
+            printf("ERROR: Free list corrupted\n");
+            loop_detected = true;
+            break;
+        }
+        current = t->links[current];
+        count++;
+    }
+
+    if (!loop_detected) {
+        printf("Free list integrity maintained after stress test\n");
+    }
+}
+
+void test_duplicate_patterns(struct test_context *ctx) {
+    printf("\n---- Test: Duplicate Pattern Insertion ----\n");
+
+    const char *pattern = "test";
+    size_t op_index1, op_index2;
+
+    if (!insert_pattern(ctx->pt->t, pattern, &op_index1, ctx->helper_trie)) {
+        printf("Failed to insert pattern first time\n");
+        return;
+    }
+    printf("First insertion: op_index=%zu\n", op_index1);
+
+    size_t occupied_after_first = ctx->pt->t->occupied;
+
+    if (!insert_pattern(ctx->pt->t, pattern, &op_index2, ctx->helper_trie)) {
+        printf("Failed to insert pattern second time\n");
+        return;
+    }
+    printf("Second insertion: op_index=%zu\n", op_index2);
+
+    size_t occupied_after_second = ctx->pt->t->occupied;
+
+    if (op_index1 == op_index2) {
+        printf("Duplicate pattern correctly returned same node\n");
+    } else {
+        printf("WARNING: Duplicate pattern returned different nodes\n");
+    }
+
+    if (occupied_after_first == occupied_after_second) {
+        printf("Occupied count correctly unchanged: %zu\n", occupied_after_first);
+    } else {
+        printf("ERROR: Occupied changed from %zu to %zu\n", occupied_after_first, occupied_after_second);
+    }
+}
+
+void test_empty_and_single_char_patterns(struct test_context *ctx) {
+    printf("\n---- Test: Edge Case Patterns ----\n");
+
+    size_t op_index;
+
+    /* Single character patterns */
+    const char *single_chars[] = {"a", "z", "1", "9"};
+    for (size_t i = 0; i < sizeof(single_chars) / sizeof(single_chars[0]); i++) {
+        if (insert_pattern(ctx->pt->t, single_chars[i], &op_index, ctx->helper_trie)) {
+            printf("Single char pattern '%s' inserted successfully\n", single_chars[i]);
+        } else {
+            printf("Failed to insert single char pattern '%s'\n", single_chars[i]);
+        }
+    }
+
+    /* Two character patterns */
+    const char *two_chars[] = {"ab", "zy", "12"};
+    for (size_t i = 0; i < sizeof(two_chars) / sizeof(two_chars[0]); i++) {
+        if (insert_pattern(ctx->pt->t, two_chars[i], &op_index, ctx->helper_trie)) {
+            printf("Two char pattern '%s' inserted successfully\n", two_chars[i]);
+        } else {
+            printf("Failed to insert two char pattern '%s'\n", two_chars[i]);
+        }
+    }
+
+    /* Verify occupied count */
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < ctx->pt->t->capacity; i++) {
+        if (ctx->pt->t->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == ctx->pt->t->occupied) {
+        printf("Occupied count correct: %zu\n", ctx->pt->t->occupied);
+    } else {
+        printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", ctx->pt->t->occupied, actual_occupied);
+    }
+}
+
+void test_long_patterns(struct test_context *ctx) {
+    printf("\n---- Test: Long Patterns ----\n");
+
+    /* Test with increasingly long patterns */
+    char pattern[128];
+    size_t op_index;
+
+    for (size_t len = 5; len <= 50; len += 5) {
+        memset(pattern, 'a', len);
+        pattern[len] = '\0';
+
+        if (insert_pattern(ctx->pt->t, pattern, &op_index, ctx->helper_trie)) {
+            printf("Pattern of length %zu inserted successfully\n", len);
+        } else {
+            printf("Failed to insert pattern of length %zu\n", len);
+            return;
+        }
+    }
+
+    /* Check free list */
+    struct trie *t = ctx->pt->t;
+    size_t current = t->links[0];
+    size_t count = 0;
+
+    while (current != 0 && count < t->capacity) {
+        if (current >= t->capacity) {
+            printf("ERROR: Free list corrupted after long patterns\n");
+            return;
+        }
+        current = t->links[current];
+        count++;
+    }
+
+    printf("Free list intact after long patterns, %zu free nodes\n", count);
+}
+
+void test_deallocate_and_reallocate(struct test_context *ctx) {
+    printf("\n---- Test: Deallocate and Reallocate ----\n");
+
+    /* Insert some patterns */
+    const char *patterns[] = {"temp1", "temp2", "temp3"};
+    size_t op_indices[3];
+
+    for (size_t i = 0; i < 3; i++) {
+        if (!insert_pattern(ctx->pt->t, patterns[i], &op_indices[i], ctx->helper_trie)) {
+            printf("Failed to insert pattern '%s'\n", patterns[i]);
+            return;
+        }
+    }
+
+    size_t occupied_before = ctx->pt->t->occupied;
+    printf("Occupied before deallocate: %zu\n", occupied_before);
+
+    /* Deallocate middle pattern's node */
+    if (deallocate_node(ctx->pt->t, op_indices[1])) {
+        printf("Deallocated node at index %zu\n", op_indices[1]);
+    }
+
+    size_t occupied_after_dealloc = ctx->pt->t->occupied;
+    printf("Occupied after deallocate: %zu\n", occupied_after_dealloc);
+
+    if (occupied_after_dealloc == occupied_before - 1) {
+        printf("Occupied count correctly decremented\n");
+    } else {
+        printf("ERROR: Occupied count incorrect after deallocate\n");
+    }
+
+    /* Insert a new pattern - should reuse freed space */
+    size_t new_op_index;
+    if (insert_pattern(ctx->pt->t, "newpattern", &new_op_index, ctx->helper_trie)) {
+        printf("New pattern inserted after deallocation\n");
+    }
+
+    /* Verify free list integrity */
+    struct trie *t = ctx->pt->t;
+    size_t current = t->links[0];
+    size_t count = 0;
+    bool loop_detected = false;
+
+    while (current != 0 && count < t->capacity) {
+        if (current >= t->capacity) {
+            loop_detected = true;
+            break;
+        }
+        current = t->links[current];
+        count++;
+    }
+
+    if (!loop_detected) {
+        printf("Free list integrity maintained after deallocate/reallocate\n");
+    } else {
+        printf("ERROR: Free list corrupted\n");
+    }
+}
+
 int main(void) {
     run_test(test_read_line);
     run_test(test_parse_header);
@@ -440,6 +659,12 @@ int main(void) {
     run_test(test_hyphenate_word);
     run_test(test_patterns);
     run_test(test_free_list_integrity);
+    run_test(test_stress_patterns);
+    run_test(test_duplicate_patterns);
+    run_test(test_empty_and_single_char_patterns);
+    run_test(test_long_patterns);
+    run_test(test_deallocate_and_reallocate);
 
     return 0;
 }
+
