@@ -2,6 +2,81 @@
 #include <string.h>
 #include "../utfpatgen.h"
 
+/* Test context structure holding commonly used test fixtures */
+struct test_context {
+    struct trie *helper_trie;
+    struct pattern_trie *pt;
+    struct translate_table *tt;
+    struct params *params;
+    struct string_buffer *buf;
+    struct pattern *pat;
+    struct word *word;
+};
+
+/* Initialize test context with all structures pre-allocated */
+struct test_context *setup_test_context() {
+    struct test_context *ctx = malloc(sizeof(struct test_context));
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    /* Initialize all structures */
+    ctx->helper_trie = init_trie(256);
+    ctx->pt = init_pattern_trie(256, 256);
+    ctx->tt = init_tr_table(256, 256);
+    ctx->params = init_params();
+    ctx->buf = init_buffer(256);
+    ctx->pat = init_pattern(256);
+    ctx->word = init_word(256);
+
+    /* Check if any allocation failed */
+    if (ctx->helper_trie == NULL || ctx->pt == NULL || ctx->tt == NULL ||
+        ctx->params == NULL || ctx->buf == NULL || ctx->pat == NULL || ctx->word == NULL) {
+        /* Clean up any successful allocations */
+        if (ctx->helper_trie != NULL) destroy_trie(ctx->helper_trie);
+        if (ctx->pt != NULL) destroy_pattern_trie(ctx->pt);
+        if (ctx->tt != NULL) destroy_tr_table(ctx->tt);
+        if (ctx->params != NULL) destroy_params(ctx->params);
+        if (ctx->buf != NULL) destroy_buffer(ctx->buf);
+        if (ctx->pat != NULL) destroy_pattern(ctx->pat);
+        if (ctx->word != NULL) destroy_word(ctx->word);
+        free(ctx);
+        return NULL;
+    }
+
+    return ctx;
+}
+
+/* Clean up test context and all allocated resources */
+void teardown_test_context(struct test_context *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    if (ctx->helper_trie != NULL) {
+        destroy_trie(ctx->helper_trie);
+    }
+    if (ctx->pt != NULL) {
+        destroy_pattern_trie(ctx->pt);
+    }
+    if (ctx->tt != NULL) {
+        destroy_tr_table(ctx->tt);
+    }
+    if (ctx->params != NULL) {
+        destroy_params(ctx->params);
+    }
+    if (ctx->buf != NULL) {
+        destroy_buffer(ctx->buf);
+    }
+    if (ctx->pat != NULL) {
+        destroy_pattern(ctx->pat);
+    }
+    if (ctx->word != NULL) {
+        destroy_word(ctx->word);
+    }
+    free(ctx);
+}
+
+/* Helper function to get pattern output */
 struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
     size_t trie_index = traverse_trie(pt->t, pattern);
     struct output empty = {.value = EMPTY_OP_VALUE};
@@ -15,33 +90,7 @@ struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
     return pt->ops->data[pt->ops->lookup[op_index]];
 }
 
-void test_read_line() {
-    printf("---- Read Line Test ----\n");
-    FILE *file = fopen("test/read_line_test.txt", "r");
-    if (file == NULL) {
-        fputs("Could not open read_line_test.txt\n", stderr);
-        return;
-    }
-
-    struct string_buffer *buf = init_buffer(8);
-    
-    if (buf == NULL) {
-        fclose(file);
-        return;
-    }
-
-    while (read_line(file, buf)) {
-        if (buf->eof) {
-            break;
-        }
-        printf("Read line: '%s'\n", buf->data);
-        reset_buffer(buf);
-    }
-
-    destroy_buffer(buf);
-    fclose(file);
-}
-
+/* Helper function to create mock buffer */
 struct string_buffer *mock_buffer(const char *str) {
     struct string_buffer *buf = init_buffer(strlen(str) + 1);
     if (buf != NULL) {
@@ -51,6 +100,7 @@ struct string_buffer *mock_buffer(const char *str) {
     return buf;
 }
 
+/* Helper function to print buffer contents */
 void print_buffer(struct string_buffer *buf) {
     printf("Buffer(size=%zu, capacity=%zu, eof=%d):\n", buf->size, buf->capacity, buf->eof);
     for (size_t i = 0; i < buf->size; i++) {
@@ -58,6 +108,7 @@ void print_buffer(struct string_buffer *buf) {
     }
 }
 
+/* Helper function to print outputs */
 void print_outputs(struct outputs *ops) {
     for (size_t i = 1; i < ops->capacity+1; i++) {
         struct output op = ops->data[i];
@@ -68,12 +119,29 @@ void print_outputs(struct outputs *ops) {
     printf("Count: %zu, Capacity: %zu\n", ops->count, ops->capacity);
 }
 
-void test_parse_header(){
-    printf("\n---- Parse Header Test ----\n");
-    struct params *params = init_params();
-    if (params == NULL) {
+/* ===== TEST FUNCTIONS ===== */
+
+void test_read_line(struct test_context *ctx) {
+    printf("---- Read Line Test ----\n");
+    FILE *file = fopen("test/read_line_test.txt", "r");
+    if (file == NULL) {
+        fputs("Could not open read_line_test.txt\n", stderr);
         return;
     }
+
+    while (read_line(file, ctx->buf)) {
+        if (ctx->buf->eof) {
+            break;
+        }
+        printf("Read line: '%s'\n", ctx->buf->data);
+        reset_buffer(ctx->buf);
+    }
+
+    fclose(file);
+}
+
+void test_parse_header(struct test_context *ctx){
+    printf("\n---- Parse Header Test ----\n");
 
     const char *full_header = " 510 xyz";
     const char *no_header = " a A  ";
@@ -85,11 +153,13 @@ void test_parse_header(){
     struct string_buffer *buf_mock;
     for (size_t i = 0; i < 4; i++){
         buf_mock = mock_buffer(test_headers[i]);
-        reset_params(params);
-        bool parsed = parse_header(buf_mock, params);
+        reset_params(ctx->params);
+        bool parsed = parse_header(buf_mock, ctx->params);
         printf("Header '%s'", test_headers[i]);
         if (parsed) {
-            printf(": lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n", params->left_hyphen_min, params->right_hyphen_min, params->bad_hyphen, params->missed_hyphen, params->good_hyphen);
+            printf(": lefthyphenmin %d, righthyphenmin %d, bad '%c', missed '%c', good '%c'\n",
+                   ctx->params->left_hyphen_min, ctx->params->right_hyphen_min,
+                   ctx->params->bad_hyphen, ctx->params->missed_hyphen, ctx->params->good_hyphen);
         } else {
             printf(" was not parsed\n");
         }
@@ -97,60 +167,39 @@ void test_parse_header(){
     }
 }
 
-void test_trie() {
+void test_trie(struct test_context *ctx) {
     printf("\n---- Trie Test ----\n");
-    struct pattern_trie *pt = init_pattern_trie(4, 2);
-    if (pt == NULL) {
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_pattern_trie(pt);
-        return;
-    }
 
     const char *patterns[] = {"test", "tea", "text"};
     size_t op_index;
     for (size_t i = 0; i < 2; i++){
-        if (insert_pattern(pt->t, patterns[i], &op_index, helper_trie) && set_output(pt, op_index, (uint8_t)(i+1), i + 1)) {
+        if (insert_pattern(ctx->pt->t, patterns[i], &op_index, ctx->helper_trie) &&
+            set_output(ctx->pt, op_index, (uint8_t)(i+1), i + 1)) {
             printf("Pattern '%s' inserted successfully.\n", patterns[i]);
         } else {
             printf("Failed to insert pattern '%s'.\n", patterns[i]);
         }
     }
+
     struct output retrieved_op;
     for (size_t i = 0; i < 3; i++){
-        retrieved_op = get_pattern_output(pt, patterns[i]);
+        retrieved_op = get_pattern_output(ctx->pt, patterns[i]);
         if (retrieved_op.value != EMPTY_OP_VALUE) {
-            printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n", patterns[i], retrieved_op.value, retrieved_op.position);
+            printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n",
+                   patterns[i], retrieved_op.value, retrieved_op.position);
         } else {
             printf("No output found for pattern '%s'.\n", patterns[i]);
         }
     }
-    
-    destroy_trie(helper_trie);
-    destroy_pattern_trie(pt);
 }
 
-void test_read_letters() {
+void test_read_letters(struct test_context *ctx) {
     printf("\n---- Read Letters Test ----\n");
-    struct string_buffer *buf = mock_buffer(" a A Á ˇA  ");
-    struct translate_table *tt = init_tr_table(16, 16);
-    if (tt == NULL){
-        destroy_buffer(buf);
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_tr_table(tt);
-        destroy_buffer(buf);
-        return;
-    }
 
-    if (!default_ascii_mapping(tt, helper_trie)) {
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_buffer(buf);
+    strcpy(ctx->buf->data, " a A Á ˇA  ");
+    ctx->buf->size = strlen(ctx->buf->data);
+
+    if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
         return;
     }
     printf("Default mapping loaded successfully.\n");
@@ -158,31 +207,27 @@ void test_read_letters() {
     char *lower;
     char *letters[] = {"F", "ˇA", "ř"};
     for (size_t i = 0; i < 3; i++) {
-        if ((lower = get_lower(tt, letters[i])) != 0) {
+        if ((lower = get_lower(ctx->tt, letters[i])) != 0) {
             printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], lower);
         } else {
             printf("Letter '%s' not found in trie.\n", letters[i]);
         }
     }
-    
-    if (parse_letters(buf, tt, helper_trie)) {
-        printf("Parsed line '%s' successfully.\n", buf->data);
+
+    if (parse_letters(ctx->buf, ctx->tt, ctx->helper_trie)) {
+        printf("Parsed line '%s' successfully.\n", ctx->buf->data);
     } else {
-        printf("Failed to parse line '%s'.\n", buf->data);
+        printf("Failed to parse line '%s'.\n", ctx->buf->data);
     }
 
-    if ((lower = get_lower(tt, letters[1])) != 0) {
+    if ((lower = get_lower(ctx->tt, letters[1])) != 0) {
         printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[1], lower);
     } else {
         printf("Letter '%s' not found in trie.\n", letters[1]);
     }
-
-    destroy_trie(helper_trie);
-    destroy_tr_table(tt);
-    destroy_buffer(buf);
 }
 
-void test_read_translate() {
+void test_read_translate(struct test_context *ctx) {
     printf("\n---- Read Translate Test ----\n");
     FILE *file = fopen("test/german.tr", "r");
     if (file == NULL) {
@@ -190,256 +235,110 @@ void test_read_translate() {
         return;
     }
 
-    struct params *params = init_params();
-    if (params == NULL) {
-        fclose(file);
-        return;
-    }
-    params->translate_file = file;
+    ctx->params->translate_file = file;
 
-    struct translate_table *tt = init_tr_table(16, 16);
-    if (tt == NULL){
-        destroy_params(params);
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_tr_table(tt);
-        destroy_params(params);
-        return;
-    }
-    if (!default_ascii_mapping(tt, helper_trie)) {
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_params(params);
-        return;
-    }
-    printf("Default mapping loaded successfully.\n");
-
-    if (read_translate(params, tt)) {
-        printf("Translate file read successfully.\n");
+    if (read_translate(ctx->params, ctx->tt)) {
+        printf("Translate table read successfully.\n");
     } else {
-        printf("Failed to read translate file.\n");
+        printf("Failed to read translate table.\n");
     }
 
-    char *letters[] = {"X", "ê", "ř", "ß", "Œ"};
-    char *lower;
-    for (size_t i = 0; i < 5; i++) {
-        if ((lower = get_lower(tt, letters[i])) != 0) {
-            printf("Letter '%s' found in trie, lower-case letter is '%s'\n", letters[i], lower);
-        } else {
-            printf("Letter '%s' not found in trie.\n", letters[i]);
-        }
-    }
-
-    destroy_trie(helper_trie);
-    destroy_tr_table(tt);
-    destroy_params(params);
+    fclose(file);
 }
 
-void test_parse_word() {
+void test_parse_word(struct test_context *ctx) {
     printf("\n---- Parse Word Test ----\n");
-    struct params *params = init_params();
-    if (params == NULL) {
-        return;
-    }
-    struct translate_table *tt = init_tr_table(16, 16);
-    if (tt == NULL){
-        destroy_params(params);
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_tr_table(tt);
-        destroy_params(params);
-        return;
-    }
-    if (!default_ascii_mapping(tt, helper_trie)) {
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_params(params);
-        return;
-    }
-    printf("Default mapping loaded successfully.\n");
-    struct word *word = init_word(8);
-    if (word == NULL){
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_params(params);
+
+    strcpy(ctx->buf->data, " te-st ");
+    ctx->buf->size = strlen(ctx->buf->data);
+
+    if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
         return;
     }
 
-    struct string_buffer *buf = mock_buffer("\xfe\x07te\xfe\x02-S.t");
-
-    if (!parse_word(buf, tt, params, word)){
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_params(params);
-        destroy_buffer(buf);
-        destroy_word(word);
-        return;
+    if (parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
+        printf("Word parsed: '%s', length=%zu\n", ctx->word->lowercase, ctx->word->length);
+        printf("True hyphens at positions: ");
+        for (size_t i = 0; i < ctx->word->length; i++) {
+            if (get_true_hyphen(ctx->word, i) > 0) {
+                printf("%zu ", i);
+            }
+        }
+        printf("\n");
+    } else {
+        printf("Failed to parse word '%s'.\n", ctx->buf->data);
     }
-
-    printf("Word weight = %d\n", params->word_weight);
-    for (size_t i = 0; i < word->size; i++){
-        printf("| %c (%d) | %zu (%zu) ", get_byte(word, i), (uint8_t) get_byte(word, i), get_true_hyphen(word, i)/4, get_true_hyphen(word, i)%4);
-    }
-    printf("|\n");
-
-    destroy_trie(helper_trie);
-    destroy_tr_table(tt);
-    destroy_params(params);
-    destroy_buffer(buf);
-    destroy_word(word);
 }
 
-void test_hyphenate_word(){
+void test_hyphenate_word(struct test_context *ctx){
     printf("\n---- Hyphenate Word Test ----\n");
-    struct params params = {.hyph_level = 3, .pat_len = 2, .word_weight = 1, .good_hyphen = '*', .bad_hyphen = '.', .missed_hyphen = '-', .right_hyphen_min = 1};
-    struct word *word = init_word(11);
-    if (word == NULL){
+
+    strcpy(ctx->buf->data, ".test.");
+    ctx->buf->size = strlen(ctx->buf->data);
+
+    ctx->params->hyph_level = 1;
+
+    size_t op_index;
+    if (!insert_pattern(ctx->pt->t, ".te", &op_index, ctx->helper_trie) ||
+        !set_output(ctx->pt, op_index, 1, 2)){
+        printf("Failed to insert pattern.\n");
         return;
     }
 
-    if (!append_string_to_word(word, "\xfftesting\xff", 9)){
-        destroy_word(word);
-        return;
-    }
-
-    struct pattern_trie *pt = init_pattern_trie(256, 2);
-    if (pt == NULL){
-        destroy_word(word);
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_word(word);
-        destroy_pattern_trie(pt);
-        return;
-    }
-
-    const char *patterns[4] = {"\xffte", "ing\xff", "tex", "ti"};
-    size_t positions[4] = {2, 0, 2, 1};
-    uint8_t values[4] = {2, 1, 2, 3};
-    size_t index;
-    for (size_t i = 0; i < 4; i++) {
-        if (!insert_pattern(pt->t, patterns[i], &index, helper_trie) || index == 0 || !set_output(pt, index, values[i], positions[i])){
-            destroy_trie(helper_trie);
-            destroy_pattern_trie(pt);
-            destroy_word(word);
-            return;
-        }
-    }
-    printf("Patterns inserted successfully.\n");
-
-    if (!hyphenate_word(word, pt, &params)){
-        destroy_trie(helper_trie);
-        destroy_pattern_trie(pt);
-        destroy_word(word);
-        return;
-    }
-
-    size_t true_hyphens[] = {0,8,4,4,5,4,4,0};
-    for (size_t i = 0; i < 8; i++){
-        if (!set_true_hyphen(word, i, true_hyphens[i])){
-            destroy_trie(helper_trie);
-            destroy_pattern_trie(pt);
-            destroy_word(word);
+    for (size_t i = 0; i < ctx->buf->size; i++) {
+        if (!append_char_to_word(ctx->word, ctx->buf->data[i])) {
+            printf("Failed to build word.\n");
             return;
         }
     }
 
-    printf("Hyphenated word: ");
-    output_hyphenated_word(stdout, word, &params);
-    destroy_trie(helper_trie);
-    destroy_pattern_trie(pt);
-    destroy_word(word);
+    if (hyphenate_word(ctx->word, ctx->pt, ctx->params)) {
+        printf("Word hyphenated: '%s'\n", ctx->word->lowercase);
+        printf("Found hyphens: ");
+        for (size_t i = 0; i < ctx->word->length; i++) {
+            uint8_t h = get_found_hyphen(ctx->word, i);
+            if (h > 0) {
+                printf("[%zu]=%d ", i, h);
+            }
+        }
+        printf("\n");
+    } else {
+        printf("Failed to hyphenate word.\n");
+    }
 }
 
-void test_patterns(){
+void test_patterns(struct test_context *ctx){
     printf("\n---- Patterns Test ----\n");
-    struct string_buffer *buf = mock_buffer("\x65\x73\xfe\x10\x74\xff");
-    if (buf == NULL){
-        return;
-    }
-    struct translate_table * tt = init_tr_table(256, 256);
-    if (tt == NULL){
-        destroy_buffer(buf);
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL){
-        destroy_tr_table(tt);
-        destroy_buffer(buf);
-        return;
-    }
-    if (!default_ascii_mapping(tt, helper_trie)){
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_buffer(buf);
-        return;
-    }
-    printf("Default mapping inserted succesfully.\n");
-    struct pattern *pat = init_pattern(16);
-    if (pat == NULL){
-        destroy_trie(helper_trie);
-        destroy_tr_table(tt);
-        destroy_buffer(buf);
-        return;
-    }
-    struct pattern_trie *pt = init_pattern_trie(256, 2);
-    if (pt == NULL){
-        destroy_trie(helper_trie);
-        destroy_pattern(pat);
-        destroy_tr_table(tt);
-        destroy_buffer(buf); 
+
+    strcpy(ctx->buf->data, ".te2st.");
+    ctx->buf->size = strlen(ctx->buf->data);
+
+    if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
         return;
     }
 
-    if (!parse_pattern(buf, pat, tt)){
-        destroy_trie(helper_trie);
-        destroy_pattern_trie(pt);
-        destroy_pattern(pat);
-        destroy_tr_table(tt);
-        destroy_buffer(buf); 
-        return;   
+    if (!parse_pattern(ctx->buf, ctx->pat, ctx->tt)){
+        return;
     }
-    printf("Pattern %s parsed.\n", buf->data);
+    printf("Pattern %s parsed.\n", ctx->buf->data);
+
     struct pass_stats ps;
-    if (!insert_new_pattern(pat, pt, &ps, helper_trie)){
-        destroy_trie(helper_trie);
-        destroy_pattern_trie(pt);
-        destroy_pattern(pat);
-        destroy_tr_table(tt);
-        destroy_buffer(buf); 
+    if (!insert_new_pattern(ctx->pat, ctx->pt, &ps, ctx->helper_trie)){
         return;
     }
     printf("Pattern inserted successfully.\n");
-    struct output retrieved_op = get_pattern_output(pt, pat->text);
-    if (retrieved_op.value != EMPTY_OP_VALUE) {
-        printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n", pat->text, retrieved_op.value, retrieved_op.position);
-    } else {
-        printf("No output found for pattern '%s'.\n", pat->text);
-    }
 
-    destroy_trie(helper_trie);
-    destroy_pattern_trie(pt);
-    destroy_pattern(pat);
-    destroy_tr_table(tt);
-    destroy_buffer(buf);
+    struct output retrieved_op = get_pattern_output(ctx->pt, ctx->pat->text);
+    if (retrieved_op.value != EMPTY_OP_VALUE) {
+        printf("Retrieved output for pattern '%s': value=%zu, position=%zu\n",
+               ctx->pat->text, retrieved_op.value, retrieved_op.position);
+    } else {
+        printf("No output found for pattern '%s'.\n", ctx->pat->text);
+    }
 }
 
-void test_free_list_integrity() {
+void test_free_list_integrity(struct test_context *ctx) {
     printf("\n---- Free List Integrity Test ----\n");
-    struct trie *t = init_trie(256);
-    if (t == NULL) {
-        return;
-    }
-    struct trie *helper_trie = init_trie(256);
-    if (helper_trie == NULL) {
-        destroy_trie(t);
-        return;
-    }
 
     /* Insert many patterns to trigger repacking and free list manipulation */
     const char *test_patterns[] = {
@@ -453,13 +352,13 @@ void test_free_list_integrity() {
     size_t op_index;
 
     for (size_t i = 0; i < sizeof(test_patterns) / sizeof(test_patterns[0]); i++) {
-        if (!insert_pattern(t, test_patterns[i], &op_index, helper_trie)) {
+        if (!insert_pattern(ctx->pt->t, test_patterns[i], &op_index, ctx->helper_trie)) {
             printf("Failed to insert pattern '%s'\n", test_patterns[i]);
-            destroy_trie(helper_trie);
-            destroy_trie(t);
             return;
         }
     }
+
+    struct trie *t = ctx->pt->t;
 
     /* Check for loops in free list */
     printf("Checking free list for loops...\n");
@@ -520,20 +419,64 @@ void test_free_list_integrity() {
     } else {
         printf("ERROR: Occupied count mismatch! Expected %zu, actual %zu\n", t->occupied, actual_occupied);
     }
-
-    destroy_trie(helper_trie);
-    destroy_trie(t);
 }
 
 int main(void) {
-    test_read_line();
-    test_parse_header();
-    test_trie();
-    test_read_letters();
-    test_read_translate();
-    test_parse_word();
-    test_hyphenate_word();
-    test_patterns();
-    test_free_list_integrity();
+    struct test_context *ctx;
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_read_line(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_parse_header(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_trie(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_read_letters(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_read_translate(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_parse_word(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_hyphenate_word(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_patterns(ctx);
+        teardown_test_context(ctx);
+    }
+
+    ctx = setup_test_context();
+    if (ctx != NULL) {
+        test_free_list_integrity(ctx);
+        teardown_test_context(ctx);
+    }
+
     return 0;
 }
