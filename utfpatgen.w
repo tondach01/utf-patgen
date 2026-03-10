@@ -1440,7 +1440,7 @@ Removes unused node from a trie. Returns true upon success.
 bool deallocate_node(struct trie *t, size_t t_index){
     static size_t dealloc_count = 0;
     dealloc_count++;
-    if (dealloc_count >= 800 && dealloc_count <= 900) {
+    if (dealloc_count >= 1 && dealloc_count <= 2000) {
         printf("      [TRACE] deallocate_node #%zu:\n", dealloc_count);
         printf("             index=%zu, value=%d\n", t_index, t->nodes[t_index]);
         printf("             BEFORE: free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
@@ -1450,7 +1450,7 @@ bool deallocate_node(struct trie *t, size_t t_index){
         return false;
     }
     if (t->nodes[t_index] == 0) {
-        if (dealloc_count >= 800 && dealloc_count <= 900) {
+        if (dealloc_count >= 1 && dealloc_count <= 2000) {
             printf("      [ERROR] Attempted to deallocate already-free node %zu\n", t_index);
         }
         return false;
@@ -1469,7 +1469,7 @@ bool deallocate_node(struct trie *t, size_t t_index){
         t->aux[next_free] = t_index;
     }
     t->occupied--;
-    if (dealloc_count >= 800 && dealloc_count <= 900) {
+    if (dealloc_count >= 1 && dealloc_count <= 2000) {
         printf("             AFTER:  free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
                t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
         printf("             next_free was=%zu, aux[next_free]=%zu\n", next_free, next_free > 0 ? t->aux[next_free] : 0);
