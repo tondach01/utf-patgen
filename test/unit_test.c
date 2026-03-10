@@ -1071,6 +1071,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     ctx->params->pat_dot = 0;
     ctx->params->left_hyphen_min = 2;
     ctx->params->right_hyphen_min = 2;
+    ctx->params->good_dot = GOOD_HYF;
+    ctx->params->bad_dot = BAD_HYF;
 
     if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
@@ -1081,9 +1083,11 @@ void test_process_dictionary_loop(struct test_context *ctx) {
            ctx->params->hyph_level, ctx->params->pat_len, ctx->params->pat_dot);
     printf("  left_hyphen_min=%d, right_hyphen_min=%d\n",
            ctx->params->left_hyphen_min, ctx->params->right_hyphen_min);
+    printf("  good_dot=%d, bad_dot=%d\n", ctx->params->good_dot, ctx->params->bad_dot);
     printf("  Initial ct->t->occupied=%zu\n", ctx->ct->t->occupied);
 
     size_t words_processed = 0;
+    size_t first_word_logged = 0;
 
     rewind(dict_file);
     while (!feof(dict_file)) {
@@ -1098,6 +1102,17 @@ void test_process_dictionary_loop(struct test_context *ctx) {
         reset_word(ctx->word);
         if (!parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
             continue;
+        }
+
+        if (first_word_logged < 3) {
+            printf("  Word %zu: '%s' (length=%zu, size=%zu)\n",
+                   words_processed + 1, ctx->word->lowercase, ctx->word->length, ctx->word->size);
+            printf("    True hyphens: ");
+            for (size_t i = 0; i < ctx->word->size; i++) {
+                printf("%zu ", get_true_hyphen(ctx->word, i));
+            }
+            printf("\n");
+            first_word_logged++;
         }
 
         if (!process_word(ctx->word, ctx->ct, ctx->params, ctx->helper_trie)) {
