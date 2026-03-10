@@ -1071,8 +1071,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     ctx->params->pat_dot = 0;
     ctx->params->left_hyphen_min = 2;
     ctx->params->right_hyphen_min = 2;
-    ctx->params->good_dot = GOOD_HYF;
-    ctx->params->bad_dot = BAD_HYF;
+    ctx->params->good_dot = MISS_HYF;
+    ctx->params->bad_dot = NO_HYF;
 
     if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
