@@ -1445,6 +1445,12 @@ bool deallocate_node(struct trie *t, size_t t_index){
         printf("             index=%zu, value=%d\n", t_index, t->nodes[t_index]);
         printf("             BEFORE: free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
                t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
+        // Check if links[t_index] points to a free node
+        size_t old_link = t->links[t_index];
+        if (old_link < t->capacity && t->nodes[old_link] == 0) {
+            printf("             WARNING: links[%zu]=%zu points to FREE node (value=%d)\n",
+                   t_index, old_link, t->nodes[old_link]);
+        }
     }
     if (t_index >= t->capacity) {
         return false;
