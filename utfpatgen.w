@@ -2113,7 +2113,6 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
                 if (!repack(t, helper_trie, &node_prev, &node, pattern[index])) {
                     return false;
                 }
-                t->occupied++;
             }
         }
         index++;
