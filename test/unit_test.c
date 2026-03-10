@@ -789,6 +789,12 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
         return;
     }
 
+    if (!put_first_level(test_trie)) {
+        printf("Failed to put first level\n");
+        destroy_trie(test_trie);
+        return;
+    }
+
     const char *patterns[] = {"abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx"};
     size_t trie_indices[8];
 
