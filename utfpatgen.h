@@ -214,7 +214,7 @@ bool get_no_more(struct word *word, size_t index);
 bool set_no_more(struct word *word, size_t index, bool value);
 
 #ifndef BAD_OP_VALUE
-#define BAD_OP_VALUE (size_t) SIZE_MAX
+#define BAD_OP_VALUE (size_t) 255
 #endif
 
 #ifndef EMPTY_OP_VALUE

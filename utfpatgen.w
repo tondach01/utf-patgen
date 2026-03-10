@@ -1643,16 +1643,18 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                         dot_pos++;
                     }
                 }
-                dot_index--;
-                if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
-                    if (!set_found_hyphen(word, dot_index, op.value)){
-                        return false;
-                    }
-                }
-                if (op.value >= params->hyph_level){
-                    if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
-                        if (!set_no_more(word, dot_index, true)){
+                if (dot_index > 0){
+                    dot_index--;
+                    if (op.value < BAD_OP_VALUE && get_found_hyphen(word, dot_index) < op.value){
+                        if (!set_found_hyphen(word, dot_index, op.value)){
                             return false;
+                        }
+                    }
+                    if (op.value < BAD_OP_VALUE && op.value >= params->hyph_level){
+                        if ((end_pos + params->pat_dot <= dot_pos + params->pat_len) && (dot_pos <= start_pos + params->pat_dot)){
+                            if (!set_no_more(word, dot_index, true)){
+                                return false;
+                            }
                         }
                     }
                 }
@@ -2192,11 +2194,14 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
-        if (/*!set_links(t, get_aux(t, t_index), t->links[t_index]) ||*/ !copy_node(q, q_index, t, t_index)) {
+        if (!set_links(t, get_aux(t, t_index), t->links[t_index])){
+            return false;
+        }
+        if (!copy_node(q, q_index, t, t_index)) {
             return false;
         }
     }
-    relink_trie(t);
+    //relink_trie(t);
     if (!set_base_used(t, base, true)){
         return false;
     }
