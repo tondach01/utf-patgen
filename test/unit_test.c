@@ -1081,6 +1081,7 @@ void test_process_dictionary_loop(struct test_context *ctx) {
            ctx->params->hyph_level, ctx->params->pat_len, ctx->params->pat_dot);
     printf("  left_hyphen_min=%d, right_hyphen_min=%d\n",
            ctx->params->left_hyphen_min, ctx->params->right_hyphen_min);
+    printf("  Initial ct->t->occupied=%zu\n", ctx->ct->t->occupied);
 
     size_t words_processed = 0;
 
@@ -1107,12 +1108,14 @@ void test_process_dictionary_loop(struct test_context *ctx) {
         words_processed++;
 
         if (words_processed % 100 == 0) {
-            printf("  Processed %zu words, ct->t->occupied=%zu\n", words_processed, ctx->ct->t->occupied);
+            printf("  Processed %zu words, ct->t->occupied=%zu (change: %+zd)\n",
+                   words_processed, ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
         }
     }
 
     printf("Processed %zu words successfully\n", words_processed);
-    printf("Final occupied count: %zu\n", ctx->ct->t->occupied);
+    printf("Final occupied count: %zu (change from initial: %+zd)\n",
+           ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
 }
 
 int main(void) {
