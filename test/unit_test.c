@@ -677,19 +677,43 @@ void test_free_list_head_validity(struct test_context *ctx) {
         }
     }
 
-    /* Count free nodes and verify against occupied */
+    /* Mark which nodes are in free list */
+    bool in_free_list[1024] = {false};
     size_t free_count = 0;
     size_t current = t->links[0];
     while (current != 0 && free_count < t->capacity) {
+        in_free_list[current] = true;
         free_count++;
         current = t->links[current];
     }
 
-    size_t expected_free = t->capacity - t->occupied;
+    /* Check all nodes from 2 onwards */
+    size_t lost_nodes = 0;
+    printf("Checking for lost nodes (neither occupied nor in free list):\n");
+    for (size_t i = 2; i < t->capacity; i++) {
+        bool is_occupied = (t->nodes[i] != 0);
+        bool is_free = in_free_list[i];
+
+        if (!is_occupied && !is_free) {
+            printf("  Node %zu is LOST (value=%d, in_free_list=%d)\n", i, t->nodes[i], is_free);
+            lost_nodes++;
+        } else if (is_occupied && is_free) {
+            printf("  Node %zu is BOTH occupied and free! (value=%d)\n", i, t->nodes[i]);
+        }
+    }
+
+    if (lost_nodes > 0) {
+        printf("Found %zu lost nodes\n", lost_nodes);
+    } else {
+        printf("No lost nodes found\n");
+    }
+
+    size_t expected_free = (t->capacity - 2) - t->occupied;
     if (free_count == expected_free) {
         printf("Free node count matches: %zu free nodes\n", free_count);
     } else {
-        printf("ERROR: Free node count mismatch! Expected %zu, got %zu\n", expected_free, free_count);
+        printf("ERROR: Free node count mismatch! Expected %zu, got %zu (diff=%zd)\n",
+               expected_free, free_count, (ssize_t)expected_free - (ssize_t)free_count);
     }
 }
 
