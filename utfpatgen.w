@@ -1899,7 +1899,7 @@ since these nodes will never be moved elsewhere. Return value indicates whether 
 @c
 bool put_first_level(struct trie *t){
     size_t root = 1;
-    size_t n_bytes = 256;
+    size_t n_bytes = 255;
     for (size_t i = 1; i <= n_bytes; i++) {
         if (!set_node(t, root + i, (uint8_t) i) || !set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
             return false;
@@ -1908,8 +1908,8 @@ bool put_first_level(struct trie *t){
 
     t->node_max = root + n_bytes;
     t->base_max = root;
-    t->occupied = n_bytes - 1;
-    t->pattern_count = n_bytes - 1;
+    t->occupied = n_bytes;
+    t->pattern_count = n_bytes;
 
     if (!set_base_used(t, root, true) || !set_links(t, 0, t->node_max + 1)) {
         return false;
