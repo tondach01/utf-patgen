@@ -1439,8 +1439,9 @@ Removes unused node from a trie. Returns true upon success.
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
     static size_t dealloc_count = 0;
+    extern bool trace_deallocate;
     dealloc_count++;
-    if (dealloc_count >= 1009 && dealloc_count <= 1026) {
+    if (trace_deallocate) {
         printf("      [TRACE] deallocate_node #%zu:\n", dealloc_count);
         printf("             index=%zu, value=%d\n", t_index, t->nodes[t_index]);
         printf("             BEFORE: free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
@@ -1460,7 +1461,7 @@ bool deallocate_node(struct trie *t, size_t t_index){
         return false;
     }
     if (t->nodes[t_index] == 0) {
-        if (dealloc_count >= 1009 && dealloc_count <= 1026) {
+        if (trace_deallocate) {
             printf("      [ERROR] Attempted to deallocate already-free node %zu\n", t_index);
         }
         return false;
@@ -1479,7 +1480,7 @@ bool deallocate_node(struct trie *t, size_t t_index){
         t->aux[next_free] = t_index;
     }
     t->occupied--;
-    if (dealloc_count >= 1009 && dealloc_count <= 1026) {
+    if (trace_deallocate) {
         printf("             AFTER:  free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
                t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
         printf("             next_free was=%zu, aux[next_free]=%zu\n", next_free, next_free > 0 ? t->aux[next_free] : 0);
@@ -2217,10 +2218,12 @@ Moves all nodes with the given base to auxiliary trie.
 @c
 bool unpack(struct trie *from, size_t base, struct trie *to){
     static size_t unpack_count = 0;
+    static bool trace_deallocate = false;
     unpack_count++;
     if (unpack_count == 195) {
         printf("  [TRACE] unpack #%zu: base=%zu, occupied=%zu, free_head=%zu\n",
                unpack_count, base, from->occupied, from->links[0]);
+        trace_deallocate = true;
     }
     to->node_max = 1;
     size_t dealloc_in_this_unpack = 0;
@@ -2233,6 +2236,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
                        from_index, from->links[from_index], from_index, from->aux[from_index]);
             }
             if (!copy_node(from, from_index, to, to->node_max) || !deallocate_node(from, from_index)) {
+                trace_deallocate = false;
                 return false;
             }
             dealloc_in_this_unpack++;
@@ -2281,8 +2285,10 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
             check_count++;
         }
         printf("  [TRACE] Free list OK after unpack #%zu: %zu free nodes\n", unpack_count, check_count);
+        trace_deallocate = false;
     }
     if (!set_base_used(from, base, false)) {
+        trace_deallocate = false;
         return false;
     }
     return true;
