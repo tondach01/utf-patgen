@@ -26,7 +26,7 @@ run:
 	$(UTFPATGEN_BIN) ./test/wortliste10k.wlh $(EMPTY) ./test/output.pat ./test/german.tr
 
 run-tests:
-	$(UNITEST_BIN)
+	$(UNITTEST_BIN)
 
 build-execute: test/unit_test.c | utfpatgen.c build
 	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen utfpatgen.c
@@ -81,4 +81,4 @@ utfpatgen.c: utfpatgen.w
 # Cleaning
 .PHONY: clean
 clean:
-	rm -f *.c utfpatgen.tex utfpatgen.pdf *.log *.toc *.idx *.scn *.aux build pattmp.*
+	rm -rf *.c utfpatgen.tex utfpatgen.pdf *.log *.toc *.idx *.scn *.aux build pattmp.*
