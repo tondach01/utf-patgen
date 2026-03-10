@@ -2130,7 +2130,6 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         }
         base = fit;
         node = base + (uint8_t) pattern[index];
-        t->occupied++;
         index++;
         new_pattern = true;
     }
