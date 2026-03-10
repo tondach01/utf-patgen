@@ -2021,10 +2021,13 @@ Replicates a node between two tries. Return value indicates the success of the o
 
 @c
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
+    bool was_free = (to->nodes[to_index] == 0);
     if(!set_node(to, to_index, from->nodes[from_index]) || !set_link(to, to_index, from->links[from_index]) || !set_aux(to, to_index, get_aux(from, from_index))) {
         return false;
     }
-    to->occupied++;
+    if (was_free) {
+        to->occupied++;
+    }
     return true;
 }
 
