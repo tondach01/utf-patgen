@@ -1067,8 +1067,10 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     ctx->params->translate_file = tr_file;
     ctx->params->dictionary_file = dict_file;
     ctx->params->hyph_level = 1;
-    ctx->params->pat_len = 4;
-    ctx->params->pat_dot = 1;
+    ctx->params->pat_len = 2;
+    ctx->params->pat_dot = 0;
+    ctx->params->left_hyphen_min = 2;
+    ctx->params->right_hyphen_min = 2;
 
     if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
