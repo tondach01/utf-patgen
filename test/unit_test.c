@@ -11,6 +11,7 @@ struct test_context {
     struct string_buffer *buf;
     struct pattern *pat;
     struct word *word;
+    struct count_trie *ct;
 };
 
 /* Initialize test context with all structures pre-allocated */
@@ -28,10 +29,12 @@ struct test_context *setup_test_context() {
     ctx->buf = init_buffer(256);
     ctx->pat = init_pattern(256);
     ctx->word = init_word(256);
+    ctx->ct = init_count_trie(256, 256);
 
     /* Check if any allocation failed */
     if (ctx->helper_trie == NULL || ctx->pt == NULL || ctx->tt == NULL ||
-        ctx->params == NULL || ctx->buf == NULL || ctx->pat == NULL || ctx->word == NULL) {
+        ctx->params == NULL || ctx->buf == NULL || ctx->pat == NULL ||
+        ctx->word == NULL || ctx->ct == NULL) {
         /* Clean up any successful allocations */
         if (ctx->helper_trie != NULL) destroy_trie(ctx->helper_trie);
         if (ctx->pt != NULL) destroy_pattern_trie(ctx->pt);
@@ -40,6 +43,7 @@ struct test_context *setup_test_context() {
         if (ctx->buf != NULL) destroy_buffer(ctx->buf);
         if (ctx->pat != NULL) destroy_pattern(ctx->pat);
         if (ctx->word != NULL) destroy_word(ctx->word);
+        if (ctx->ct != NULL) destroy_count_trie(ctx->ct);
         free(ctx);
         return NULL;
     }
@@ -72,6 +76,9 @@ void teardown_test_context(struct test_context *ctx) {
     }
     if (ctx->word != NULL) {
         destroy_word(ctx->word);
+    }
+    if (ctx->ct != NULL) {
+        destroy_count_trie(ctx->ct);
     }
     free(ctx);
 }
@@ -1058,90 +1065,54 @@ void test_process_dictionary_loop(struct test_context *ctx) {
         return;
     }
 
-    struct params *test_params = init_params();
-    if (test_params == NULL) {
-        printf("Failed to init params\n");
-        fclose(dict_file);
-        fclose(tr_file);
-        return;
-    }
+    ctx->params->translate_file = tr_file;
+    ctx->params->dictionary_file = dict_file;
+    ctx->params->hyph_level = 1;
+    ctx->params->pat_len = 2;
+    ctx->params->pat_dot = 0;
 
-    struct translate_table *test_tt = init_tr_table(256, 256);
-    if (test_tt == NULL) {
-        printf("Failed to init translate table\n");
-        destroy_params(test_params);
-        fclose(dict_file);
-        fclose(tr_file);
-        return;
-    }
-
-    test_params->translate_file = tr_file;
-    test_params->dictionary_file = dict_file;
-    test_params->hyph_level = 1;
-    test_params->pat_len = 2;
-    test_params->pat_dot = 0;
-
-    if (!read_translate(test_params, test_tt)) {
+    if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
-        destroy_tr_table(test_tt);
-        destroy_params(test_params);
         fclose(dict_file);
         fclose(tr_file);
         return;
     }
 
     printf("Processing dictionary with hyph_level=%d, pat_len=%d, pat_dot=%d\n",
-           test_params->hyph_level, test_params->pat_len, test_params->pat_dot);
-
-    struct count_trie *ct = init_count_trie(256, 256);
-    if (ct == NULL) {
-        printf("Failed to initialize count trie\n");
-        destroy_tr_table(test_tt);
-        destroy_params(test_params);
-        fclose(dict_file);
-        fclose(tr_file);
-        return;
-    }
+           ctx->params->hyph_level, ctx->params->pat_len, ctx->params->pat_dot);
 
     size_t words_processed = 0;
-    struct word *test_word = init_word(256);
-    struct string_buffer *test_buf = init_buffer(256);
 
     rewind(dict_file);
     while (!feof(dict_file)) {
-        reset_buffer(test_buf);
-        if (!read_line(dict_file, test_buf)) {
+        reset_buffer(ctx->buf);
+        if (!read_line(dict_file, ctx->buf)) {
             break;
         }
-        if (test_buf->eof) {
+        if (ctx->buf->eof) {
             break;
         }
 
-        reset_word(test_word);
-        if (!parse_word(test_buf, test_tt, test_params, test_word)) {
+        reset_word(ctx->word);
+        if (!parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
             continue;
         }
 
-        if (!process_word(test_word, ct, test_params, ctx->helper_trie)) {
-            printf("ERROR: Failed to process word '%s' at position %zu\n", test_word->lowercase, words_processed + 1);
+        if (!process_word(ctx->word, ctx->ct, ctx->params, ctx->helper_trie)) {
+            printf("ERROR: Failed to process word '%s' at position %zu\n", ctx->word->lowercase, words_processed + 1);
             break;
         }
 
         words_processed++;
 
         if (words_processed % 100 == 0) {
-            printf("  Processed %zu words, ct->t->occupied=%zu\n", words_processed, ct->t->occupied);
+            printf("  Processed %zu words, ct->t->occupied=%zu\n", words_processed, ctx->ct->t->occupied);
         }
     }
 
     printf("Processed %zu words successfully\n", words_processed);
-    printf("Final occupied count: %zu\n", ct->t->occupied);
+    printf("Final occupied count: %zu\n", ctx->ct->t->occupied);
 
-    destroy_word(test_word);
-    destroy_buffer(test_buf);
-    destroy_count_trie(ct);
-    destroy_tr_table(test_tt);
-    destroy_params(test_params);
     fclose(dict_file);
     fclose(tr_file);
 }
