@@ -429,6 +429,102 @@ void test_patterns(){
     destroy_buffer(buf);
 }
 
+void test_free_list_integrity() {
+    printf("\n---- Free List Integrity Test ----\n");
+    struct trie *t = init_trie(256);
+    if (t == NULL) {
+        return;
+    }
+    struct trie *helper_trie = init_trie(256);
+    if (helper_trie == NULL) {
+        destroy_trie(t);
+        return;
+    }
+
+    /* Insert many patterns to trigger repacking and free list manipulation */
+    const char *test_patterns[] = {
+        "a", "ab", "abc", "abcd", "abcde",
+        "b", "bc", "bcd", "bcde",
+        "c", "cd", "cde",
+        "test", "testing", "tester",
+        "pattern", "patterns",
+        "free", "freedom", "freeze"
+    };
+    size_t op_index;
+
+    for (size_t i = 0; i < sizeof(test_patterns) / sizeof(test_patterns[0]); i++) {
+        if (!insert_pattern(t, test_patterns[i], &op_index, helper_trie)) {
+            printf("Failed to insert pattern '%s'\n", test_patterns[i]);
+            destroy_trie(helper_trie);
+            destroy_trie(t);
+            return;
+        }
+    }
+
+    /* Check for loops in free list */
+    printf("Checking free list for loops...\n");
+    size_t visited[1024] = {0};
+    size_t current = t->links[0];
+    size_t count = 0;
+    bool loop_detected = false;
+
+    while (current != 0 && count < t->capacity) {
+        if (current >= t->capacity) {
+            printf("ERROR: Free list node %zu is out of bounds (capacity=%zu)\n", current, t->capacity);
+            loop_detected = true;
+            break;
+        }
+        if (visited[current]) {
+            printf("ERROR: Loop detected in free list at node %zu\n", current);
+            loop_detected = true;
+            break;
+        }
+        visited[current] = 1;
+        current = t->links[current];
+        count++;
+    }
+
+    if (!loop_detected) {
+        printf("No loops detected. Traversed %zu free nodes.\n", count);
+    }
+
+    /* Verify all free nodes have value 0 */
+    printf("Verifying free nodes have value 0...\n");
+    size_t free_with_value = 0;
+    current = t->links[0];
+    while (current != 0 && current < t->capacity) {
+        if (t->nodes[current] != 0) {
+            printf("ERROR: Free node %zu has non-zero value: %d\n", current, t->nodes[current]);
+            free_with_value++;
+        }
+        current = t->links[current];
+    }
+
+    if (free_with_value == 0) {
+        printf("All free nodes have value 0.\n");
+    } else {
+        printf("ERROR: %zu free nodes have non-zero values!\n", free_with_value);
+    }
+
+    /* Verify occupied count matches actual occupied nodes */
+    printf("Verifying occupied count...\n");
+    size_t actual_occupied = 0;
+    for (size_t i = 0; i < t->capacity; i++) {
+        if (t->nodes[i] != 0) {
+            actual_occupied++;
+        }
+    }
+
+    if (actual_occupied == t->occupied) {
+        printf("Occupied count matches: %zu\n", t->occupied);
+    } else {
+        printf("ERROR: Occupied count mismatch! Expected %zu, actual %zu\n", t->occupied, actual_occupied);
+    }
+
+    destroy_trie(helper_trie);
+    destroy_trie(t);
+}
+
 int main(void) {
     test_read_line();
     test_parse_header();
@@ -438,5 +534,6 @@ int main(void) {
     test_parse_word();
     test_hyphenate_word();
     test_patterns();
+    test_free_list_integrity();
     return 0;
 }
