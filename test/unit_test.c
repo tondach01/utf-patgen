@@ -1061,7 +1061,6 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     FILE *tr_file = fopen("test/german.tr", "r");
     if (tr_file == NULL) {
         printf("Could not open test/german.tr\n");
-        fclose(dict_file);
         return;
     }
 
@@ -1073,8 +1072,6 @@ void test_process_dictionary_loop(struct test_context *ctx) {
 
     if (!read_translate(ctx->params, ctx->tt)) {
         printf("Failed to read translate table\n");
-        fclose(dict_file);
-        fclose(tr_file);
         return;
     }
 
@@ -1112,9 +1109,6 @@ void test_process_dictionary_loop(struct test_context *ctx) {
 
     printf("Processed %zu words successfully\n", words_processed);
     printf("Final occupied count: %zu\n", ctx->ct->t->occupied);
-
-    fclose(dict_file);
-    fclose(tr_file);
 }
 
 int main(void) {
