@@ -1122,6 +1122,34 @@ void test_process_dictionary_loop(struct test_context *ctx) {
 
         words_processed++;
 
+        /* Check free list integrity every 10 words after word 390 */
+        if (words_processed >= 390 && words_processed % 10 == 0) {
+            size_t current = ctx->ct->t->links[0];
+            size_t count = 0;
+            bool loop_detected = false;
+
+            while (current != 0 && count < ctx->ct->t->capacity) {
+                if (current >= ctx->ct->t->capacity) {
+                    printf("ERROR: Free list corrupted at word %zu - node %zu out of bounds\n",
+                           words_processed, current);
+                    loop_detected = true;
+                    break;
+                }
+                current = ctx->ct->t->links[current];
+                count++;
+            }
+
+            if (count >= ctx->ct->t->capacity) {
+                printf("ERROR: Free list loop detected at word %zu\n", words_processed);
+                loop_detected = true;
+            }
+
+            if (loop_detected) {
+                printf("Last processed word: '%s'\n", ctx->word->lowercase);
+                return;
+            }
+        }
+
         if (words_processed % 100 == 0) {
             printf("  Processed %zu words, ct->t->occupied=%zu (change: %+zd)\n",
                    words_processed, ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
