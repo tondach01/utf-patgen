@@ -85,9 +85,6 @@ optionally hyphenate the dictionary. For sure, it gets more complicated the deep
 @c
 @<Library includes@>@;
 
-bool trace_deallocate = false;
-size_t current_word_number = 0;
-
 # ifndef TEST
 int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
@@ -1441,37 +1438,10 @@ Removes unused node from a trie. Returns true upon success.
 
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
-    static size_t dealloc_count = 0;
-    dealloc_count++;
-    if (trace_deallocate) {
-        printf("      [TRACE] deallocate_node #%zu:\n", dealloc_count);
-        printf("             index=%zu, value=%d\n", t_index, t->nodes[t_index]);
-        printf("             BEFORE: free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
-               t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
-        // Check if links[t_index] points to a free node
-        size_t old_link = t->links[t_index];
-        if (old_link > 0 && old_link < t->capacity) {
-            if (t->nodes[old_link] == 0) {
-                printf("             WARNING: links[%zu]=%zu points to FREE node (value=%d)\n",
-                       t_index, old_link, t->nodes[old_link]);
-                printf("                      This occupied node's link is already part of free list!\n");
-            } else {
-                printf("             links[%zu]=%zu points to occupied node (value=%d)\n",
-                       t_index, old_link, t->nodes[old_link]);
-            }
-        }
-        // Check taken flag for base
-        size_t base = (t_index > 255) ? (t_index / 256) * 256 : 0;
-        bool base_taken = get_base_used(t, base);
-        printf("             base=%zu, taken=%s\n", base, base_taken ? "true" : "false");
-    }
     if (t_index >= t->capacity) {
         return false;
     }
     if (t->nodes[t_index] == 0) {
-        if (trace_deallocate) {
-            printf("      [ERROR] Attempted to deallocate already-free node %zu\n", t_index);
-        }
         return false;
     }
     size_t next_free = t->links[0];
@@ -1488,12 +1458,6 @@ bool deallocate_node(struct trie *t, size_t t_index){
         t->aux[next_free] = t_index;
     }
     t->occupied--;
-    if (trace_deallocate) {
-        printf("             AFTER:  free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
-               t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
-        printf("             next_free was=%zu, aux[next_free]=%zu\n", next_free, next_free > 0 ? t->aux[next_free] : 0);
-        printf("             occupied=%zu\n", t->occupied);
-    }
     return true;
 }
 
@@ -2162,20 +2126,6 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
                         return false;
                     }
                 }
-                if (trace_deallocate) {
-                    printf("[ALLOC] Allocating free node %zu from free list\n", node);
-                    size_t prev = get_aux(t, node);
-                    size_t next = t->links[node];
-                    printf("        prev=%zu (is_free=%s), next=%zu (is_free=%s)\n",
-                           prev, (prev == 0 || t->nodes[prev] == 0) ? "yes" : "NO",
-                           next, (next == 0 || t->nodes[next] == 0) ? "yes" : "NO");
-                    if (prev > 0 && t->nodes[prev] != 0) {
-                        printf("        ERROR: prev node %zu is OCCUPIED (value=%d)!\n", prev, t->nodes[prev]);
-                    }
-                    if (next > 0 && t->nodes[next] != 0) {
-                        printf("        ERROR: next node %zu is OCCUPIED (value=%d)!\n", next, t->nodes[next]);
-                    }
-                }
                 if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
@@ -2239,79 +2189,17 @@ Moves all nodes with the given base to auxiliary trie.
 
 @c
 bool unpack(struct trie *from, size_t base, struct trie *to){
-    extern size_t current_word_number;
-    static size_t unpack_count = 0;
-    unpack_count++;
-    bool should_trace = (current_word_number == 465);
-    if (should_trace) {
-        printf("  [TRACE] unpack #%zu (word %zu): base=%zu, occupied=%zu, free_head=%zu\n",
-               unpack_count, current_word_number, base, from->occupied, from->links[0]);
-        trace_deallocate = true;
-    }
     to->node_max = 1;
-    size_t dealloc_in_this_unpack = 0;
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) from->nodes[from_index] == i) {
-            if (should_trace) {
-                printf("    [i=%zu] from_index=%zu, value=%d\n", i, from_index, from->nodes[from_index]);
-                printf("          links[%zu]=%zu, aux[%zu]=%zu\n",
-                       from_index, from->links[from_index], from_index, from->aux[from_index]);
-            }
             if (!copy_node(from, from_index, to, to->node_max) || !deallocate_node(from, from_index)) {
-                trace_deallocate = false;
                 return false;
-            }
-            dealloc_in_this_unpack++;
-            if (should_trace) {
-                printf("          deallocated (count in unpack: %zu)\n", dealloc_in_this_unpack);
-                printf("          Checking free list integrity after deallocation %zu...\n", dealloc_in_this_unpack);
-                size_t check = from->links[0];
-                size_t check_count = 0;
-                bool visited[1024] = {false};
-                while (check != 0 && check_count < from->capacity) {
-                    if (check >= from->capacity) {
-                        printf("          [ERROR] Free list node %zu out of bounds (capacity=%zu)\n", check, from->capacity);
-                        return false;
-                    }
-                    if (visited[check]) {
-                        printf("          [ERROR] Loop detected in free list at node %zu after deallocation %zu\n", check, dealloc_in_this_unpack);
-                        return false;
-                    }
-                    visited[check] = true;
-                    check = from->links[check];
-                    check_count++;
-                }
-                printf("          Free list OK: %zu free nodes\n", check_count);
             }
             to->node_max++;
         }
     }
-    if (should_trace) {
-        printf("  [TRACE] unpack #%zu done: deallocated %zu nodes, occupied now=%zu, free_head=%zu\n",
-               unpack_count, dealloc_in_this_unpack, from->occupied, from->links[0]);
-        printf("  [TRACE] Checking free list integrity after unpack #%zu...\n", unpack_count);
-        size_t check = from->links[0];
-        size_t check_count = 0;
-        bool visited[1024] = {false};
-        while (check != 0 && check_count < from->capacity) {
-            if (check >= from->capacity) {
-                printf("  [ERROR] Free list node %zu out of bounds (capacity=%zu)\n", check, from->capacity);
-                return false;
-            }
-            if (visited[check]) {
-                printf("  [ERROR] Loop detected in free list at node %zu\n", check);
-                return false;
-            }
-            visited[check] = true;
-            check = from->links[check];
-            check_count++;
-        }
-        printf("  [TRACE] Free list OK after unpack #%zu: %zu free nodes\n", unpack_count, check_count);
-        trace_deallocate = false;
-    }
     if (!set_base_used(from, base, false)) {
-        trace_deallocate = false;
         return false;
     }
     return true;
@@ -2336,16 +2224,6 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
-        if (trace_deallocate) {
-            printf("[FIRST_FIT] Processing q_index=%zu, t_index=%zu\n", q_index, t_index);
-            printf("            t->nodes[%zu]=%d (should be 0/free)\n", t_index, t->nodes[t_index]);
-            if (t->nodes[t_index] != 0) {
-                printf("            ERROR: Trying to allocate t_index=%zu but it's OCCUPIED (value=%d)!\n",
-                       t_index, t->nodes[t_index]);
-                printf("            get_aux(t, %zu)=%zu, t->links[%zu]=%zu\n",
-                       t_index, get_aux(t, t_index), t_index, t->links[t_index]);
-            }
-        }
         if (!set_links(t, get_aux(t, t_index), t->links[t_index])){
             return false;
         }
@@ -2366,41 +2244,10 @@ successful, resulting index is stored in {\tt out\_base} and true is returned.
 
 @c
 bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
-    static size_t find_count = 0;
-    find_count++;
-    if (find_count >= 820 && find_count <= 830) {
-        printf("  [TRACE] find_base_for_first_fit #%zu: occupied=%zu, capacity=%zu, free_head=%zu\n",
-               find_count, t->occupied, t->capacity, t->links[0]);
-    }
     size_t t_index;
     uint8_t offset;
     t_index = 0;
-    size_t loop_iter = 0;
     while (true) {
-        if (find_count == 828) {
-            loop_iter++;
-            if (loop_iter % 100 == 0) {
-                printf("    [DEBUG] find_base iter %zu: t_index=%zu, checking free list...\n", loop_iter, t_index);
-                size_t check = t->links[0];
-                size_t check_count = 0;
-                bool visited[1024] = {false};
-                while (check != 0 && check_count < t->capacity) {
-                    if (check >= t->capacity) {
-                        printf("    [ERROR] Free list node %zu out of bounds (capacity=%zu)\n", check, t->capacity);
-                        return false;
-                    }
-                    if (visited[check]) {
-                        printf("    [ERROR] Loop detected at node %zu after %zu iterations\n", check, loop_iter);
-                        printf("    [ERROR] t_index=%zu when loop detected\n", t_index);
-                        return false;
-                    }
-                    visited[check] = true;
-                    check = t->links[check];
-                    check_count++;
-                }
-                printf("    [DEBUG] Free list OK: %zu free nodes\n", check_count);
-            }
-        }
         t_index = t->links[t_index];
         if (t_index == 0) {
             if (!resize_trie(t, 2*t->capacity)){
