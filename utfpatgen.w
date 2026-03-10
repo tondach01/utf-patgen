@@ -2208,7 +2208,7 @@ Moves all nodes with the given base to auxiliary trie.
 bool unpack(struct trie *from, size_t base, struct trie *to){
     static size_t unpack_count = 0;
     unpack_count++;
-    if (unpack_count >= 1 && unpack_count <= 500) {
+    if (unpack_count == 195) {
         printf("  [TRACE] unpack #%zu: base=%zu, occupied=%zu, free_head=%zu\n",
                unpack_count, base, from->occupied, from->links[0]);
     }
@@ -2217,7 +2217,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) from->nodes[from_index] == i) {
-            if (unpack_count >= 1 && unpack_count <= 500) {
+            if (unpack_count == 195) {
                 printf("    [i=%zu] from_index=%zu, value=%d\n", i, from_index, from->nodes[from_index]);
                 printf("          links[%zu]=%zu, aux[%zu]=%zu\n",
                        from_index, from->links[from_index], from_index, from->aux[from_index]);
@@ -2226,13 +2226,13 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
                 return false;
             }
             dealloc_in_this_unpack++;
-            if (unpack_count >= 1 && unpack_count <= 500) {
+            if (unpack_count == 195) {
                 printf("          deallocated (count in unpack: %zu)\n", dealloc_in_this_unpack);
             }
             to->node_max++;
         }
     }
-    if (unpack_count >= 1 && unpack_count <= 500) {
+    if (unpack_count == 195) {
         printf("  [TRACE] unpack #%zu done: deallocated %zu nodes, occupied now=%zu, free_head=%zu\n",
                unpack_count, dealloc_in_this_unpack, from->occupied, from->links[0]);
         printf("  [TRACE] Checking free list integrity after unpack #%zu...\n", unpack_count);
