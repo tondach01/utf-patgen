@@ -1052,6 +1052,8 @@ void test_repack_operations(struct test_context *ctx) {
 void test_process_dictionary_loop(struct test_context *ctx) {
     printf("\n---- Test: Process Dictionary (detect loop) ----\n");
 
+    extern size_t current_word_number;
+
     FILE *dict_file = fopen("test/wortliste10k.wlh", "r");
     if (dict_file == NULL) {
         printf("Could not open test/wortliste10k.wlh\n");
@@ -1129,6 +1131,8 @@ void test_process_dictionary_loop(struct test_context *ctx) {
             printf("\n");
             first_word_logged++;
         }
+
+        current_word_number = words_processed + 1;
 
         if (!process_word(ctx->word, ctx->ct, ctx->params, ctx->helper_trie)) {
             printf("ERROR: Failed to process word '%s' at position %zu\n", ctx->word->lowercase, words_processed + 1);

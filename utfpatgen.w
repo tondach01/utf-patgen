@@ -86,6 +86,7 @@ optionally hyphenate the dictionary. For sure, it gets more complicated the deep
 @<Library includes@>@;
 
 bool trace_deallocate = false;
+size_t current_word_number = 0;
 
 # ifndef TEST
 int main(int argc, char *argv[]) {
@@ -2218,11 +2219,13 @@ Moves all nodes with the given base to auxiliary trie.
 
 @c
 bool unpack(struct trie *from, size_t base, struct trie *to){
+    extern size_t current_word_number;
     static size_t unpack_count = 0;
     unpack_count++;
-    if (unpack_count == 195) {
-        printf("  [TRACE] unpack #%zu: base=%zu, occupied=%zu, free_head=%zu\n",
-               unpack_count, base, from->occupied, from->links[0]);
+    bool should_trace = (current_word_number == 465);
+    if (should_trace) {
+        printf("  [TRACE] unpack #%zu (word %zu): base=%zu, occupied=%zu, free_head=%zu\n",
+               unpack_count, current_word_number, base, from->occupied, from->links[0]);
         trace_deallocate = true;
     }
     to->node_max = 1;
@@ -2230,7 +2233,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) from->nodes[from_index] == i) {
-            if (unpack_count == 195) {
+            if (should_trace) {
                 printf("    [i=%zu] from_index=%zu, value=%d\n", i, from_index, from->nodes[from_index]);
                 printf("          links[%zu]=%zu, aux[%zu]=%zu\n",
                        from_index, from->links[from_index], from_index, from->aux[from_index]);
@@ -2240,7 +2243,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
                 return false;
             }
             dealloc_in_this_unpack++;
-            if (unpack_count == 195) {
+            if (should_trace) {
                 printf("          deallocated (count in unpack: %zu)\n", dealloc_in_this_unpack);
                 printf("          Checking free list integrity after deallocation %zu...\n", dealloc_in_this_unpack);
                 size_t check = from->links[0];
@@ -2264,7 +2267,7 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
             to->node_max++;
         }
     }
-    if (unpack_count == 195) {
+    if (should_trace) {
         printf("  [TRACE] unpack #%zu done: deallocated %zu nodes, occupied now=%zu, free_head=%zu\n",
                unpack_count, dealloc_in_this_unpack, from->occupied, from->links[0]);
         printf("  [TRACE] Checking free list integrity after unpack #%zu...\n", unpack_count);
