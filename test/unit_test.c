@@ -875,7 +875,7 @@ void test_alternating_patterns(struct test_context *ctx) {
         printf("ERROR: Occupied mismatch! Expected %zu, got %zu\n", ctx->pt->t->occupied, actual_occupied);
     }
 
-    printf("Successfully inserted %zu patterns\n", 6);
+    printf("Successfully inserted %zu patterns\n", (size_t) 6);
 }
 
 void test_overlapping_patterns(struct test_context *ctx) {
