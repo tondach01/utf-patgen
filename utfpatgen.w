@@ -1438,10 +1438,21 @@ Removes unused node from a trie. Returns true upon success.
 
 @c
 bool deallocate_node(struct trie *t, size_t t_index){
+    static size_t dealloc_count = 0;
+    dealloc_count++;
+    if (dealloc_count >= 800 && dealloc_count <= 900) {
+        printf("      [TRACE] deallocate_node #%zu:\n", dealloc_count);
+        printf("             index=%zu, value=%d\n", t_index, t->nodes[t_index]);
+        printf("             BEFORE: free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
+               t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
+    }
     if (t_index >= t->capacity) {
         return false;
     }
     if (t->nodes[t_index] == 0) {
+        if (dealloc_count >= 800 && dealloc_count <= 900) {
+            printf("      [ERROR] Attempted to deallocate already-free node %zu\n", t_index);
+        }
         return false;
     }
     size_t next_free = t->links[0];
@@ -1458,6 +1469,12 @@ bool deallocate_node(struct trie *t, size_t t_index){
         t->aux[next_free] = t_index;
     }
     t->occupied--;
+    if (dealloc_count >= 800 && dealloc_count <= 900) {
+        printf("             AFTER:  free_head=%zu, links[%zu]=%zu, aux[%zu]=%zu\n",
+               t->links[0], t_index, t->links[t_index], t_index, t->aux[t_index]);
+        printf("             next_free was=%zu, aux[next_free]=%zu\n", next_free, next_free > 0 ? t->aux[next_free] : 0);
+        printf("             occupied=%zu\n", t->occupied);
+    }
     return true;
 }
 
@@ -2189,15 +2206,35 @@ Moves all nodes with the given base to auxiliary trie.
 
 @c
 bool unpack(struct trie *from, size_t base, struct trie *to){
+    static size_t unpack_count = 0;
+    unpack_count++;
+    if (unpack_count >= 250 && unpack_count <= 260) {
+        printf("  [TRACE] unpack #%zu: base=%zu, occupied=%zu, free_head=%zu\n",
+               unpack_count, base, from->occupied, from->links[0]);
+    }
     to->node_max = 1;
+    size_t dealloc_in_this_unpack = 0;
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) from->nodes[from_index] == i) {
+            if (unpack_count >= 250 && unpack_count <= 260) {
+                printf("    [i=%zu] from_index=%zu, value=%d\n", i, from_index, from->nodes[from_index]);
+                printf("          links[%zu]=%zu, aux[%zu]=%zu\n",
+                       from_index, from->links[from_index], from_index, from->aux[from_index]);
+            }
             if (!copy_node(from, from_index, to, to->node_max) || !deallocate_node(from, from_index)) {
                 return false;
             }
+            dealloc_in_this_unpack++;
+            if (unpack_count >= 250 && unpack_count <= 260) {
+                printf("          deallocated (count in unpack: %zu)\n", dealloc_in_this_unpack);
+            }
             to->node_max++;
         }
+    }
+    if (unpack_count >= 250 && unpack_count <= 260) {
+        printf("  [TRACE] unpack #%zu done: deallocated %zu nodes, occupied now=%zu, free_head=%zu\n",
+               unpack_count, dealloc_in_this_unpack, from->occupied, from->links[0]);
     }
     if (!set_base_used(from, base, false)) {
         return false;
