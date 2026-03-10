@@ -793,16 +793,19 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
             return;
         }
         trie_indices[i] = traverse_trie(ctx->pt->t, patterns[i]);
+        printf("Pattern '%s' at trie index %zu, occupied=%zu\n", patterns[i], trie_indices[i], ctx->pt->t->occupied);
     }
 
     size_t occupied_after_insert = ctx->pt->t->occupied;
     printf("Occupied after insertions: %zu\n", occupied_after_insert);
 
     for (size_t i = 0; i < 8; i += 2) {
+        printf("Deallocating node %zu (pattern '%s'), occupied before=%zu\n", trie_indices[i], patterns[i], ctx->pt->t->occupied);
         if (!deallocate_node(ctx->pt->t, trie_indices[i])) {
             printf("Failed to deallocate node %zu\n", trie_indices[i]);
             return;
         }
+        printf("  occupied after=%zu\n", ctx->pt->t->occupied);
     }
 
     size_t occupied_after_dealloc = ctx->pt->t->occupied;
@@ -816,11 +819,13 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
 
     const char *new_patterns[] = {"x", "y"};
     for (size_t i = 0; i < 2; i++) {
+        printf("Inserting pattern '%s', occupied before=%zu\n", new_patterns[i], ctx->pt->t->occupied);
         size_t new_op;
         if (!insert_pattern(ctx->pt->t, new_patterns[i], &new_op, ctx->helper_trie)) {
             printf("Failed to insert new pattern '%s'\n", new_patterns[i]);
             return;
         }
+        printf("  occupied after=%zu\n", ctx->pt->t->occupied);
     }
 
     size_t occupied_after_reinsert = ctx->pt->t->occupied;
