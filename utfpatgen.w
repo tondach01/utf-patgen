@@ -2101,6 +2101,12 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         if (t->nodes[node] != pattern[index]) {
             new_pattern = true;
             if (t->nodes[node] == 0) {
+                if (node >= t->capacity) {
+                    size_t new_capacity = ((node / t->capacity) + 1) * t->capacity;
+                    if (resize_trie(t, new_capacity) == NULL) {
+                        return false;
+                    }
+                }
                 if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
