@@ -1042,6 +1042,87 @@ void test_repack_operations(struct test_context *ctx) {
     }
 }
 
+void test_process_dictionary_loop(struct test_context *ctx) {
+    printf("\n---- Test: Process Dictionary (detect loop) ----\n");
+
+    FILE *dict_file = fopen("test/wortliste10k.wlh", "r");
+    if (dict_file == NULL) {
+        printf("Could not open test/wortliste10k.wlh\n");
+        return;
+    }
+
+    FILE *tr_file = fopen("test/german.tr", "r");
+    if (tr_file == NULL) {
+        printf("Could not open test/german.tr\n");
+        fclose(dict_file);
+        return;
+    }
+
+    ctx->params->translate_file = tr_file;
+    ctx->params->dictionary_file = dict_file;
+    ctx->params->hyph_level = 1;
+    ctx->params->pat_len = 2;
+    ctx->params->pat_dot = 0;
+
+    if (!read_translate(ctx->params, ctx->tt)) {
+        printf("Failed to read translate table\n");
+        fclose(dict_file);
+        fclose(tr_file);
+        return;
+    }
+
+    printf("Processing dictionary with hyph_level=%d, pat_len=%d, pat_dot=%d\n",
+           ctx->params->hyph_level, ctx->params->pat_len, ctx->params->pat_dot);
+
+    struct count_trie *ct = init_count_trie(256, 256);
+    if (ct == NULL) {
+        printf("Failed to initialize count trie\n");
+        fclose(dict_file);
+        fclose(tr_file);
+        return;
+    }
+
+    size_t words_processed = 0;
+    size_t max_words = 100;
+
+    rewind(dict_file);
+    while (!feof(dict_file) && words_processed < max_words) {
+        reset_buffer(ctx->buf);
+        if (!read_line(dict_file, ctx->buf)) {
+            break;
+        }
+        if (ctx->buf->eof) {
+            break;
+        }
+
+        reset_word(ctx->word);
+        if (!parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
+            continue;
+        }
+
+        printf("Processing word %zu: '%s' (length=%zu)\n",
+               words_processed + 1, ctx->word->lowercase, ctx->word->length);
+
+        if (!process_word(ctx->word, ct, ctx->params, ctx->helper_trie)) {
+            printf("ERROR: Failed to process word '%s'\n", ctx->word->lowercase);
+            break;
+        }
+
+        words_processed++;
+
+        if (words_processed % 10 == 0) {
+            printf("  Processed %zu words, occupied=%zu\n", words_processed, ct->t->occupied);
+        }
+    }
+
+    printf("Processed %zu words successfully\n", words_processed);
+    printf("Final occupied count: %zu\n", ct->t->occupied);
+
+    destroy_count_trie(ct);
+    fclose(dict_file);
+    fclose(tr_file);
+}
+
 int main(void) {
     run_test(test_read_line);
     run_test(test_parse_header);
@@ -1063,6 +1144,7 @@ int main(void) {
     run_test(test_alternating_patterns);
     run_test(test_overlapping_patterns);
     run_test(test_repack_operations);
+    run_test(test_process_dictionary_loop);
 
     return 0;
 }
