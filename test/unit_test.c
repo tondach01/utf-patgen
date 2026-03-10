@@ -812,8 +812,8 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
         printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_insert - 4, occupied_after_dealloc);
     }
 
-    const char *new_patterns[] = {"x", "y", "z", "w"};
-    for (size_t i = 0; i < 4; i++) {
+    const char *new_patterns[] = {"x", "y"};
+    for (size_t i = 0; i < 2; i++) {
         size_t new_op;
         if (!insert_pattern(ctx->pt->t, new_patterns[i], &new_op, ctx->helper_trie)) {
             printf("Failed to insert new pattern '%s'\n", new_patterns[i]);
@@ -822,7 +822,14 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
     }
 
     size_t occupied_after_reinsert = ctx->pt->t->occupied;
-    printf("Occupied after re-insertions: %zu\n", occupied_after_reinsert);
+    printf("Occupied after re-insertions: %zu (expected %zu)\n",
+           occupied_after_reinsert, occupied_after_dealloc + 2);
+
+    if (occupied_after_reinsert == occupied_after_dealloc + 2) {
+        printf("Occupied count correct after 2 re-insertions\n");
+    } else {
+        printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_dealloc + 2, occupied_after_reinsert);
+    }
 
     size_t current = ctx->pt->t->links[0];
     size_t count = 0;
