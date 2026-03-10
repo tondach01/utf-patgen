@@ -1441,6 +1441,9 @@ bool deallocate_node(struct trie *t, size_t t_index){
     if (t_index >= t->capacity) {
         return false;
     }
+    if (t->nodes[t_index] == 0) {
+        return false;
+    }
     size_t next_free = t->links[0];
     if (next_free >= t->capacity) {
         return false;
