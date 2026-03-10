@@ -783,32 +783,40 @@ void test_resize_during_insertion(struct test_context *ctx) {
 void test_sequential_insertion_deletion(struct test_context *ctx) {
     printf("\n---- Test: Sequential Insertion and Deletion ----\n");
 
-    const char *patterns[] = {"a", "b", "c", "d", "e", "f", "g", "h"};
+    struct trie *test_trie = init_trie(256);
+    if (test_trie == NULL) {
+        printf("Failed to create test trie\n");
+        return;
+    }
+
+    const char *patterns[] = {"abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx"};
     size_t trie_indices[8];
 
     for (size_t i = 0; i < 8; i++) {
         size_t op_index;
-        if (!insert_pattern(ctx->pt->t, patterns[i], &op_index, ctx->helper_trie)) {
+        if (!insert_pattern(test_trie, patterns[i], &op_index, ctx->helper_trie)) {
             printf("Failed to insert pattern '%s'\n", patterns[i]);
+            destroy_trie(test_trie);
             return;
         }
-        trie_indices[i] = traverse_trie(ctx->pt->t, patterns[i]);
-        printf("Pattern '%s' at trie index %zu, occupied=%zu\n", patterns[i], trie_indices[i], ctx->pt->t->occupied);
+        trie_indices[i] = traverse_trie(test_trie, patterns[i]);
+        printf("Pattern '%s' at trie index %zu, occupied=%zu\n", patterns[i], trie_indices[i], test_trie->occupied);
     }
 
-    size_t occupied_after_insert = ctx->pt->t->occupied;
+    size_t occupied_after_insert = test_trie->occupied;
     printf("Occupied after insertions: %zu\n", occupied_after_insert);
 
     for (size_t i = 0; i < 8; i += 2) {
-        printf("Deallocating node %zu (pattern '%s'), occupied before=%zu\n", trie_indices[i], patterns[i], ctx->pt->t->occupied);
-        if (!deallocate_node(ctx->pt->t, trie_indices[i])) {
+        printf("Deallocating node %zu (pattern '%s'), occupied before=%zu\n", trie_indices[i], patterns[i], test_trie->occupied);
+        if (!deallocate_node(test_trie, trie_indices[i])) {
             printf("Failed to deallocate node %zu\n", trie_indices[i]);
+            destroy_trie(test_trie);
             return;
         }
-        printf("  occupied after=%zu\n", ctx->pt->t->occupied);
+        printf("  occupied after=%zu\n", test_trie->occupied);
     }
 
-    size_t occupied_after_dealloc = ctx->pt->t->occupied;
+    size_t occupied_after_dealloc = test_trie->occupied;
     printf("Occupied after deallocations: %zu\n", occupied_after_dealloc);
 
     if (occupied_after_dealloc == occupied_after_insert - 4) {
@@ -817,18 +825,19 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
         printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_insert - 4, occupied_after_dealloc);
     }
 
-    const char *new_patterns[] = {"x", "y"};
+    const char *new_patterns[] = {"xyz", "uvw"};
     for (size_t i = 0; i < 2; i++) {
-        printf("Inserting pattern '%s', occupied before=%zu\n", new_patterns[i], ctx->pt->t->occupied);
+        printf("Inserting pattern '%s', occupied before=%zu\n", new_patterns[i], test_trie->occupied);
         size_t new_op;
-        if (!insert_pattern(ctx->pt->t, new_patterns[i], &new_op, ctx->helper_trie)) {
+        if (!insert_pattern(test_trie, new_patterns[i], &new_op, ctx->helper_trie)) {
             printf("Failed to insert new pattern '%s'\n", new_patterns[i]);
+            destroy_trie(test_trie);
             return;
         }
-        printf("  occupied after=%zu\n", ctx->pt->t->occupied);
+        printf("  occupied after=%zu\n", test_trie->occupied);
     }
 
-    size_t occupied_after_reinsert = ctx->pt->t->occupied;
+    size_t occupied_after_reinsert = test_trie->occupied;
     printf("Occupied after re-insertions: %zu (expected %zu)\n",
            occupied_after_reinsert, occupied_after_dealloc + 2);
 
@@ -838,18 +847,20 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
         printf("ERROR: Expected %zu occupied, got %zu\n", occupied_after_dealloc + 2, occupied_after_reinsert);
     }
 
-    size_t current = ctx->pt->t->links[0];
+    size_t current = test_trie->links[0];
     size_t count = 0;
-    while (current != 0 && count < ctx->pt->t->capacity) {
-        if (current >= ctx->pt->t->capacity) {
+    while (current != 0 && count < test_trie->capacity) {
+        if (current >= test_trie->capacity) {
             printf("ERROR: Free list corrupted\n");
+            destroy_trie(test_trie);
             return;
         }
-        current = ctx->pt->t->links[current];
+        current = test_trie->links[current];
         count++;
     }
 
     printf("Free list intact with %zu free nodes\n", count);
+    destroy_trie(test_trie);
 }
 
 void test_alternating_patterns(struct test_context *ctx) {
