@@ -2162,6 +2162,20 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
                         return false;
                     }
                 }
+                if (trace_deallocate) {
+                    printf("[ALLOC] Allocating free node %zu from free list\n", node);
+                    size_t prev = get_aux(t, node);
+                    size_t next = t->links[node];
+                    printf("        prev=%zu (is_free=%s), next=%zu (is_free=%s)\n",
+                           prev, (prev == 0 || t->nodes[prev] == 0) ? "yes" : "NO",
+                           next, (next == 0 || t->nodes[next] == 0) ? "yes" : "NO");
+                    if (prev > 0 && t->nodes[prev] != 0) {
+                        printf("        ERROR: prev node %zu is OCCUPIED (value=%d)!\n", prev, t->nodes[prev]);
+                    }
+                    if (next > 0 && t->nodes[next] != 0) {
+                        printf("        ERROR: next node %zu is OCCUPIED (value=%d)!\n", next, t->nodes[next]);
+                    }
+                }
                 if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
