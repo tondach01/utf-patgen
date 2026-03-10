@@ -426,7 +426,7 @@ void test_free_list_integrity(struct test_context *ctx) {
     if (actual_occupied == t->occupied) {
         printf("Occupied count matches: %zu\n", t->occupied);
     } else {
-        printf("ERROR: Occupied count mismatch! Expected %zu, actual %zu\n", t->occupied, actual_occupied);
+        printf("ERROR: Occupied count mismatch! Actual %zu, expected %zu\n", t->occupied, actual_occupied);
     }
 }
 
