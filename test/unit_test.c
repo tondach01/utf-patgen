@@ -784,21 +784,23 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
     printf("\n---- Test: Sequential Insertion and Deletion ----\n");
 
     const char *patterns[] = {"a", "b", "c", "d", "e", "f", "g", "h"};
-    size_t op_indices[8];
+    size_t trie_indices[8];
 
     for (size_t i = 0; i < 8; i++) {
-        if (!insert_pattern(ctx->pt->t, patterns[i], &op_indices[i], ctx->helper_trie)) {
+        size_t op_index;
+        if (!insert_pattern(ctx->pt->t, patterns[i], &op_index, ctx->helper_trie)) {
             printf("Failed to insert pattern '%s'\n", patterns[i]);
             return;
         }
+        trie_indices[i] = traverse_trie(ctx->pt->t, patterns[i]);
     }
 
     size_t occupied_after_insert = ctx->pt->t->occupied;
     printf("Occupied after insertions: %zu\n", occupied_after_insert);
 
     for (size_t i = 0; i < 8; i += 2) {
-        if (!deallocate_node(ctx->pt->t, op_indices[i])) {
-            printf("Failed to deallocate node %zu\n", op_indices[i]);
+        if (!deallocate_node(ctx->pt->t, trie_indices[i])) {
+            printf("Failed to deallocate node %zu\n", trie_indices[i]);
             return;
         }
     }
