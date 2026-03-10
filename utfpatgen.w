@@ -2192,6 +2192,13 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     if (!find_base_for_first_fit(t, q, &base)) {
         return false;
     }
+    size_t max_target_index = base + (uint8_t) q->nodes[q->node_max];
+    if (max_target_index >= t->capacity) {
+        size_t new_capacity = ((max_target_index / t->capacity) + 1) * t->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
         if (!set_links(t, get_aux(t, t_index), t->links[t_index])){
@@ -2201,7 +2208,6 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
             return false;
         }
     }
-    //relink_trie(t);
     if (!set_base_used(t, base, true)){
         return false;
     }
