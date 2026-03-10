@@ -2174,7 +2174,6 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
             to->node_max++;
         }
     }
-    relink_trie(from);
     if (!set_base_used(from, base, false)) {
         return false;
     }
