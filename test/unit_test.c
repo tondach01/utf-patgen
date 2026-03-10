@@ -1083,10 +1083,9 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     }
 
     size_t words_processed = 0;
-    size_t max_words = 100;
 
     rewind(dict_file);
-    while (!feof(dict_file) && words_processed < max_words) {
+    while (!feof(dict_file)) {
         reset_buffer(ctx->buf);
         if (!read_line(dict_file, ctx->buf)) {
             break;
@@ -1100,17 +1099,14 @@ void test_process_dictionary_loop(struct test_context *ctx) {
             continue;
         }
 
-        printf("Processing word %zu: '%s' (length=%zu)\n",
-               words_processed + 1, ctx->word->lowercase, ctx->word->length);
-
         if (!process_word(ctx->word, ct, ctx->params, ctx->helper_trie)) {
-            printf("ERROR: Failed to process word '%s'\n", ctx->word->lowercase);
+            printf("ERROR: Failed to process word '%s' at position %zu\n", ctx->word->lowercase, words_processed + 1);
             break;
         }
 
         words_processed++;
 
-        if (words_processed % 10 == 0) {
+        if (words_processed % 100 == 0) {
             printf("  Processed %zu words, occupied=%zu\n", words_processed, ct->t->occupied);
         }
     }
