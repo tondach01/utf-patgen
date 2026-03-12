@@ -719,7 +719,7 @@ void test_free_list_head_validity(struct test_context *ctx) {
         printf("Free node count matches: %zu free nodes\n", free_count);
     } else {
         printf("ERROR: Free node count mismatch! Expected %zu, got %zu (diff=%zd)\n",
-               expected_free, free_count, (ssize_t)expected_free - (ssize_t)free_count);
+               expected_free, free_count, (size_t) expected_free - (size_t) free_count);
     }
 }
 
@@ -1105,13 +1105,13 @@ void test_process_dictionary_loop(struct test_context *ctx) {
         words_processed++;
         if (words_processed % 1000 == 0) {
             printf("  Processed %zu words, ct->t->occupied=%zu (change: %+zd)\n",
-                   words_processed, ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
+                   words_processed, ctx->ct->t->occupied, (size_t) ctx->ct->t->occupied - 255);
         }
     }
 
     printf("Processed %zu words successfully\n", words_processed);
     printf("Final occupied count: %zu (change from initial: %+zd)\n",
-           ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
+           ctx->ct->t->occupied, (size_t) ctx->ct->t->occupied - 255);
 }
 
 int main(void) {
