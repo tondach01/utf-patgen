@@ -2215,7 +2215,7 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     if (!find_base_for_first_fit(t, q, &base)) {
         return false;
     }
-    size_t max_target_index = base + (uint8_t) q->nodes[q->node_max];
+    size_t max_target_index = base + 255;
     if (max_target_index >= t->capacity) {
         size_t new_capacity = ((max_target_index / t->capacity) + 1) * t->capacity;
         if (resize_trie(t, new_capacity) == NULL) {
