@@ -645,7 +645,7 @@ required:
 {\narrower
     $<hyph. level><character><hyph. level>\dots<hyph. level>$
 \par}
-Zero levels are omitted implicitly. A special character ('.' in \patgen, \tt EDGE\_OF\_WORD '0xff' in \utfpatgen}
+Zero levels are omitted implicitly. A special character ('.' in \patgen, \tt EDGE\_OF\_WORD '0xff' in \utfpatgen)
 denotes edges of the word (it can be only used as the first or last character of a pattern). The original \patgen
 program that supports only levels up to 9 represents them simply as ASCII numeric literals '0' to '9'. On the other
 hand, \utfpatgen expects each byte representing a level preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal
