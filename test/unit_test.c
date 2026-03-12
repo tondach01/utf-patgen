@@ -615,9 +615,8 @@ void test_deallocate_and_reallocate(struct test_context *ctx) {
     printf("Occupied before deallocate: %zu\n", occupied_before);
 
     /* Deallocate middle pattern's node */
-    if (deallocate_node(ctx->pt->t, op_indices[1])) {
-        printf("Deallocated node at index %zu\n", op_indices[1]);
-    }
+    deallocate_node(ctx->pt->t, op_indices[1]);
+    printf("Deallocated node at index %zu\n", op_indices[1]);
 
     size_t occupied_after_dealloc = ctx->pt->t->occupied;
     printf("Occupied after deallocate: %zu\n", occupied_after_dealloc);
@@ -822,11 +821,7 @@ void test_sequential_insertion_deletion(struct test_context *ctx) {
     for (size_t i = 0; i < 8; i += 2) {
         printf("Deallocating node %zu (pattern '%s'), occupied before=%zu\n", trie_indices[i], patterns[i], test_trie->occupied);
         printf("  Free list before: head->%zu\n", test_trie->links[0]);
-        if (!deallocate_node(test_trie, trie_indices[i])) {
-            printf("Failed to deallocate node %zu\n", trie_indices[i]);
-            destroy_trie(test_trie);
-            return;
-        }
+        deallocate_node(test_trie, trie_indices[i]);
         printf("  Free list after: head->%zu, node[%zu].links=%zu, node[%zu].aux=%zu\n",
                test_trie->links[0], trie_indices[i], test_trie->links[trie_indices[i]],
                trie_indices[i], test_trie->aux[trie_indices[i]]);

@@ -1110,12 +1110,10 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
                 return false;
             }
         }
-        cnt_index = get_aux(ct->t, node);
+        cnt_index = ct->t->aux[node];
         if (cnt_index == 0){
             cnt_index = ct->cnts->size;
-            if (!set_aux(ct->t, node, cnt_index)){
-                return false;
-            }
+            ct->t->aux[node] = cnt_index;
             ct->cnts->size++;
         }
         weight = get_true_hyphen(word, dot_index) / 4;
@@ -1238,9 +1236,9 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
             utf_bytes_to_end -= 1;
         }
         if (current_len == params->pat_len && utf_bytes_to_end == 0){
-            cnt_index = get_aux(ct->t, node);
-            good = get_good(ct->cnts, cnt_index);
-            bad = get_bad(ct->cnts, cnt_index);
+            cnt_index = ct->t->aux[node];
+            good = ct->cnts->good[cnt_index];
+            bad = ct->cnts->bad[cnt_index];
             if (good > 0 || bad > 0){
                 if (params->good_wt * good < params->thresh){
                     if (!insert_substring(pt->t, pattern->data, pattern->size, pattern->size, &op_index, helper_trie) || !set_output(pt, op_index, BAD_OP_VALUE, params->pat_dot)){
@@ -1377,13 +1375,8 @@ bool delete_patterns(struct pattern_trie *pt){
                         destroy_stack(s_freed);
                         return false;
                     }
-                    if (get_aux(pt->t, parent_node) == 0 && parent_root != 1) {
-                        if (!deallocate_node(pt->t, parent_node)){
-                            destroy_stack(s_base);
-                            destroy_stack(s_offset);
-                            destroy_stack(s_freed);
-                            return false;
-                        }
+                    if (pt->t->aux[parent_node] == 0 && parent_root != 1) {
+                        deallocate_node(pt->t, parent_node);
                     } else {
                         set_top_value(s_freed, (size_t) false);
                     }
@@ -1403,16 +1396,11 @@ bool delete_patterns(struct pattern_trie *pt){
             destroy_stack(s_freed);
             return false;
         }
-        if (get_aux(pt->t, node) > 0 || root == 1){
+        if (pt->t->aux[node] > 0 || root == 1){
             set_top_value(s_freed, (size_t) false);
         } else {
             if (pt->t->links[node] == 0){
-                if (!deallocate_node(pt->t, node)){
-                    destroy_stack(s_base);
-                    destroy_stack(s_offset);
-                    destroy_stack(s_freed);
-                    return false;
-                }
+                deallocate_node(pt->t, node);
                 continue;
             }
         }
@@ -1434,31 +1422,17 @@ bool delete_patterns(struct pattern_trie *pt){
 }
 
 @ deallocate\_node.
-Removes unused node from a trie. Returns true upon success.
+Removes unused node from a trie and links it to the beginning of free space chain.
 
 @c
-bool deallocate_node(struct trie *t, size_t t_index){
-    if (t_index >= t->capacity) {
-        return false;
-    }
-    if (t->nodes[t_index] == 0) {
-        return false;
-    }
-    size_t next_free = t->links[0];
-    if (next_free >= t->capacity) {
-        return false;
-    }
-    if (!set_node(t, t_index, 0)){
-        return false;
-    }
-    t->links[t_index] = next_free;
-    t->aux[t_index] = 0;
+void deallocate_node(struct trie *t, size_t t_index){
+    size_t old_head = t->links[0];
+    t->nodes[t_index] = 0;
     t->links[0] = t_index;
-    if (next_free > 0) {
-        t->aux[next_free] = t_index;
-    }
+    t->aux[t_index] = 0;
+    t->links[t_index] = old_head;
+    t->aux[old_head] = t_index;
     t->occupied--;
-    return true;
 }
 
 @ link\_around\_bad\_outputs.
@@ -1466,7 +1440,7 @@ Fixes the output linking to not contain the outputs that will be deleted. Return
 
 @c
 bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
-    size_t lookup_index = get_aux(pt->t, t_index);
+    size_t lookup_index = pt->t->aux[t_index];
     if (lookup_index == 0){
         return true;
     }
@@ -1542,8 +1516,8 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
         if ((uint8_t) pt->t->nodes[node] != c){
             continue;
         }
-        if (get_aux(pt->t, node) > 0){
-            output_pattern(pattern, pt->ops, get_aux(pt->t, node), output_file);
+        if (pt->t->aux[node] > 0){
+            output_pattern(pattern, pt->ops, pt->t->aux[node], output_file);
         }
         root = pt->t->links[node];
         if (root == 0){
@@ -1649,7 +1623,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (is_utf_start_byte(get_byte(word, end_index))){
                 end_pos++;
             }
-            op_index = pt->ops->lookup[get_aux(pt->t, node)];
+            op_index = pt->ops->lookup[pt->t->aux[node]];
             while (op_index > 0){
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
@@ -2037,12 +2011,21 @@ Replicates a node between two tries. Return value indicates the success of the o
 
 @c
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index){
-    bool was_free = (to->nodes[to_index] == 0);
-    if(!set_node(to, to_index, from->nodes[from_index]) || !set_link(to, to_index, from->links[from_index]) || !set_aux(to, to_index, get_aux(from, from_index))) {
-        return false;
+    if (to_index >= to->capacity){
+        size_t new_capacity = ((to_index / to->capacity) + 1) * to->capacity;
+        if (resize_trie(to, new_capacity) == NULL) {
+            return false;
+        }
     }
-    if (was_free) {
+    bool from_free = (from->nodes[from_index] == 0);
+    bool to_free = (to->nodes[to_index] == 0);
+    to->nodes[to_index] = from->nodes[from_index];
+    to->links[to_index] = from->links[from_index];
+    to->aux[to_index] = from->aux[from_index];
+    if (!from_free && to_free) {
         to->occupied++;
+    } else if (from_free && !to_free) {
+        to->occupied--;
     }
     return true;
 }
@@ -2117,16 +2100,16 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     bool new_pattern = false;
     while (index < end && base > 0) {
         node = base + (uint8_t) pattern[index];
+        if (node >= t->capacity) {
+            size_t new_capacity = ((node / t->capacity) + 1) * t->capacity;
+            if (resize_trie(t, new_capacity) == NULL) {
+                return false;
+            }
+        }
         if (t->nodes[node] != pattern[index]) {
             new_pattern = true;
             if (t->nodes[node] == 0) {
-                if (node >= t->capacity) {
-                    size_t new_capacity = ((node / t->capacity) + 1) * t->capacity;
-                    if (resize_trie(t, new_capacity) == NULL) {
-                        return false;
-                    }
-                }
-                if (!set_links(t, get_aux(t, node), t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
+                if (!set_links(t, t->aux[node], t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
                 t->occupied++;
@@ -2193,9 +2176,10 @@ bool unpack(struct trie *from, size_t base, struct trie *to){
     for (size_t i = 1; i < 256; i++){
         size_t from_index = base + i;
         if ((uint8_t) from->nodes[from_index] == i) {
-            if (!copy_node(from, from_index, to, to->node_max) || !deallocate_node(from, from_index)) {
+            if (!copy_node(from, from_index, to, to->node_max)) {
                 return false;
             }
+            deallocate_node(from, from_index);
             to->node_max++;
         }
     }
@@ -2224,7 +2208,7 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
-        if (!set_links(t, get_aux(t, t_index), t->links[t_index])){
+        if (!set_links(t, t->aux[t_index], t->links[t_index])){
             return false;
         }
         if (!copy_node(q, q_index, t, t_index)) {
@@ -2246,21 +2230,23 @@ successful, resulting index is stored in {\tt out\_base} and true is returned.
 bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
     size_t t_index;
     uint8_t offset;
-    t_index = 0;
-    while (true) {
-        t_index = t->links[t_index];
-        if (t_index == 0) {
-            if (!resize_trie(t, 2*t->capacity)){
+    t_index = t->links[0];
+    for (size_t i = 0; i <= t->capacity; i++) {
+        if (t_index == 0){
+            t_index = t->capacity + 1; // free for sure after resize
+            size_t new_capacity = 2*t->capacity;
+            if (!resize_trie(t, new_capacity)){
                 return false;
             }
-            continue;
         }
         offset = (uint8_t) q->nodes[1];
         if (t_index <= offset) {
+            t_index = t->links[t_index];
             continue;
         }
         *out_base = t_index - offset;
         if (get_base_used(t, *out_base)) {
+            t_index = t->links[t_index];
             continue;
         }
         bool conflict = false;
@@ -2271,10 +2257,12 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
             }
         }
         if (!conflict) {
-            break;
+            return true;
         }
+        t_index = t->links[t_index];
     }
-    return true;
+    printf("Loop detected!\n");
+    return false;
 }
 
 @ traverse\_trie.
@@ -2382,10 +2370,10 @@ bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
     size_t old_hash, new_hash, op_index;
     struct output op;
     for (size_t node = 0; node <= t->node_max; node++){
-        if (!is_node_occupied(t, node) || get_aux(t, node) == 0){
+        if (!is_node_occupied(t, node) || t->aux[node] == 0){
             continue;
         }
-        old_hash = get_aux(t, node);
+        old_hash = t->aux[node];
         op_index = old_lookup[old_hash];
         op = ops->data[op_index];
         new_hash = hash_trie_output(ops, op.value, op.position, op.next_op_index);
@@ -2501,7 +2489,7 @@ successfully.
 @c
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(pt, value, position, pt->ops->lookup[get_aux(pt->t, node)], &op_index) || !set_aux(pt->t, node, op_index)) {
+    if (!new_trie_output(pt, value, position, pt->ops->lookup[pt->t->aux[node]], &op_index) || !set_aux(pt->t, node, op_index)) {
         return false;
     }
     return true;
@@ -2786,10 +2774,10 @@ Returns the lowercase representation of the given letter, or NULL if the letter 
 @c
 char *get_lower(struct translate_table *tt, const char *letter){
     size_t index = traverse_trie(tt->mapping, letter);
-    if (index == 0 || get_aux(tt->mapping, index) >= tt->alphabet->size){
+    if (index == 0 || tt->mapping->aux[index] >= tt->alphabet->size){
         return NULL;
     }
-    return tt->alphabet->data + get_aux(tt->mapping, index);
+    return tt->alphabet->data + tt->mapping->aux[index];
 }
 
 @* Params.

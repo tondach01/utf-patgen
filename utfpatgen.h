@@ -30,7 +30,6 @@ bool set_node(struct trie *t, size_t index, char value);
 
 bool set_link(struct trie *t, size_t index, size_t link);
 
-size_t get_aux(struct trie *t, size_t index);
 bool set_aux(struct trie *t, size_t index, size_t aux);
 
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index);
@@ -226,7 +225,7 @@ bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct p
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 
 bool delete_bad_patterns(struct pattern_trie *pt);
-bool deallocate_node(struct trie *t, size_t t_index);
+void deallocate_node(struct trie *t, size_t t_index);
 bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index);
 bool delete_patterns(struct pattern_trie *pt);
 
