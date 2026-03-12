@@ -1082,7 +1082,6 @@ void test_process_dictionary_loop(struct test_context *ctx) {
     printf("  Initial ct->t->occupied=%zu\n", ctx->ct->t->occupied);
 
     size_t words_processed = 0;
-    size_t first_word_logged = 0;
 
     rewind(dict_file);
     while (!feof(dict_file)) {
@@ -1098,86 +1097,13 @@ void test_process_dictionary_loop(struct test_context *ctx) {
         if (!parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
             continue;
         }
-
-        if (first_word_logged < 3) {
-            printf("  Word %zu: '%s' (length=%zu, size=%zu)\n",
-                   words_processed + 1, ctx->word->lowercase, ctx->word->length, ctx->word->size);
-            printf("    True hyphens: ");
-            for (size_t i = 0; i < ctx->word->size; i++) {
-                printf("%zu ", get_true_hyphen(ctx->word, i));
-            }
-            printf("\n");
-            first_word_logged++;
-        }
-
         if (!process_word(ctx->word, ctx->ct, ctx->params, ctx->helper_trie)) {
             printf("ERROR: Failed to process word '%s' at position %zu\n", ctx->word->lowercase, words_processed + 1);
             break;
         }
 
         words_processed++;
-
-        /* Check free list integrity every word between 460-470 */
-        if (words_processed >= 460 && words_processed <= 470) {
-            size_t current = ctx->ct->t->links[0];
-            size_t count = 0;
-            bool loop_detected = false;
-
-            while (current != 0 && count < ctx->ct->t->capacity) {
-                if (current >= ctx->ct->t->capacity) {
-                    printf("ERROR: Free list corrupted at word %zu - node %zu out of bounds\n",
-                           words_processed, current);
-                    loop_detected = true;
-                    break;
-                }
-                current = ctx->ct->t->links[current];
-                count++;
-            }
-
-            if (count >= ctx->ct->t->capacity) {
-                printf("ERROR: Free list loop detected at word %zu\n", words_processed);
-                loop_detected = true;
-            }
-
-            if (loop_detected) {
-                printf("Last processed word: '%s'\n", ctx->word->lowercase);
-                return;
-            } else {
-                printf("  Free list OK at word %zu: '%s' (traversed %zu free nodes, occupied=%zu)\n",
-                       words_processed, ctx->word->lowercase, count, ctx->ct->t->occupied);
-            }
-        }
-        /* Check free list integrity every 10 words after word 390 */
-        else if (words_processed >= 390 && words_processed % 10 == 0) {
-            size_t current = ctx->ct->t->links[0];
-            size_t count = 0;
-            bool loop_detected = false;
-
-            while (current != 0 && count < ctx->ct->t->capacity) {
-                if (current >= ctx->ct->t->capacity) {
-                    printf("ERROR: Free list corrupted at word %zu - node %zu out of bounds\n",
-                           words_processed, current);
-                    loop_detected = true;
-                    break;
-                }
-                current = ctx->ct->t->links[current];
-                count++;
-            }
-
-            if (count >= ctx->ct->t->capacity) {
-                printf("ERROR: Free list loop detected at word %zu\n", words_processed);
-                loop_detected = true;
-            }
-
-            if (loop_detected) {
-                printf("Last processed word: '%s'\n", ctx->word->lowercase);
-                return;
-            } else {
-                printf("  Free list OK at word %zu (traversed %zu free nodes)\n", words_processed, count);
-            }
-        }
-
-        if (words_processed % 100 == 0) {
+        if (words_processed % 1000 == 0) {
             printf("  Processed %zu words, ct->t->occupied=%zu (change: %+zd)\n",
                    words_processed, ctx->ct->t->occupied, (ssize_t)ctx->ct->t->occupied - 255);
         }
