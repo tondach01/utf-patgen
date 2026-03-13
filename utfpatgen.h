@@ -26,16 +26,12 @@ void destroy_trie(struct trie *t);
 
 bool put_first_level(struct trie *t);
 
-bool set_link(struct trie *t, size_t index, size_t link);
-
-bool set_aux(struct trie *t, size_t index, size_t aux);
-
 bool copy_node(struct trie *from, size_t from_index, struct trie *to, size_t to_index);
 
 bool get_base_used(struct trie *t, size_t index);
 bool set_base_used(struct trie *t, size_t index, bool used);
 
-bool set_links(struct trie *t, size_t from, size_t to);
+void set_links(struct trie *t, size_t from, size_t to);
 
 bool is_node_occupied(struct trie *t, size_t index);
 

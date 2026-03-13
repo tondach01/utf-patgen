@@ -593,10 +593,11 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
             if (letter->size == 0){
                 break;
             }
-            if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index)) {
+            if (!append_char(letter, '\0') || !insert_pattern(tt->mapping, letter->data, &out_index, helper_trie)) {
                 destroy_buffer(letter);
                 return false;
             }
+            tt->mapping->aux[out_index] = alphabet_index;
             if (lower) {
                 if (!append_string(tt->alphabet, letter->data)) {
                     destroy_buffer(letter);
@@ -626,17 +627,20 @@ bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie)
     for (char c = 'a'; c <= 'z'; c++){
         alphabet_index = tt->alphabet->size;
         upper = c - ('a' - 'A');
-        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
+        if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
             return false;
         }
-        if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index)) {
+        tt->mapping->aux[out_index] = alphabet_index;
+        if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index, helper_trie)) {
             return false;
         }
+        tt->mapping->aux[out_index] = alphabet_index;
     }
     alphabet_index = tt->alphabet->size;
-    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !set_aux(tt->mapping, out_index, alphabet_index) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
+    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
         return false;
     }
+    tt->mapping->aux[out_index] = alphabet_index;
     return true;
 }
 
@@ -1371,12 +1375,7 @@ bool delete_patterns(struct pattern_trie *pt){
                 uint8_t parent_c = (uint8_t) get_top_value(s_offset);
                 size_t parent_node = parent_root + parent_c;
                 if (child_freed) {
-                    if (!set_link(pt->t, parent_node, 0)){
-                        destroy_stack(s_base);
-                        destroy_stack(s_offset);
-                        destroy_stack(s_freed);
-                        return false;
-                    }
+                    pt->t->links[parent_node] = 0;
                     if (pt->t->aux[parent_node] == 0 && parent_root != 1) {
                         deallocate_node(pt->t, parent_node);
                     } else {
@@ -1464,9 +1463,7 @@ bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index){
             pt->ops->lookup[lookup_index] = 0;
             pt->ops->lookup_cnt--;
         }
-        if (!set_aux(pt->t, t_index, 0)){
-            return false;
-        }
+        pt->t->aux[t_index] = 0;
     } else {
         pt->ops->lookup[lookup_index] = pt->ops->data[0].next_op_index;
     }
@@ -1905,9 +1902,8 @@ bool put_first_level(struct trie *t){
     }
     for (size_t i = 1; i <= n_bytes; i++) {
         t->nodes[root+i] = (uint8_t) i;
-        if (!set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
-            return false;
-        }
+        t->links[root + i] = 0;
+        t->aux[root + i] = 0;
     }
 
     t->node_max = root + n_bytes;
@@ -1915,9 +1911,10 @@ bool put_first_level(struct trie *t){
     t->occupied = n_bytes;
     t->pattern_count = n_bytes;
 
-    if (!set_base_used(t, root, true) || !set_links(t, 0, t->node_max + 1)) {
+    if (!set_base_used(t, root, true)) {
         return false;
     }
+    set_links(t, 0, t->node_max + 1);
     return true;
 }
 
@@ -1980,35 +1977,6 @@ void relink_trie(struct trie *t){
     set_links(t, last_free, 0);
 }
 
-bool set_link(struct trie *t, size_t index, size_t link){
-    if (index >= t->capacity) {
-        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
-        if (resize_trie(t, new_capacity) == NULL) {
-            return false;
-        }
-    }
-    t->links[index] = link;
-    return true;
-}
-
-size_t get_aux(struct trie *t, size_t index){
-    if (index >= t->capacity) {
-        return 0;
-    }
-    return t->aux[index];
-}
-
-bool set_aux(struct trie *t, size_t index, size_t aux){
-    if (index >= t->capacity) {
-        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
-        if (resize_trie(t, new_capacity) == NULL) {
-            return false;
-        }
-    }
-    t->aux[index] = aux;
-    return true;
-}
-
 @ copy\_node.
 Replicates a node between two tries. Return value indicates the success of the operation.
 
@@ -2060,15 +2028,12 @@ bool set_base_used(struct trie *t, size_t index, bool used){
 }
 
 @ set\_links.
-Sets the relevant ({\tt link} and {\tt aux}) pointers to link two empty spaces next to each other. Return value
-indicates the success of the operation.
+Sets the relevant ({\tt link} and {\tt aux}) pointers to link two empty spaces next to each other.
 
 @c
-bool set_links(struct trie *t, size_t from, size_t to){
-    if (!set_link(t, from, to) || !set_aux(t, to, from)) {
-        return false;
-    }
-    return true;
+void set_links(struct trie *t, size_t from, size_t to){
+    t->links[from] = to;
+    t->aux[to] = from;
 }
 
 @ is\_node\_occupied.
@@ -2113,9 +2078,9 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
             new_pattern = true;
             if (t->nodes[node] == 0) {
                 t->nodes[node] = pattern[index];
-                if (!set_links(t, t->aux[node], t->links[node]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
-                    return false;
-                }
+                set_links(t, t->aux[node], t->links[node]);
+                t->aux[node] = 0;
+                t->links[node] = 0;
                 t->occupied++;
                 if (node > t->node_max) {
                     t->node_max = node;
@@ -2130,15 +2095,15 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         node_prev = node;
         base = t->links[node];
     }
-    if (!set_link(helper_trie, 1, 0) || !set_aux(helper_trie, 1, 0)) {
-        return false;
-    }
+    helper_trie->links[1] = 0;
+    helper_trie->aux[1] = 0;
     helper_trie->node_max = 1;
     while (index < end) {
         helper_trie->nodes[1] = pattern[index];
-        if (!first_fit(t, helper_trie, &fit) || !set_link(t, node, fit)) {
+        if (!first_fit(t, helper_trie, &fit)) {
             return false;
         }
+        t->links[node] = fit;
         base = fit;
         node = base + (uint8_t) pattern[index];
         index++;
@@ -2167,17 +2132,14 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
         }
     }
     q->nodes[q->node_max] = value;
-    if (!set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)){
-        return false;
-    }
+    q->links[q->node_max] = 0;
+    q->aux[q->node_max] = 0;
     size_t fit;
     if (!first_fit(t, q, &fit)) {
         return false;
     }
     *base = fit;
-    if (!set_link(t, *node, *base)) {
-        return false;
-    }
+    t->links[*node] = *base;
     *base += (uint8_t) value;
     return true;
 }
@@ -2223,9 +2185,7 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
-        if (!set_links(t, t->aux[t_index], t->links[t_index])){
-            return false;
-        }
+        set_links(t, t->aux[t_index], t->links[t_index]);
         if (!copy_node(q, q_index, t, t_index)) {
             return false;
         }
@@ -2393,9 +2353,7 @@ bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
         op = ops->data[op_index];
         new_hash = hash_trie_output(ops, op.value, op.position, op.next_op_index);
         ops->lookup[new_hash] = op_index;
-        if (!set_aux(t, node, new_hash)){
-            return false;
-        }
+        t->aux[node] = new_hash;
     }
     free(old_lookup);
     return true;
@@ -2504,9 +2462,10 @@ successfully.
 @c
 bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t position){
     size_t op_index;
-    if (!new_trie_output(pt, value, position, pt->ops->lookup[pt->t->aux[node]], &op_index) || !set_aux(pt->t, node, op_index)) {
+    if (!new_trie_output(pt, value, position, pt->ops->lookup[pt->t->aux[node]], &op_index)) {
         return false;
     }
+    pt->t->aux[node] = op_index;
     return true;
 }
 
