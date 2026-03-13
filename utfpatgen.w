@@ -1974,17 +1974,6 @@ void relink_trie(struct trie *t){
     set_links(t, last_free, 0);
 }
 
-bool set_node(struct trie *t, size_t index, char value){
-    if (index >= t->capacity) {
-        size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;
-        if (resize_trie(t, new_capacity) == NULL) {
-            return false;
-        }
-    }
-    t->nodes[index] = value;
-    return true;
-}
-
 bool set_link(struct trie *t, size_t index, size_t link){
     if (index >= t->capacity) {
         size_t new_capacity = ((index / t->capacity) + 1)* t->capacity;

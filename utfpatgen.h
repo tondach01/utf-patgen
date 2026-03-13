@@ -26,8 +26,6 @@ void destroy_trie(struct trie *t);
 
 bool put_first_level(struct trie *t);
 
-bool set_node(struct trie *t, size_t index, char value);
-
 bool set_link(struct trie *t, size_t index, size_t link);
 
 bool set_aux(struct trie *t, size_t index, size_t aux);
@@ -266,8 +264,8 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 
 bool process_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps);
 bool process_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, struct pass_stats *ps, struct count_trie *ct);
-bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt);
-bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, FILE *pattmp);
+bool hyphenate_dictionary(struct params *params, struct translate_table *tt, struct pattern_trie *pt, bool output, struct pass_stats *ps);
+bool hyphenate_all_words(struct params *params, struct translate_table *tt, struct pattern_trie *pt, FILE *pattmp, struct pass_stats *ps);
 
 struct pattern {
     size_t capacity;
