@@ -1891,7 +1891,8 @@ bool put_first_level(struct trie *t){
     size_t root = 1;
     size_t n_bytes = 255;
     for (size_t i = 1; i <= n_bytes; i++) {
-        if (!set_node(t, root + i, (uint8_t) i) || !set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
+        t->nodes[root+i] = (uint8_t) i;
+        if (!set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
             return false;
         }
     }
@@ -2109,7 +2110,8 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
         if (t->nodes[node] != pattern[index]) {
             new_pattern = true;
             if (t->nodes[node] == 0) {
-                if (!set_links(t, t->aux[node], t->links[node]) || !set_node(t, node, pattern[index]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
+                t->nodes[node] = pattern[index];
+                if (!set_links(t, t->aux[node], t->links[node]) || !set_aux(t, node, 0) || !set_link(t, node, 0)) {
                     return false;
                 }
                 t->occupied++;
@@ -2131,7 +2133,8 @@ bool insert_substring(struct trie *t, const char *pattern, size_t end, size_t le
     }
     helper_trie->node_max = 1;
     while (index < end) {
-        if (!set_node(helper_trie, 1, pattern[index]) || !first_fit(t, helper_trie, &fit) || !set_link(t, node, fit)) {
+        helper_trie->nodes[1] = pattern[index];
+        if (!first_fit(t, helper_trie, &fit) || !set_link(t, node, fit)) {
             return false;
         }
         base = fit;

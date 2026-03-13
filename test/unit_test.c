@@ -101,7 +101,7 @@ struct output get_pattern_output(struct pattern_trie *pt, const char *pattern){
     if (trie_index == 0) {
         return empty;
     }
-    size_t op_index = get_aux(pt->t, trie_index);
+    size_t op_index = pt->t->aux[trie_index];
     if (op_index == 0) {
         return empty;
     }
@@ -675,7 +675,7 @@ void test_free_list_head_validity(struct test_context *ctx) {
     /* Verify first free node's aux points back to 0 */
     size_t first_free = t->links[0];
     if (first_free != 0) {
-        size_t first_free_prev = get_aux(t, first_free);
+        size_t first_free_prev = t->aux[first_free];
         if (first_free_prev == 0) {
             printf("First free node's aux correctly points to head\n");
         } else {
