@@ -20,55 +20,68 @@ endif
 
 # Targets
 .PHONY: all coverage build-profile build-debug build-execute analyze-cov run run-tests
-all: clean utfpatgen.pdf
+all: clean utfpatgen.pdf build-execute run
 
 run:
-	$(UTFPATGEN_BIN) ./test/wortliste10k.wlh $(EMPTY) ./test/output.pat ./test/german.tr
+	cat ./test/cshyphen.in | $(UTFPATGEN_BIN) ./test/wortliste10k.wlh $(EMPTY) ./test/output.pat ./test/german.tr
 
 run-tests:
 	$(UNITTEST_BIN)
 
-build-execute: test/unit_test.c | utfpatgen.c build
-	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen utfpatgen.c
-	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -DTEST -o build/unit_test utfpatgen.c test/unit_test.c
+build-execute: test/unit_test.c | build build/utfpatgen.c
+	cp utfpatgen.h build/
+	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen build/utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -DTEST -o build/unit_test build/utfpatgen.c test/unit_test.c
 	$(eval UTFPATGEN_BIN = ./build/utfpatgen)
 	$(eval UNITTEST_BIN = ./build/unit_test)
+	rm build/utfpatgen.h
 
-build-coverage: test/unit_test.c | utfpatgen.c build
-	$(CXX) $(CXXFLAGS) $(COVFLAG) -o build/utfpatgen_cov utfpatgen.c
-	$(CXX) $(CXXFLAGS) $(COVFLAG) -DTEST -o build/unit_test_cov utfpatgen.c test/unit_test.c
+build-coverage: test/unit_test.c | build build/utfpatgen.c
+	cp utfpatgen.h build/
+	$(CXX) $(CXXFLAGS) $(COVFLAG) -o build/utfpatgen_cov build/utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(COVFLAG) -DTEST -o build/unit_test_cov build/utfpatgen.c test/unit_test.c
 	$(eval UTFPATGEN_BIN = ./build/utfpatgen_cov)
 	$(eval UNITTEST_BIN = ./build/unit_test_cov)
+	rm build/utfpatgen.h
 
-build-profile: test/unit_test.c | utfpatgen.c build
-	$(CXX) $(CXXFLAGS) $(PROFFLAG) -o build/utfpatgen_prof utfpatgen.c
-	$(CXX) $(CXXFLAGS) $(PROFFLAG) -DTEST -o build/unit_test_prof utfpatgen.c test/unit_test.c
+build-profile: test/unit_test.c | build build/utfpatgen.c
+	cp utfpatgen.h build/
+	$(CXX) $(CXXFLAGS) $(PROFFLAG) -o build/utfpatgen_prof build/utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(PROFFLAG) -DTEST -o build/unit_test_prof build/utfpatgen.c test/unit_test.c
 	$(eval UTFPATGEN_BIN = ./build/utfpatgen_prof)
 	$(eval UNITTEST_BIN = ./build/unit_test_prof)
+	rm build/utfpatgen.h
 
 analyze-prof: build-profile run
 	gprof -b $(UTFPATGEN_BIN)$(EXT) ./gmon.out | gprof2dot | dot -Tpng -o profile_visual.png
 
-build-debug: test/unit_test.c | utfpatgen.c build
-	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -o build/utfpatgen_debug utfpatgen.c
-	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -DTEST -o build/unit_test_debug utfpatgen.c test/unit_test.c
+build-debug: test/unit_test.c | build build/utfpatgen.c
+	cp utfpatgen.h build/
+	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -o build/utfpatgen_debug build/utfpatgen.c
+	$(CXX) $(CXXFLAGS) $(DEBUGFLAG) -DTEST -o build/unit_test_debug build/utfpatgen.c test/unit_test.c
 	$(eval UTFPATGEN_BIN = ./build/utfpatgen_debug)
 	$(eval UNITTEST_BIN = ./build/unit_test_debug)
+	rm build/utfpatgen.h
 
 build:
 	mkdir build
 
 # PDF documentation
-utfpatgen.tex: utfpatgen.w
-	cweave $<
+build/utfpatgen.tex: utfpatgen.w | build
+	cweave $< - $@
 
-utfpatgen.pdf: utfpatgen.tex
-	pdftex $<
-	pdftex $<
+utfpatgen.pdf: build/utfpatgen.tex | build
+	cp cweb.cls build/
+	cp cwebacromac.tex build/
+	cp cwebmac.tex build/
+	cd build; pdftex utfpatgen.tex
+	cd build; pdftex utfpatgen.tex
+	rm build/cweb.cls build/cwebacromac.tex build/cwebmac.tex
+	mv build/utfpatgen.pdf utfpatgen.pdf
 
 # Executable
-utfpatgen.c: utfpatgen.w
-	ctangle $<
+build/utfpatgen.c: utfpatgen.w | build
+	ctangle $< - $@
 
 # File translation from patgen to utfpatgen format and vice versa
 # this creates a circular dependency, but make deals with it
