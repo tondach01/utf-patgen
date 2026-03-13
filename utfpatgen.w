@@ -1897,6 +1897,12 @@ since these nodes will never be moved elsewhere. Return value indicates whether 
 bool put_first_level(struct trie *t){
     size_t root = 1;
     size_t n_bytes = 255;
+    if (t->capacity < n_bytes + 2){
+        size_t new_capacity = (((n_bytes + 2) / t->capacity) + 1)* t->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
     for (size_t i = 1; i <= n_bytes; i++) {
         t->nodes[root+i] = (uint8_t) i;
         if (!set_link(t, root + i, 0) || !set_aux(t, root + i, 0)){
@@ -2151,7 +2157,17 @@ successfully, the index for new node is stored in {\tt base} and true is returne
 
 @c
 bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char value){
-    if (!unpack(t, *base - (uint8_t) value, q) || !set_node(q, q->node_max, value) || !set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)) {
+    if (!unpack(t, *base - (uint8_t) value, q)) {
+        return false;
+    }
+    if (q->node_max >= q->capacity){
+        size_t new_capacity = ((q->node_max / q->capacity) + 1) * q->capacity;
+        if (resize_trie(t, new_capacity) == NULL) {
+            return false;
+        }
+    }
+    q->nodes[q->node_max] = value;
+    if (!set_link(q, q->node_max, 0) || !set_aux(q, q->node_max, 0)){
         return false;
     }
     size_t fit;
