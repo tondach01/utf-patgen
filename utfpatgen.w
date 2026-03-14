@@ -1909,7 +1909,6 @@ bool put_first_level(struct trie *t){
     t->node_max = root + n_bytes;
     t->base_max = root;
     t->occupied = n_bytes;
-    t->pattern_count = n_bytes;
 
     if (!set_base_used(t, root, true)) {
         return false;
