@@ -100,4 +100,4 @@ build/utfpatgen.c: utfpatgen.w | build
 # Cleaning
 .PHONY: clean
 clean:
-	rm -rf *.c utfpatgen.tex utfpatgen.pdf *.log *.toc *.idx *.scn *.aux build pattmp.*
+	rm -rf utfpatgen.pdf build pattmp.* profile_visual.png
