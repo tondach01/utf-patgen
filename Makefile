@@ -27,7 +27,7 @@ else
 endif
 
 # Targets
-.PHONY: all coverage build-profile build-debug build-execute analyze-cov run run-tests
+.PHONY: all coverage build-profile build-debug build-execute analyze-cov run run-tests run-patgen
 all: clean utfpatgen.pdf build-execute run
 
 run:
@@ -38,6 +38,9 @@ run:
 
 run-tests:
 	$(UNITTEST_BIN)
+
+run-patgen:
+	cat $(PARAMPROFILE) | $(UTFPATGEN_BIN) $(DICTIONARY) $(EMPTY) $(OUTFILE) $(TRANSLATEFILE)
 
 build-execute: test/unit_test.c | build build/utfpatgen.c
 	cp utfpatgen.h build/
