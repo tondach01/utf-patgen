@@ -1024,7 +1024,7 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= (uint8_t) (params->left_hyphen_min + 1); dot_pos--){
         while (current_pos > dot_pos){
             current_index--;
-            if (is_utf_start_byte(get_byte(word, current_index))) {
+            if (is_utf_start_byte(word->lowercase[current_index])) {
                 current_pos--;
             }
         }
@@ -1072,7 +1072,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
     for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
         while (current_pos > dot_pos){
             current_index--;
-            if (is_utf_start_byte(get_byte(word, current_index))){
+            if (is_utf_start_byte(word->lowercase[current_index])){
                 current_pos--;
             }
         }
@@ -1095,7 +1095,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         start_index = current_index;
         while (start_pos > dot_pos - params->pat_dot){
             start_index--;
-            if (is_utf_start_byte(get_byte(word, start_index))){
+            if (is_utf_start_byte(word->lowercase[start_index])){
                 start_pos--;
             }
         }
@@ -1103,7 +1103,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         end_index = current_index;
         while (end_pos < start_pos + params->pat_len){
             end_index++;
-            if (is_utf_start_byte(get_byte(word, end_index))){
+            if (is_utf_start_byte(word->lowercase[end_index])){
                 end_pos++;
             }
         }
@@ -1609,17 +1609,17 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
         start_pos--;
         while (current_pos > start_pos) {
             current_index--;
-            if (is_utf_start_byte(get_byte(word, current_index))) {
+            if (is_utf_start_byte(word->lowercase[current_index])) {
                 current_pos--;
             }
         }
         start_index = current_index;
         end_index = current_index;
         end_pos = current_pos;
-        node = 1 + (uint8_t) get_byte(word, start_index);
-        while (pt->t->nodes[node] == get_byte(word, end_index)){
+        node = 1 + (uint8_t) word->lowercase[start_index];
+        while (pt->t->nodes[node] == word->lowercase[end_index]){
             end_index++;
-            if (is_utf_start_byte(get_byte(word, end_index))){
+            if (is_utf_start_byte(word->lowercase[end_index])){
                 end_pos++;
             }
             op_index = pt->ops->lookup[pt->t->aux[node]];
@@ -1629,7 +1629,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 dot_index = start_index;
                 while (dot_pos < start_pos + op.position){
                     dot_index++;
-                    if (is_utf_start_byte(get_byte(word, dot_index))){
+                    if (is_utf_start_byte(word->lowercase[dot_index])){
                         dot_pos++;
                     }
                 }
@@ -1654,7 +1654,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (base == 0){
                 break;
             }
-            node = base + (uint8_t) get_byte(word, end_index);
+            node = base + (uint8_t) word->lowercase[end_index];
         }
     }
     return true;
@@ -1748,7 +1748,7 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *para
     for (size_t i = 0; i < word->size; i++){
         has_hyphen = false;
         found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
-        c = get_byte(word, i);
+        c = word->lowercase[i];
         if (c == EDGE_OF_WORD){
             continue;
         }
@@ -3072,18 +3072,6 @@ bool set_no_more(struct word *word, size_t index, bool value){
     word->no_more[index] = value;
     return true;
 }
-
-@ get\_byte.
-Returns the byte at given index of the word.
-
-@c
-char get_byte(struct word *word, size_t index){
-    if (index >= word->size){
-        return '\0';
-    }
-    return word->lowercase[index];
-}
-
 @ append\_char\_to\_word.
 Puts the given byte to the end of word. Returns true if the insertion was successful.
 
