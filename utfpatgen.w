@@ -2188,6 +2188,9 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
         if (!copy_node(q, q_index, t, t_index)) {
             return false;
         }
+        if (t_index > t->node_max) {
+            t->node_max = t_index;
+        }
     }
     if (!set_base_used(t, base, true)){
         return false;
