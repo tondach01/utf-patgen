@@ -1005,6 +1005,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         destroy_buffer(letter);
         return false;
     }
+    destroy_buffer(letter);
     return true;
 }
 
