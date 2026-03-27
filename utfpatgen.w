@@ -2718,6 +2718,11 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
         free(tt);
         return NULL;
     }
+    if (!put_first_level(mapping)){
+        destroy_trie(mapping);
+        free(tt);
+        return NULL;
+    }
     struct string_buffer *alphabet = init_buffer(alphabet_capacity);
     if (alphabet == NULL){
         destroy_trie(mapping);
