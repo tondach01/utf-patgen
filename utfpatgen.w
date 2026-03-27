@@ -613,6 +613,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
             }
         }
     }
+    destroy_buffer(letter);
     return true;
 }
 
