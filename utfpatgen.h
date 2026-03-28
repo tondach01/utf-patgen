@@ -287,6 +287,7 @@ void destroy_pattern(struct pattern *pat);
 
 bool append_char_to_pattern(struct pattern *pat, char c);
 bool append_string_to_pattern(struct pattern *pat, char *s, size_t length);
+bool convert_index_to_pattern(size_t index, struct pattern *pat);
 
 uint8_t get_hyphen(struct pattern *pat, size_t index);
 bool set_hyphen(struct pattern *pat, size_t index, uint8_t value);

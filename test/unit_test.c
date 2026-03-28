@@ -273,7 +273,19 @@ void test_parse_word(struct test_context *ctx) {
     }
 
     if (parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
-        printf("Word parsed: '%s', length=%zu\n", ctx->word->lowercase, ctx->word->length);
+        char text[10] = {'\0'};
+        struct word word = { .lowercase = text, .length = 0 };
+        size_t letter_index;
+        char *letter;
+        for (size_t i = 0; i < ctx->word->length; i++){
+            letter_index = convert_byte_sequence(ctx->word->lowercase + i);
+            letter = ctx->tt->alphabet->data + ctx->tt->index_to_alphabet[letter_index];
+            if (!append_string_to_word(&word, letter, strlen(letter))){
+                return;
+            }
+        }
+        
+        printf("Word parsed: '%s', length=%zu\n", word.lowercase, ctx->word->length);
         printf("True hyphens at positions: ");
         for (size_t i = 0; i < ctx->word->length; i++) {
             if (get_true_hyphen(ctx->word, i) % 4 > 0) {

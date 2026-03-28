@@ -745,7 +745,6 @@ value indicates the success of translation and parsing.
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
     reset_pattern(out_pattern);
     char c;
-    char *lower;
     bool next_hyphen = false;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL){
@@ -771,13 +770,13 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
                 destroy_buffer(letter);
                 return false;
             }
-            lower = get_lower(tt, letter->data);
-            if (lower == 0){
+            size_t letter_index = get_letter_index(tt, letter->data);
+            if (letter_index == 0){
                 fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
                 destroy_buffer(letter);
                 return false;
             }
-            if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+            if (!convert_index_to_pattern(letter_index, out_pattern)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -800,13 +799,13 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
             destroy_buffer(letter);
             return false;
         }
-        lower = get_lower(tt, letter->data);
-        if (lower == 0){
+        size_t letter_index = get_letter_index(tt, letter->data);
+        if (letter_index == 0){
             fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
             destroy_buffer(letter);
             return false;
         }
-        if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+        if (!convert_index_to_pattern(letter_index, out_pattern)){
             destroy_buffer(letter);
             return false;
         }
@@ -968,18 +967,19 @@ Return value indicates successful parsing.
 @c
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
     reset_word(out_word);
+    char edge_of_word[] = {EDGE_OF_WORD, '\0'};
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
         return false;
     }
     uint8_t weight = params->word_weight;
     enum hyphen_type hyf = NO_HYF;
-    if (!append_char_to_word(out_word, EDGE_OF_WORD)){
+    size_t letter_index = get_letter_index(tt, edge_of_word);
+    if (!convert_index(letter_index, out_word)){
         destroy_buffer(letter);
         return false;
     }
     char c;
-    char *lower;
     bool has_weight = false;
     for (size_t i = 0; i < buf->size; i++){
         c = buf->data[i];
@@ -1007,13 +1007,13 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
                 destroy_buffer(letter);
                 return false;
             }
-            lower = get_lower(tt, letter->data);
-            if (lower == NULL) {
+            letter_index = get_letter_index(tt, letter->data);
+            if (letter_index == 0) {
                 fprintf(stderr, "Character '%s' not known\n", letter->data);
                 destroy_buffer(letter);
                 return false;
             }
-            if (!append_string_to_word(out_word, lower, strlen(lower))){
+            if (!convert_index(letter_index, out_word)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -1035,21 +1035,22 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
             destroy_buffer(letter);
             return false;
         }
-        lower = get_lower(tt, letter->data);
-        if (lower == NULL) {
+        letter_index = get_letter_index(tt, letter->data);
+        if (letter_index == 0) {
             fprintf(stderr, "Character '%s' not known\n", letter->data);
             destroy_buffer(letter);
             return false;
         }
-        if (!append_string_to_word(out_word, lower, strlen(lower))){
+        if (!convert_index(letter_index, out_word)){
             destroy_buffer(letter);
             return false;
         }
     }
-    if (!append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
-            destroy_buffer(letter);
-            return false;
-        }
+    letter_index = get_letter_index(tt, edge_of_word);
+    if (!convert_index(letter_index, out_word) || !set_true_hyphen(out_word, 0, 0)){
+        destroy_buffer(letter);
+        return false;
+    }
     destroy_buffer(letter);
     return true;
 }
@@ -2849,17 +2850,14 @@ value as the remainder.
 bool convert_index(size_t index, struct word *word){
     size_t ff_count = index / 254;
     size_t remainder = index % 254;
-    
     for (size_t i = 0; i < ff_count; i++){
         if (!append_char_to_word(word, (char) 0xff)){
             return false;
         }
     }
-    
     if (!append_char_to_word(word, (char) remainder)){
         return false;
     }
-    
     return true;
 }
 
@@ -3355,6 +3353,35 @@ bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
         pat->text[pat->size] = s[i];
         pat->size++;
     }
+    return true;
+}
+
+@ convert\_index\_to\_pattern.
+Converts a letter index to a byte sequence and appends it to the pattern.
+While the index is greater than 254, appends 0xFF byte to the pattern and
+subtracts 254 from the index. Finally appends the byte with the same
+value as the remainder.
+
+@c
+bool convert_index_to_pattern(size_t index, struct pattern *pat){
+    size_t ff_count = index / 254;
+    size_t remainder = index % 254;
+    size_t total_bytes = ff_count + 1;
+    
+    if(pat->size >= pat->capacity - total_bytes){
+        if(!resize_pattern(pat, 2*(pat->capacity + total_bytes))){
+            return false;
+        }
+    }
+    
+    for (size_t i = 0; i < ff_count; i++){
+        pat->text[pat->size] = (char) 0xff;
+        pat->size++;
+    }
+    
+    pat->text[pat->size] = (char) remainder;
+    pat->size++;
+    
     return true;
 }
 
