@@ -613,6 +613,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
             }
         }
     }
+    destroy_buffer(letter);
     return true;
 }
 
@@ -1005,6 +1006,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         destroy_buffer(letter);
         return false;
     }
+    destroy_buffer(letter);
     return true;
 }
 
@@ -1792,8 +1794,8 @@ the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3
 Returns true if the given byte is the start byte of a UTF-8 character or a \utfpatgen special symbol.
 
 @c
-bool is_utf_start_byte(uint8_t byte){
-    return (byte & 0xc0) != 0x80;
+inline bool is_utf_start_byte(uint8_t byte){
+    return byte < 0x80 || byte > 0xbf ;
 }
 
 @ n\_utf\_following\_bytes.
@@ -2207,7 +2209,11 @@ successful, resulting index is stored in {\tt out\_base} and true is returned.
 bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
     size_t t_index;
     uint8_t offset;
-    t_index = t->links[0];
+    if (q->occupied > 7) {
+        t_index = t->aux[t->node_max + 1];
+    } else {
+        t_index = t->links[0];
+    }
     for (size_t i = 0; i <= t->capacity; i++) {
         if (t_index == 0){
             t_index = t->capacity + 1; // free for sure after resize
