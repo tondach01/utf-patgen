@@ -232,6 +232,9 @@ bool append_string(struct string_buffer *buf, const char *str);
 struct translate_table {
     struct trie *mapping;
     struct string_buffer *alphabet;
+    size_t *index_to_alphabet;
+    size_t letter_count;
+    size_t letter_capacity;
 };
 
 struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity);

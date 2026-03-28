@@ -2740,7 +2740,17 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
     }
     tt->mapping = mapping;
     tt->alphabet = alphabet;
+    tt->index_to_alphabet = malloc(alphabet_capacity * sizeof(size_t));
+    if (tt->index_to_alphabet == NULL){
+        destroy_trie(tt->mapping);
+        destroy_buffer(tt->alphabet);
+        free(tt);
+        return NULL;
+    }
+    tt->letter_count = 0;
+    tt->letter_capacity = alphabet_capacity;
     if (!append_char(tt->alphabet, '\0')){
+        free(tt->index_to_alphabet);
         destroy_trie(tt->mapping);
         destroy_buffer(tt->alphabet);
         free(tt);
@@ -2752,6 +2762,7 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
 void destroy_tr_table(struct translate_table *tt){
     destroy_trie(tt->mapping);
     destroy_buffer(tt->alphabet);
+    free(tt->index_to_alphabet);
     free(tt);
 }
 
