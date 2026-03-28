@@ -483,7 +483,7 @@ bool read_translate(struct params *params, struct translate_table *tt){
     }
     destroy_trie(helper_trie);
     destroy_buffer(buf);
-    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
+    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->letter_count);
     return true;
 }
 
@@ -576,7 +576,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
     if (buf->size > 1 && buf->data[1] == separator){  // a comment
         return true;
     }
-    size_t alphabet_index = tt->alphabet->size;
+    size_t letter_index = tt->letter_count + 1;
     size_t out_index;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
@@ -597,12 +597,25 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
                 destroy_buffer(letter);
                 return false;
             }
-            tt->mapping->aux[out_index] = alphabet_index;
+            tt->mapping->aux[out_index] = letter_index;
             if (lower) {
+                if (letter_index >= tt->letter_capacity) {
+                    size_t new_capacity = tt->letter_capacity * 2;
+                    size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+                    if (new_array == NULL) {
+                        destroy_buffer(letter);
+                        return false;
+                    }
+                    tt->index_to_alphabet = new_array;
+                    tt->letter_capacity = new_capacity;
+                }
+                tt->index_to_alphabet[letter_index] = tt->alphabet->size;
+                
                 if (!append_string(tt->alphabet, letter->data)) {
                     destroy_buffer(letter);
                     return false;
                 }
+                tt->letter_count++;
                 lower = false;
             }
             reset_buffer(letter);
@@ -623,25 +636,50 @@ Fetches default ASCII character mapping into the translate table. Return value i
 @c
 bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie){
     size_t out_index;
-    size_t alphabet_index;
+    size_t letter_index;
     char upper;
     for (char c = 'a'; c <= 'z'; c++){
-        alphabet_index = tt->alphabet->size;
+        letter_index = tt->letter_count + 1;
         upper = c - ('a' - 'A');
+        
+        // Resize index_to_alphabet if needed
+        if (letter_index >= tt->letter_capacity) {
+            size_t new_capacity = tt->letter_capacity * 2;
+            size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+            if (new_array == NULL) {
+                return false;
+            }
+            tt->index_to_alphabet = new_array;
+            tt->letter_capacity = new_capacity;
+        }
+        tt->index_to_alphabet[letter_index] = tt->alphabet->size;
         if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
             return false;
         }
-        tt->mapping->aux[out_index] = alphabet_index;
+        tt->mapping->aux[out_index] = letter_index;
         if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index, helper_trie)) {
             return false;
         }
-        tt->mapping->aux[out_index] = alphabet_index;
+        tt->mapping->aux[out_index] = letter_index;
+        tt->letter_count++;
     }
-    alphabet_index = tt->alphabet->size;
+    letter_index = tt->letter_count + 1;
+    
+    if (letter_index >= tt->letter_capacity) {
+        size_t new_capacity = tt->letter_capacity * 2;
+        size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+        if (new_array == NULL) {
+            return false;
+        }
+        tt->index_to_alphabet = new_array;
+        tt->letter_capacity = new_capacity;
+    }
+    tt->index_to_alphabet[letter_index] = tt->alphabet->size;
     if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
         return false;
     }
-    tt->mapping->aux[out_index] = alphabet_index;
+    tt->mapping->aux[out_index] = letter_index;
+    tt->letter_count++;
     return true;
 }
 
@@ -992,20 +1030,26 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
             return false;
         }
     }
-    if (!append_char(letter, '\0')){
-        destroy_buffer(letter);
-        return false;
+    if (letter->size > 0){
+        if (!append_char(letter, '\0')){
+            destroy_buffer(letter);
+            return false;
+        }
+        lower = get_lower(tt, letter->data);
+        if (lower == NULL) {
+            fprintf(stderr, "Character '%s' not known\n", letter->data);
+            destroy_buffer(letter);
+            return false;
+        }
+        if (!append_string_to_word(out_word, lower, strlen(lower))){
+            destroy_buffer(letter);
+            return false;
+        }
     }
-    lower = get_lower(tt, letter->data);
-    if (lower == NULL) {
-        fprintf(stderr, "Character '%s' not known\n", letter->data);
-        destroy_buffer(letter);
-        return false;
-    }
-    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
-        destroy_buffer(letter);
-        return false;
-    }
+    if (!append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
+            destroy_buffer(letter);
+            return false;
+        }
     destroy_buffer(letter);
     return true;
 }
@@ -2772,10 +2816,14 @@ Returns the lowercase representation of the given letter, or NULL if the letter 
 @c
 char *get_lower(struct translate_table *tt, const char *letter){
     size_t index = traverse_trie(tt->mapping, letter);
-    if (index == 0 || tt->mapping->aux[index] >= tt->alphabet->size){
+    if (index == 0 || tt->mapping->aux[index] > tt->letter_count || tt->mapping->aux[index] == 0){
         return NULL;
     }
-    return tt->alphabet->data + tt->mapping->aux[index];
+    size_t alphabet_offset = tt->index_to_alphabet[tt->mapping->aux[index]];
+    if (alphabet_offset >= tt->alphabet->size){
+        return NULL;
+    }
+    return tt->alphabet->data + alphabet_offset;
 }
 
 @ convert\_index.
