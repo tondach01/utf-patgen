@@ -2767,6 +2767,31 @@ char *get_lower(struct translate_table *tt, const char *letter){
     return tt->alphabet->data + tt->mapping->aux[index];
 }
 
+@ convert\_index.
+Converts a {\tt size\_t} index to a byte sequence. While the index is greater than 254,
+appends 0xFF byte to the string and subtracts 254 from the index. Finally appends
+the byte with the same value as the remainder.
+
+@c
+char *convert_index(size_t index){
+    size_t ff_count = index / 254;
+    size_t remainder = index % 254;
+    
+    char *result = malloc(ff_count + 2);
+    if (result == NULL){
+        return NULL;
+    }
+    
+    for (size_t i = 0; i < ff_count; i++){
+        result[i] = (char) 0xff;
+    }
+    
+    result[ff_count] = (char) remainder;
+    result[ff_count + 1] = '\0';
+    
+    return result;
+}
+
 @* Params.
 This structure encompasses all the parameters that influence the computation of \utfpatgen. We can sort them by their
 scope of into {\bf global} (usually defined once and used throughout the whole run), {\bf level-specific} (defined
