@@ -2826,6 +2826,19 @@ char *get_lower(struct translate_table *tt, const char *letter){
     return tt->alphabet->data + alphabet_offset;
 }
 
+@ get\_letter\_index.
+Returns the index of the given letter in the translate table, or 0 if the letter
+does not exist.
+
+@c
+size_t get_letter_index(struct translate_table *tt, char *letter){
+    size_t index = traverse_trie(tt->mapping, letter);
+    if (index == 0 || tt->mapping->aux[index] > tt->letter_count || tt->mapping->aux[index] == 0){
+        return 0;
+    }
+    return tt->mapping->aux[index];
+}
+
 @ convert\_index.
 Converts a letter index to a byte sequence and appends it to the word.
 While the index is greater than 254, appends 0xFF byte to the word and
