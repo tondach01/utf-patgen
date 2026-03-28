@@ -245,7 +245,8 @@ bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct trie *helper_trie);
 bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie);
 char *get_lower(struct translate_table *tt, const char *letter);
-char *convert_index(size_t index);
+bool convert_index(size_t index, struct word *word);
+size_t convert_byte_sequence(char *sequence);
 
 #ifndef EDGE_OF_WORD
 // not used in UTF-8

@@ -2827,28 +2827,46 @@ char *get_lower(struct translate_table *tt, const char *letter){
 }
 
 @ convert\_index.
-Converts a {\tt size\_t} index to a byte sequence. While the index is greater than 254,
-appends 0xFF byte to the string and subtracts 254 from the index. Finally appends
-the byte with the same value as the remainder.
+Converts a letter index to a byte sequence and appends it to the word.
+While the index is greater than 254, appends 0xFF byte to the word and
+subtracts 254 from the index. Finally appends the byte with the same
+value as the remainder.
 
 @c
-char *convert_index(size_t index){
+bool convert_index(size_t index, struct word *word){
     size_t ff_count = index / 254;
     size_t remainder = index % 254;
     
-    char *result = malloc(ff_count + 2);
-    if (result == NULL){
-        return NULL;
-    }
-    
     for (size_t i = 0; i < ff_count; i++){
-        result[i] = (char) 0xff;
+        if (!append_char_to_word(word, (char) 0xff)){
+            return false;
+        }
     }
     
-    result[ff_count] = (char) remainder;
-    result[ff_count + 1] = '\0';
+    if (!append_char_to_word(word, (char) remainder)){
+        return false;
+    }
     
-    return result;
+    return true;
+}
+
+@ convert\_byte\_sequence.
+Converts a byte sequence to a translate table index. This is the reverse operation
+of convert\_index.
+
+@c
+size_t convert_byte_sequence(char *sequence){
+    if (sequence == NULL){
+        return 0;
+    }
+    size_t ff_count = 0;
+    while (*sequence == (char) 0xff){
+        ff_count++;
+        sequence++;
+    }
+    size_t remainder = (uint8_t) *sequence;
+    sequence++;
+    return ff_count * 254 + remainder;
 }
 
 @* Params.
