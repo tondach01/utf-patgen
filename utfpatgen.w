@@ -3318,44 +3318,6 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
     return true;
 }
 
-@ append\_char\_to\_pattern.
-Puts the given byte to the end of pattern. Returns true if the insertion was successful.
-
-@c
-bool append_char_to_pattern(struct pattern *pat, char c){
-    if(pat->size >= pat->capacity - 1){
-        if(!resize_pattern(pat, 2*pat->capacity)){
-            return false;
-        }
-    }
-    pat->text[pat->size]= c;
-    pat->size++;
-    if (is_utf_start_byte(c)){
-        pat->length++;
-    }
-    return true;
-}
-
-@ append\_string\_to\_pattern.
-Adds the given number of bytes of character array to the end of pattern. Returns true if the insertion was successful.
-
-@c
-bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
-    if(pat->size >= pat->capacity - length){
-        if(!resize_pattern(pat, 2*(pat->capacity + length))){
-            return false;
-        }
-    }
-    for (size_t i = 0; i < length; i++) {
-        if (is_utf_start_byte(s[i])){
-            pat->length++;
-        }
-        pat->text[pat->size] = s[i];
-        pat->size++;
-    }
-    return true;
-}
-
 @ convert\_index\_to\_pattern.
 Converts a letter index to a byte sequence and appends it to the pattern.
 While the index is greater than 254, appends 0xFF byte to the pattern and

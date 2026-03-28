@@ -285,7 +285,6 @@ struct pattern *resize_pattern(struct pattern *pat, size_t new_capacity);
 void reset_pattern(struct pattern *pat);
 void destroy_pattern(struct pattern *pat);
 
-bool append_char_to_pattern(struct pattern *pat, char c);
 bool append_string_to_pattern(struct pattern *pat, char *s, size_t length);
 bool convert_index_to_pattern(size_t index, struct pattern *pat);
 
