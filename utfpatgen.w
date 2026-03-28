@@ -1794,7 +1794,7 @@ the leading byte), e.g., the byte of binary value '1110XXXX' is a beginning of 3
 Returns true if the given byte is the start byte of a UTF-8 character or a \utfpatgen special symbol.
 
 @c
-bool is_utf_start_byte(uint8_t byte){
+inline bool is_utf_start_byte(uint8_t byte){
     return byte < 0x80 || byte > 0xbf ;
 }
 
