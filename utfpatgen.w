@@ -1644,41 +1644,40 @@ Hyphenates the given word according to the actual set of patterns from pattern t
 
 @c
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
-    size_t current_index = word->size;
-    size_t current_pos = word->length;
+    size_t current_index = 0;
+    size_t current_pos = 0;
     size_t node, base, start_index, dot_index, end_index, op_index, dot_pos, end_pos;
     struct output op;
     if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
         return true;
     }
-    size_t start_pos = word->length - params->right_hyphen_min;
+    size_t start_pos = 0;
     for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
-        start_pos--;
-        while (current_pos > start_pos) {
-            current_index--;
-            if (is_utf_start_byte(word->lowercase[current_index])) {
-                current_pos--;
+        while (current_pos < start_pos) {
+            if ((uint8_t) word->lowercase[current_index] != 0xff) {
+                current_pos++;
             }
+            current_index++;
         }
         start_index = current_index;
         end_index = current_index;
         end_pos = current_pos;
         node = 1 + (uint8_t) word->lowercase[start_index];
         while (pt->t->nodes[node] == word->lowercase[end_index]){
-            end_index++;
-            if (is_utf_start_byte(word->lowercase[end_index])){
+            if ((uint8_t) word->lowercase[end_index] != 0xff){
                 end_pos++;
             }
+            end_index++;
             op_index = pt->ops->lookup[pt->t->aux[node]];
             while (op_index > 0){
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
                 dot_index = start_index;
                 while (dot_pos < start_pos + op.position){
-                    dot_index++;
-                    if (is_utf_start_byte(word->lowercase[dot_index])){
+                    if ((uint8_t) word->lowercase[dot_index] != 0xff){
                         dot_pos++;
                     }
+                    dot_index++;
                 }
                 if (dot_index > 0){
                     dot_index--;
@@ -1703,6 +1702,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             }
             node = base + (uint8_t) word->lowercase[end_index];
         }
+        start_pos++;
     }
     return true;
 }
@@ -1773,7 +1773,7 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
         }
         count_dots(word, params, ps);
         if (pattmp != NULL && word->length > 2){
-            output_hyphenated_word(pattmp, word, params);
+            output_hyphenated_word(pattmp, word, tt, params);
         }
     }
     destroy_buffer(buf);
@@ -1785,30 +1785,26 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
 Writes the parsed and hyphenated word to the {\tt pattmp} file.
 
 @c
-void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct translate_table *tt, struct params *params){
     if (params->word_weight > 1){
         fprintf(pattmp, "%d", params->word_weight);
     }
-    char c;
-    size_t weight, dot_pos = 0;
+    size_t weight, letter_index, dot_pos = 0;
+    size_t edge_of_word_idx = get_letter_index(tt, (char[2]){EDGE_OF_WORD, '\0'});
+    char *word_index = word->lowercase;
     bool has_hyphen, found_hyphen;
-    for (size_t i = 0; i < word->size; i++){
-        has_hyphen = false;
-        found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
-        c = word->lowercase[i];
-        if (c == EDGE_OF_WORD){
+    while (word_index < word->lowercase + word->size){
+        found_hyphen = (get_found_hyphen(word, word_index - word->lowercase) % 2 == 1 );
+        weight = get_true_hyphen(word, word_index - word->lowercase);
+        has_hyphen = (weight % 2 == 1);
+        letter_index = convert_byte_sequence(&word_index);
+        if (letter_index == edge_of_word_idx){
             continue;
         }
-        if (is_utf_start_byte(c)){
-            dot_pos++;
-        }
-        fputc(c, pattmp);
-        weight = get_true_hyphen(word, i);
+        printf("%s", tt->alphabet->data + tt->index_to_alphabet[letter_index]);
+        dot_pos++;
         if (weight == 0 || dot_pos < params->left_hyphen_min || dot_pos >= word->length - params->right_hyphen_min - 1){
             continue;
-        }
-        if (weight % 2 == 1) {
-            has_hyphen = true;
         }
         weight /= 4;
         if (weight != params->word_weight){
@@ -2866,17 +2862,17 @@ Converts a byte sequence to a translate table index. This is the reverse operati
 of convert\_index.
 
 @c
-size_t convert_byte_sequence(char *sequence){
-    if (sequence == NULL){
+size_t convert_byte_sequence(char **sequence){
+    if (sequence == NULL || *sequence == NULL){
         return 0;
     }
     size_t ff_count = 0;
-    while (*sequence == (char) 0xff){
+    while (**sequence == (char) 0xff){
         ff_count++;
-        sequence++;
+        (*sequence)++;
     }
-    size_t remainder = (uint8_t) *sequence;
-    sequence++;
+    size_t remainder = (uint8_t) **sequence;
+    (*sequence)++;
     return ff_count * 254 + remainder;
 }
 

@@ -277,8 +277,9 @@ void test_parse_word(struct test_context *ctx) {
         struct word word = { .lowercase = text, .length = 0 };
         size_t letter_index;
         char *letter;
+        char *word_index = ctx->word->lowercase;
         for (size_t i = 0; i < ctx->word->length; i++){
-            letter_index = convert_byte_sequence(ctx->word->lowercase + i);
+            letter_index = convert_byte_sequence(&(word_index));
             letter = ctx->tt->alphabet->data + ctx->tt->index_to_alphabet[letter_index];
             if (!append_string_to_word(&word, letter, strlen(letter))){
                 return;
@@ -301,14 +302,20 @@ void test_parse_word(struct test_context *ctx) {
 void test_hyphenate_word(struct test_context *ctx){
     printf("\n---- Hyphenate Word Test ----\n");
 
-    strcpy(ctx->buf->data, "\xfftest\xff");
+    strcpy(ctx->buf->data, "\x1b\x14\x05\x13\x14\x1b");
     ctx->buf->size = strlen(ctx->buf->data);
 
     ctx->params->hyph_level = 1;
 
+    if (!default_ascii_mapping(ctx->tt, ctx->helper_trie)) {
+        printf("Failed to load default mapping.\n");
+        return;
+    }
+    printf("Default mapping loaded successfully.\n");
+
     size_t op_index;
-    if (!insert_pattern(ctx->pt->t, "\xffte", &op_index, ctx->helper_trie) ||
-        !set_output(ctx->pt, op_index, 1, 2)){
+    if (!insert_pattern(ctx->pt->t, "\x14\x05", &op_index, ctx->helper_trie) ||
+        !set_output(ctx->pt, op_index, 1, 1)){
         printf("Failed to insert pattern.\n");
         return;
     }
@@ -319,17 +326,14 @@ void test_hyphenate_word(struct test_context *ctx){
             return;
         }
     }
+    ctx->word->true_hyphens[1] = 4;
+    ctx->word->true_hyphens[2] = 5;
+    ctx->params->left_hyphen_min = 1;
+    ctx->params->right_hyphen_min = 1;
 
     if (hyphenate_word(ctx->word, ctx->pt, ctx->params)) {
-        printf("Word hyphenated: '%s'\n", ctx->word->lowercase);
-        printf("Found hyphens: ");
-        for (size_t i = 0; i < ctx->word->length; i++) {
-            uint8_t h = get_found_hyphen(ctx->word, i);
-            if (h > 0) {
-                printf("[%zu]=%d ", i, h);
-            }
-        }
-        printf("\n");
+        printf("Word hyphenated:\n\t");
+        output_hyphenated_word(stdout, ctx->word, ctx->tt, ctx->params);
     } else {
         printf("Failed to hyphenate word.\n");
     }
@@ -407,8 +411,9 @@ void test_letter_index(struct test_context *ctx) {
     
     // Convert byte sequences back to indices and verify
     size_t pos = 0;
+    char *word_index = ctx->word->lowercase;
     for (size_t i = 0; i < text_len && pos < ctx->word->size; i++) {
-        size_t reconstructed_index = convert_byte_sequence(&ctx->word->lowercase[pos]);
+        size_t reconstructed_index = convert_byte_sequence(&word_index);
         
         // Advance position past the byte sequence
         while (ctx->word->lowercase[pos] == (char)0xff) {
@@ -498,8 +503,9 @@ void test_german_letter_index(struct test_context *ctx) {
     
     // Convert byte sequences back to indices and verify
     size_t pos = 0;
+    char *word_index = ctx->word->lowercase;
     for (size_t i = 0; i < char_count && pos < ctx->word->size; i++) {
-        size_t reconstructed_index = convert_byte_sequence(&ctx->word->lowercase[pos]);
+        size_t reconstructed_index = convert_byte_sequence(&word_index);
         
         // Advance position past the byte sequence
         while (ctx->word->lowercase[pos] == (char)0xff) {

@@ -247,7 +247,7 @@ bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie)
 char *get_lower(struct translate_table *tt, const char *letter);
 size_t get_letter_index(struct translate_table *tt, char *letter);
 bool convert_index(size_t index, struct word *word);
-size_t convert_byte_sequence(char *sequence);
+size_t convert_byte_sequence(char **sequence);
 
 #ifndef EDGE_OF_WORD
 // not used in UTF-8
@@ -258,7 +258,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
 
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps);
-void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct translate_table *tt, struct params *params);
 
 bool process_word(struct word *word, struct count_trie *ct, struct params *params, struct trie *helper_trie);
 
