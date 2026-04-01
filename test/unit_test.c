@@ -281,9 +281,8 @@ void test_parse_word(struct test_context *ctx) {
         for (size_t i = 0; i < ctx->word->length; i++){
             letter_index = convert_byte_sequence(&(word_index));
             letter = ctx->tt->alphabet->data + ctx->tt->index_to_alphabet[letter_index];
-            if (!append_string_to_word(&word, letter, strlen(letter))){
-                return;
-            }
+            sprintf(word.lowercase + word.size, "%s", letter);
+            word.size += strlen(letter);
         }
         
         printf("Word parsed: '%s', length=%zu\n", word.lowercase, ctx->word->length);
