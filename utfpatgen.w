@@ -661,7 +661,6 @@ bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie)
         letter_index = tt->letter_count + 1;
         upper = c - ('a' - 'A');
         
-        // Resize index_to_alphabet if needed
         if (letter_index >= tt->letter_capacity) {
             size_t new_capacity = tt->letter_capacity * 2;
             size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
