@@ -156,7 +156,7 @@ if (!read_patterns(params, pt, tt, &ps)){
 @* Level range specification.
 Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
 and \hyphfinishpar specify the range of hyphenation levels covered during the run. The program can generate patterns up
-to level 254.
+to level 255.
 
 @<Level range specification@>=
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
@@ -164,10 +164,10 @@ size_t hyph_start, hyph_finish;
 int result;
 while (true){
     result = scanf("%zu %zu", &hyph_start, &hyph_finish);
-    if (result == 2 && hyph_start >= 1 && hyph_start <= 254 && hyph_finish >= 1 && hyph_finish <= 254){
+    if (result == 2 && hyph_start >= 1 && hyph_start <= 255 && hyph_finish >= 1 && hyph_finish <= 254){
         break;
     } else {
-        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
+        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 255! Insert again: ");
         while(getchar() != '\n');
     }
 }
