@@ -174,7 +174,7 @@ struct word {
     size_t capacity;
     size_t size;
     size_t length;
-    char *lowercase;
+    char *translated;
     size_t *true_hyphens;
     uint8_t *found_hyphens;
     bool *no_more;

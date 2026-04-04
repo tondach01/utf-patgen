@@ -1089,7 +1089,7 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     enum hyphen_type hyf;
     for (size_t dot_pos = params->left_hyphen_min + 1; dot_pos < (uint8_t) (word->length - params->right_hyphen_min - 1); dot_pos++){
         while (current_pos < dot_pos){
-            if ((uint8_t) word->lowercase[current_index] != 0xff) {
+            if ((uint8_t) word->translated[current_index] != 0xff) {
                 current_pos++;
             }
             current_index++;
@@ -1137,7 +1137,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
     enum hyphen_type hyf;
     for (size_t dot_pos = dot_min; dot_pos + dot_max <= word->length; dot_pos++) {
         while (current_pos < dot_pos){
-            if ((uint8_t) word->lowercase[current_index] != 0xff){
+            if ((uint8_t) word->translated[current_index] != 0xff){
                 current_pos++;
             }
             current_index++;
@@ -1160,7 +1160,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         start_pos = dot_pos;
         start_index = current_index;
         while (start_pos + params->pat_dot >= dot_pos){
-            if (start_index == 0 || (uint8_t) word->lowercase[start_index-1] != 0xff){
+            if (start_index == 0 || (uint8_t) word->translated[start_index-1] != 0xff){
                 start_pos--;
             }
             start_index--;
@@ -1170,12 +1170,12 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         end_pos = dot_pos;
         end_index = current_index;
         while (end_pos < start_pos + params->pat_len){
-            if (end_index >= word->size || (uint8_t) word->lowercase[end_index] != 0xff){
+            if (end_index >= word->size || (uint8_t) word->translated[end_index] != 0xff){
                 end_pos++;
             }
             end_index++;
         }
-        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node, helper_trie)){
+        if (!insert_substring(ct->t, word->translated, end_index, end_index - start_index, &node, helper_trie)){
             return false;
         }
         if (ct->cnts->size >= ct->cnts->capacity) {
@@ -1666,7 +1666,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     size_t start_pos = 0;
     for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
         while (current_pos < start_pos) {
-            if ((uint8_t) word->lowercase[current_index] != 0xff) {
+            if ((uint8_t) word->translated[current_index] != 0xff) {
                 current_pos++;
             }
             current_index++;
@@ -1674,9 +1674,9 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
         start_index = current_index;
         end_index = current_index;
         end_pos = current_pos;
-        node = 1 + (uint8_t) word->lowercase[start_index];
-        while (pt->t->nodes[node] == word->lowercase[end_index]){
-            if ((uint8_t) word->lowercase[end_index] != 0xff){
+        node = 1 + (uint8_t) word->translated[start_index];
+        while (pt->t->nodes[node] == word->translated[end_index]){
+            if ((uint8_t) word->translated[end_index] != 0xff){
                 end_pos++;
             }
             end_index++;
@@ -1686,7 +1686,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
                 dot_pos = start_pos;
                 dot_index = start_index;
                 while (dot_pos < start_pos + op.position){
-                    if ((uint8_t) word->lowercase[dot_index] != 0xff){
+                    if ((uint8_t) word->translated[dot_index] != 0xff){
                         dot_pos++;
                     }
                     dot_index++;
@@ -1712,7 +1712,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (base == 0){
                 break;
             }
-            node = base + (uint8_t) word->lowercase[end_index];
+            node = base + (uint8_t) word->translated[end_index];
         }
         start_pos++;
     }
@@ -1803,11 +1803,11 @@ void output_hyphenated_word(FILE *pattmp, struct word *word, struct translate_ta
     }
     size_t weight, letter_index, dot_pos = 0;
     size_t edge_of_word_idx = get_letter_index(tt, (char[2]){EDGE_OF_WORD, '\0'});
-    char *word_index = word->lowercase;
+    char *word_index = word->translated;
     bool has_hyphen, found_hyphen;
-    while (word_index < word->lowercase + word->size){
-        found_hyphen = (get_found_hyphen(word, word_index - word->lowercase) % 2 == 1 );
-        weight = get_true_hyphen(word, word_index - word->lowercase);
+    while (word_index < word->translated + word->size){
+        found_hyphen = (get_found_hyphen(word, word_index - word->translated) % 2 == 1 );
+        weight = get_true_hyphen(word, word_index - word->translated);
         has_hyphen = (weight % 2 == 1);
         letter_index = convert_byte_sequence(&word_index);
         if (letter_index == edge_of_word_idx){
@@ -3028,27 +3028,27 @@ struct word *init_word(size_t capacity){
     if (word == NULL){
         return NULL;
     }
-    word->lowercase = calloc(capacity, sizeof(char));
-    if (word->lowercase == NULL){
+    word->translated = calloc(capacity, sizeof(char));
+    if (word->translated == NULL){
         free(word);
         return NULL;
     }
     word->true_hyphens = calloc(capacity, sizeof(size_t));
     if (word->true_hyphens == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word);
         return NULL;
     }
     word->found_hyphens = calloc(capacity, sizeof(uint8_t));
     if (word->found_hyphens == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word->true_hyphens);
         free(word);
         return NULL;
     }
     word->no_more = calloc(capacity, sizeof(bool));
     if (word->no_more == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word->true_hyphens);
         free(word->found_hyphens);
         free(word);
@@ -3061,9 +3061,9 @@ struct word *init_word(size_t capacity){
 }
 
 struct word *resize_word(struct word *word, size_t new_capacity){
-    char *new_lowercase = realloc(word->lowercase, new_capacity * sizeof(char));
-    if (new_lowercase == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->lowercase = new_lowercase;
+    char *new_translated = realloc(word->translated, new_capacity * sizeof(char));
+    if (new_translated == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->translated = new_translated;
 
     size_t *new_true_hyphens = realloc(word->true_hyphens, new_capacity * sizeof(size_t));
     if (new_true_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
@@ -3078,7 +3078,7 @@ struct word *resize_word(struct word *word, size_t new_capacity){
     word->no_more = new_no_more;
 
     size_t diff = new_capacity - word->capacity;
-    memset(word->lowercase + word->capacity, '\0', diff * sizeof(char));
+    memset(word->translated + word->capacity, '\0', diff * sizeof(char));
     memset(word->true_hyphens + word->capacity, 0, diff * sizeof(size_t));
     memset(word->found_hyphens + word->capacity, 0, diff * sizeof(uint8_t));
     memset(word->no_more + word->capacity, false, diff * sizeof(bool));
@@ -3090,14 +3090,14 @@ struct word *resize_word(struct word *word, size_t new_capacity){
 void reset_word(struct word *word){
     word->length = 0;
     word->size = 0;
-    memset(word->lowercase, 0, word->capacity*sizeof(char));
+    memset(word->translated, 0, word->capacity*sizeof(char));
     memset(word->true_hyphens, 0, word->capacity*sizeof(size_t));
     memset(word->found_hyphens, 0, word->capacity*sizeof(uint8_t));
     memset(word->no_more, false, word->capacity*sizeof(bool));
 }
 
 void destroy_word(struct word *word){
-    free(word->lowercase);
+    free(word->translated);
     free(word->true_hyphens);
     free(word->found_hyphens);
     free(word->no_more);
@@ -3158,7 +3158,7 @@ bool append_char_to_word(struct word *word, char c){
             return false;
         }
     }
-    word->lowercase[word->size] = c;
+    word->translated[word->size] = c;
     word->size++;
     if ((uint8_t) c != 0xff){
         word->length++;

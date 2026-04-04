@@ -274,18 +274,18 @@ void test_parse_word(struct test_context *ctx) {
 
     if (parse_word(ctx->buf, ctx->tt, ctx->params, ctx->word)) {
         char text[10] = {'\0'};
-        struct word word = { .lowercase = text, .length = 0 };
+        struct word word = { .translated = text, .length = 0 };
         size_t letter_index;
         char *letter;
-        char *word_index = ctx->word->lowercase;
+        char *word_index = ctx->word->translated;
         for (size_t i = 0; i < ctx->word->length; i++){
             letter_index = convert_byte_sequence(&(word_index));
             letter = ctx->tt->alphabet->data + ctx->tt->index_to_alphabet[letter_index];
-            sprintf(word.lowercase + word.size, "%s", letter);
+            sprintf(word.translated + word.size, "%s", letter);
             word.size += strlen(letter);
         }
         
-        printf("Word parsed: '%s', length=%zu\n", word.lowercase, ctx->word->length);
+        printf("Word parsed: '%s', length=%zu\n", word.translated, ctx->word->length);
         printf("True hyphens at positions: ");
         for (size_t i = 0; i < ctx->word->length; i++) {
             if (get_true_hyphen(ctx->word, i) % 4 > 0) {
@@ -404,18 +404,18 @@ void test_letter_index(struct test_context *ctx) {
     // Verify the word contains the expected byte sequences
     printf("Word contents (size=%zu): ", ctx->word->size);
     for (size_t i = 0; i < ctx->word->size; i++) {
-        printf("0x%02x ", (uint8_t)ctx->word->lowercase[i]);
+        printf("0x%02x ", (uint8_t)ctx->word->translated[i]);
     }
     printf("\n");
     
     // Convert byte sequences back to indices and verify
     size_t pos = 0;
-    char *word_index = ctx->word->lowercase;
+    char *word_index = ctx->word->translated;
     for (size_t i = 0; i < text_len && pos < ctx->word->size; i++) {
         size_t reconstructed_index = convert_byte_sequence(&word_index);
         
         // Advance position past the byte sequence
-        while (ctx->word->lowercase[pos] == (char)0xff) {
+        while (ctx->word->translated[pos] == (char)0xff) {
             pos++;
         }
         pos++; // Skip the final byte
@@ -496,18 +496,18 @@ void test_german_letter_index(struct test_context *ctx) {
     // Verify the word contains the expected byte sequences
     printf("Word contents (size=%zu): ", ctx->word->size);
     for (size_t i = 0; i < ctx->word->size; i++) {
-        printf("0x%02x ", (uint8_t)ctx->word->lowercase[i]);
+        printf("0x%02x ", (uint8_t)ctx->word->translated[i]);
     }
     printf("\n");
     
     // Convert byte sequences back to indices and verify
     size_t pos = 0;
-    char *word_index = ctx->word->lowercase;
+    char *word_index = ctx->word->translated;
     for (size_t i = 0; i < char_count && pos < ctx->word->size; i++) {
         size_t reconstructed_index = convert_byte_sequence(&word_index);
         
         // Advance position past the byte sequence
-        while (ctx->word->lowercase[pos] == (char)0xff) {
+        while (ctx->word->translated[pos] == (char)0xff) {
             pos++;
         }
         pos++; // Skip the final byte
