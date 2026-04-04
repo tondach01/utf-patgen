@@ -2796,7 +2796,10 @@ value as the remainder.
 
 @c
 bool convert_index(size_t index, struct word *word){
-    size_t ff_count = index / 254;
+    if (index == 0){
+        return true;
+    }
+    size_t ff_count = (index-1) / 254;
     size_t remainder = index % 254;
     for (size_t i = 0; i < ff_count; i++){
         if (!append_char_to_word(word, (char) 0xff)){
