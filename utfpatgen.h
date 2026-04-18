@@ -85,14 +85,7 @@ struct pattern_counts {
 
 struct pattern_counts *init_pattern_counts(size_t capacity);
 struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t new_capacity);
-void reset_pattern_counts(struct pattern_counts *pc);
 void destroy_pattern_counts(struct pattern_counts *pc);
-
-size_t get_good(struct pattern_counts *pc, size_t index);
-bool set_good(struct pattern_counts *pc, size_t index, size_t value);
-
-size_t get_bad(struct pattern_counts *pc, size_t index);
-bool set_bad(struct pattern_counts *pc, size_t index, size_t value);
 
 struct count_trie {
     struct trie *t;
@@ -181,7 +174,7 @@ struct word {
     size_t capacity;
     size_t size;
     size_t length;
-    char *lowercase;
+    char *translated;
     size_t *true_hyphens;
     uint8_t *found_hyphens;
     bool *no_more;
@@ -193,7 +186,6 @@ void reset_word(struct word *word);
 void destroy_word(struct word *word);
 
 bool append_char_to_word(struct word *word, char c);
-bool append_string_to_word(struct word *word, char *s, size_t length);
 
 size_t get_true_hyphen(struct word *word, size_t index);
 bool set_true_hyphen(struct word *word, size_t index, size_t value);
@@ -212,7 +204,7 @@ bool set_no_more(struct word *word, size_t index, bool value);
 #define EMPTY_OP_VALUE (size_t) 0
 #endif
 bool is_utf_start_byte(uint8_t byte);
-uint8_t n_utf_following_bytes(uint8_t c);
+
 bool collect_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct params *params, struct pass_stats *ps);
 
@@ -221,17 +213,12 @@ void deallocate_node(struct trie *t, size_t t_index);
 bool link_around_bad_outputs(struct pattern_trie *pt, size_t t_index);
 bool delete_patterns(struct pattern_trie *pt);
 
-bool output_patterns(struct pattern_trie *pt, FILE *pattern_file);
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *pattern_file);
-size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position);
-
-bool read_line(FILE *stream, struct string_buffer *buf);
-bool append_char(struct string_buffer *buf, char c);
-bool append_string(struct string_buffer *buf, const char *str);
-
 struct translate_table {
     struct trie *mapping;
     struct string_buffer *alphabet;
+    size_t *index_to_alphabet;
+    size_t letter_count;
+    size_t letter_capacity;
 };
 
 struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_capacity);
@@ -242,6 +229,17 @@ bool parse_header(struct string_buffer *buf, struct params *params);
 bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct trie *helper_trie);
 bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie);
 char *get_lower(struct translate_table *tt, const char *letter);
+size_t get_letter_index(struct translate_table *tt, char *letter);
+bool convert_index(size_t index, struct word *word);
+size_t convert_byte_sequence(char **sequence);
+
+bool output_patterns(struct pattern_trie *pt, struct translate_table *tt, FILE *pattern_file);
+void output_pattern(struct string_buffer *pattern, struct translate_table *tt, struct outputs *ops, size_t op_index, FILE *pattern_file);
+size_t get_highest_level(struct outputs *ops, size_t start_index, size_t position);
+
+bool read_line(FILE *stream, struct string_buffer *buf);
+bool append_char(struct string_buffer *buf, char c);
+bool append_string(struct string_buffer *buf, const char *str);
 
 #ifndef EDGE_OF_WORD
 // not used in UTF-8
@@ -252,7 +250,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
 
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params);
 void count_dots(struct word *word, struct params *params, struct pass_stats *ps);
-void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params);
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct translate_table *tt, struct params *params);
 
 bool process_word(struct word *word, struct count_trie *ct, struct params *params, struct trie *helper_trie);
 
@@ -279,8 +277,7 @@ struct pattern *resize_pattern(struct pattern *pat, size_t new_capacity);
 void reset_pattern(struct pattern *pat);
 void destroy_pattern(struct pattern *pat);
 
-bool append_char_to_pattern(struct pattern *pat, char c);
-bool append_string_to_pattern(struct pattern *pat, char *s, size_t length);
+bool convert_index_to_pattern(size_t index, struct pattern *pat);
 
 uint8_t get_hyphen(struct pattern *pat, size_t index);
 bool set_hyphen(struct pattern *pat, size_t index, uint8_t value);

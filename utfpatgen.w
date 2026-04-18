@@ -156,7 +156,7 @@ if (!read_patterns(params, pt, tt, &ps)){
 @* Level range specification.
 Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
 and \hyphfinishpar specify the range of hyphenation levels covered during the run. The program can generate patterns up
-to level 254.
+to level 255.
 
 @<Level range specification@>=
 printf("hyph_start (lowest -), hyph_finish (highest hyphenation level): ");
@@ -164,10 +164,10 @@ size_t hyph_start, hyph_finish;
 int result;
 while (true){
     result = scanf("%zu %zu", &hyph_start, &hyph_finish);
-    if (result == 2 && hyph_start >= 1 && hyph_start <= 254 && hyph_finish >= 1 && hyph_finish <= 254){
+    if (result == 2 && hyph_start >= 1 && hyph_start <= 255 && hyph_finish >= 1 && hyph_finish <= 254){
         break;
     } else {
-        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 254! Insert again: ");
+        printf("Error: Specify 1 <= hyph_start, hyph_finish <= 255! Insert again: ");
         while(getchar() != '\n');
     }
 }
@@ -286,7 +286,7 @@ If the user wishes, the dictionary is traversed one last time and hyphenated acc
 stored in file 'pattmp.X'.
 
 @<Final pass@>=
-if (!output_patterns(pt, params->output_file)){
+if (!output_patterns(pt, tt, params->output_file)){
     destroy_params(params);
     destroy_tr_table(tt);
     destroy_pattern_trie(pt);
@@ -464,6 +464,25 @@ bool read_translate(struct params *params, struct translate_table *tt){
         destroy_buffer(buf);
         return default_mapping;
     }
+    
+    size_t out_index, letter_index;
+    letter_index = tt->letter_count + 1;
+    if (letter_index >= tt->letter_capacity) {
+        size_t new_capacity = tt->letter_capacity * 2;
+        size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+        if (new_array == NULL) {
+            return false;
+        }
+        tt->index_to_alphabet = new_array;
+        tt->letter_capacity = new_capacity;
+    }
+    tt->index_to_alphabet[letter_index] = tt->alphabet->size;
+    if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
+        return false;
+    }
+    tt->mapping->aux[out_index] = letter_index;
+    tt->letter_count++;
+
     bool first_line = true;
     while (!buf->eof) {
         if (first_line && parse_header(buf, params)) {
@@ -483,7 +502,7 @@ bool read_translate(struct params *params, struct translate_table *tt){
     }
     destroy_trie(helper_trie);
     destroy_buffer(buf);
-    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->mapping->pattern_count);
+    printf("left_hyphen_min = %u, right_hyphen_min = %u, %zu letters\n", params->left_hyphen_min, params->right_hyphen_min, tt->letter_count);
     return true;
 }
 
@@ -576,7 +595,7 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
     if (buf->size > 1 && buf->data[1] == separator){  // a comment
         return true;
     }
-    size_t alphabet_index = tt->alphabet->size;
+    size_t letter_index = tt->letter_count + 1;
     size_t out_index;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
@@ -597,12 +616,25 @@ bool parse_letters(struct string_buffer *buf, struct translate_table *tt, struct
                 destroy_buffer(letter);
                 return false;
             }
-            tt->mapping->aux[out_index] = alphabet_index;
+            tt->mapping->aux[out_index] = letter_index;
             if (lower) {
+                if (letter_index >= tt->letter_capacity) {
+                    size_t new_capacity = tt->letter_capacity * 2;
+                    size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+                    if (new_array == NULL) {
+                        destroy_buffer(letter);
+                        return false;
+                    }
+                    tt->index_to_alphabet = new_array;
+                    tt->letter_capacity = new_capacity;
+                }
+                tt->index_to_alphabet[letter_index] = tt->alphabet->size;
+                
                 if (!append_string(tt->alphabet, letter->data)) {
                     destroy_buffer(letter);
                     return false;
                 }
+                tt->letter_count++;
                 lower = false;
             }
             reset_buffer(letter);
@@ -623,25 +655,49 @@ Fetches default ASCII character mapping into the translate table. Return value i
 @c
 bool default_ascii_mapping(struct translate_table *tt, struct trie *helper_trie){
     size_t out_index;
-    size_t alphabet_index;
+    size_t letter_index;
     char upper;
     for (char c = 'a'; c <= 'z'; c++){
-        alphabet_index = tt->alphabet->size;
+        letter_index = tt->letter_count + 1;
         upper = c - ('a' - 'A');
+        
+        if (letter_index >= tt->letter_capacity) {
+            size_t new_capacity = tt->letter_capacity * 2;
+            size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+            if (new_array == NULL) {
+                return false;
+            }
+            tt->index_to_alphabet = new_array;
+            tt->letter_capacity = new_capacity;
+        }
+        tt->index_to_alphabet[letter_index] = tt->alphabet->size;
         if (!insert_pattern(tt->mapping, (const char[]){c, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){c, '\0'})) {
             return false;
         }
-        tt->mapping->aux[out_index] = alphabet_index;
+        tt->mapping->aux[out_index] = letter_index;
         if (!insert_pattern(tt->mapping, (const char[]){upper, '\0'}, &out_index, helper_trie)) {
             return false;
         }
-        tt->mapping->aux[out_index] = alphabet_index;
+        tt->mapping->aux[out_index] = letter_index;
+        tt->letter_count++;
     }
-    alphabet_index = tt->alphabet->size;
+    letter_index = tt->letter_count + 1;
+    
+    if (letter_index >= tt->letter_capacity) {
+        size_t new_capacity = tt->letter_capacity * 2;
+        size_t *new_array = realloc(tt->index_to_alphabet, new_capacity * sizeof(size_t));
+        if (new_array == NULL) {
+            return false;
+        }
+        tt->index_to_alphabet = new_array;
+        tt->letter_capacity = new_capacity;
+    }
+    tt->index_to_alphabet[letter_index] = tt->alphabet->size;
     if (!insert_pattern(tt->mapping, (const char[]){EDGE_OF_WORD, '\0'}, &out_index, helper_trie) || !append_string(tt->alphabet, (const char[]){EDGE_OF_WORD, '\0'})) {
         return false;
     }
-    tt->mapping->aux[out_index] = alphabet_index;
+    tt->mapping->aux[out_index] = letter_index;
+    tt->letter_count++;
     return true;
 }
 
@@ -707,7 +763,6 @@ value indicates the success of translation and parsing.
 bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struct translate_table *tt){
     reset_pattern(out_pattern);
     char c;
-    char *lower;
     bool next_hyphen = false;
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL){
@@ -733,13 +788,13 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
                 destroy_buffer(letter);
                 return false;
             }
-            lower = get_lower(tt, letter->data);
-            if (lower == 0){
+            size_t letter_index = get_letter_index(tt, letter->data);
+            if (letter_index == 0){
                 fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
                 destroy_buffer(letter);
                 return false;
             }
-            if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+            if (!convert_index_to_pattern(letter_index, out_pattern)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -762,13 +817,13 @@ bool parse_pattern(struct string_buffer *buf, struct pattern *out_pattern, struc
             destroy_buffer(letter);
             return false;
         }
-        lower = get_lower(tt, letter->data);
-        if (lower == 0){
+        size_t letter_index = get_letter_index(tt, letter->data);
+        if (letter_index == 0){
             fprintf(stderr, "Unknown letter %s found in a pattern.\n", letter->data);
             destroy_buffer(letter);
             return false;
         }
-        if (!append_string_to_pattern(out_pattern, lower, strlen(lower))){
+        if (!convert_index_to_pattern(letter_index, out_pattern)){
             destroy_buffer(letter);
             return false;
         }
@@ -799,7 +854,7 @@ bool insert_new_pattern(struct pattern *pat, struct pattern_trie *pt, struct pas
                 ps->max_level = hyphenation_value;
             }
         }
-        if (is_utf_start_byte(pat->text[i])){
+        if ((uint8_t) pat->text[i] != 0xff){
             current_len++;
         }
     }
@@ -930,18 +985,19 @@ Return value indicates successful parsing.
 @c
 bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct params *params, struct word *out_word){
     reset_word(out_word);
+    char edge_of_word[] = {EDGE_OF_WORD, '\0'};
     struct string_buffer *letter = init_buffer(4);
     if (letter == NULL) {
         return false;
     }
     uint8_t weight = params->word_weight;
     enum hyphen_type hyf = NO_HYF;
-    if (!append_char_to_word(out_word, EDGE_OF_WORD)){
+    size_t letter_index = get_letter_index(tt, edge_of_word);
+    if (!convert_index(letter_index, out_word)){
         destroy_buffer(letter);
         return false;
     }
     char c;
-    char *lower;
     bool has_weight = false;
     for (size_t i = 0; i < buf->size; i++){
         c = buf->data[i];
@@ -969,13 +1025,13 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
                 destroy_buffer(letter);
                 return false;
             }
-            lower = get_lower(tt, letter->data);
-            if (lower == NULL) {
+            letter_index = get_letter_index(tt, letter->data);
+            if (letter_index == 0) {
                 fprintf(stderr, "Character '%s' not known\n", letter->data);
                 destroy_buffer(letter);
                 return false;
             }
-            if (!append_string_to_word(out_word, lower, strlen(lower))){
+            if (!convert_index(letter_index, out_word)){
                 destroy_buffer(letter);
                 return false;
             }
@@ -992,17 +1048,24 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
             return false;
         }
     }
-    if (!append_char(letter, '\0')){
-        destroy_buffer(letter);
-        return false;
+    if (letter->size > 0){
+        if (!append_char(letter, '\0')){
+            destroy_buffer(letter);
+            return false;
+        }
+        letter_index = get_letter_index(tt, letter->data);
+        if (letter_index == 0) {
+            fprintf(stderr, "Character '%s' not known\n", letter->data);
+            destroy_buffer(letter);
+            return false;
+        }
+        if (!convert_index(letter_index, out_word)){
+            destroy_buffer(letter);
+            return false;
+        }
     }
-    lower = get_lower(tt, letter->data);
-    if (lower == NULL) {
-        fprintf(stderr, "Character '%s' not known\n", letter->data);
-        destroy_buffer(letter);
-        return false;
-    }
-    if (!append_string_to_word(out_word, lower, strlen(lower)) || !append_char_to_word(out_word, EDGE_OF_WORD) || !set_true_hyphen(out_word, 0, 0)){
+    letter_index = get_letter_index(tt, edge_of_word);
+    if (!convert_index(letter_index, out_word) || !set_true_hyphen(out_word, 0, 0)){
         destroy_buffer(letter);
         return false;
     }
@@ -1018,17 +1081,17 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
         return;
     }
-    size_t current_index = word->size;
-    size_t current_pos = word->length;
+    size_t current_index = 0;
+    size_t current_pos = 0;
     bool odd_level;
     size_t dot_index, hyphenation_value, weight;
     enum hyphen_type hyf;
-    for (size_t dot_pos = word->length - params->right_hyphen_min - 1; dot_pos >= (uint8_t) (params->left_hyphen_min + 1); dot_pos--){
-        while (current_pos > dot_pos){
-            current_index--;
-            if (is_utf_start_byte(word->lowercase[current_index])) {
-                current_pos--;
+    for (size_t dot_pos = params->left_hyphen_min + 1; dot_pos < (uint8_t) (word->length - params->right_hyphen_min - 1); dot_pos++){
+        while (current_pos < dot_pos){
+            if ((uint8_t) word->translated[current_index] != 0xff) {
+                current_pos++;
             }
+            current_index++;
         }
         dot_index = current_index - 1;
         odd_level = (get_found_hyphen(word, dot_index) % 2 == 1);
@@ -1067,16 +1130,16 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         dot_max = params->right_hyphen_min + 1;
     }
     size_t start_pos, end_pos, start_index, dot_index, end_index, node, weight, cnt_index;
-    size_t current_pos = word->length;
-    size_t current_index = word->size;
+    size_t current_pos = 0;
+    size_t current_index = 0;
     bool good_pattern;
     enum hyphen_type hyf;
-    for (size_t dot_pos = word->length - dot_max; dot_pos >= dot_min; dot_pos--) {
-        while (current_pos > dot_pos){
-            current_index--;
-            if (is_utf_start_byte(word->lowercase[current_index])){
-                current_pos--;
+    for (size_t dot_pos = dot_min; dot_pos + dot_max <= word->length; dot_pos++) {
+        while (current_pos < dot_pos){
+            if ((uint8_t) word->translated[current_index] != 0xff){
+                current_pos++;
             }
+            current_index++;
         }
         dot_index = current_index - 1;
         if (get_no_more(word, dot_index)){
@@ -1095,21 +1158,23 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         }
         start_pos = dot_pos;
         start_index = current_index;
-        while (start_pos > dot_pos - params->pat_dot){
-            start_index--;
-            if (is_utf_start_byte(word->lowercase[start_index])){
+        while (start_pos + params->pat_dot >= dot_pos){
+            if (start_index == 0 || (uint8_t) word->translated[start_index-1] != 0xff){
                 start_pos--;
             }
+            start_index--;
         }
+        start_pos++;
+        start_index++;
         end_pos = dot_pos;
         end_index = current_index;
         while (end_pos < start_pos + params->pat_len){
-            end_index++;
-            if (is_utf_start_byte(word->lowercase[end_index])){
+            if (end_index >= word->size || (uint8_t) word->translated[end_index] != 0xff){
                 end_pos++;
             }
+            end_index++;
         }
-        if (!insert_substring(ct->t, word->lowercase, end_index, end_index - start_index, &node, helper_trie)){
+        if (!insert_substring(ct->t, word->translated, end_index, end_index - start_index, &node, helper_trie)){
             return false;
         }
         if (ct->cnts->size >= ct->cnts->capacity) {
@@ -1218,7 +1283,7 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         destroy_stack(s_base);
         return false;
     }
-    size_t node, utf_bytes_to_end = 0, op_index, good, bad, cnt_index;
+    size_t node, op_index, good, bad, cnt_index;
     while (s_base->top > 0){
         root = get_top_value(s_base);
         pattern->data[pattern->size - 1] += 1;
@@ -1226,10 +1291,8 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         if (c == 0){ // overflow
             pattern->size--;
             s_base->top--;
-            if (pattern->size < 1 || is_utf_start_byte(pattern->data[pattern->size - 1])){
+            if (pattern->size < 1 || (uint8_t) pattern->data[pattern->size - 1] != 0xff){
                 current_len--;
-            } else {
-                utf_bytes_to_end++;
             }
             continue;
         }
@@ -1237,13 +1300,10 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
         if ((uint8_t) ct->t->nodes[node] != c){
             continue;
         }
-        if (is_utf_start_byte(c)) {
+        if ((uint8_t) c != 0xff) {
             current_len++;
-            utf_bytes_to_end = n_utf_following_bytes((uint8_t) c);
-        } else {
-            utf_bytes_to_end -= 1;
         }
-        if (current_len == params->pat_len && utf_bytes_to_end == 0){
+        if (current_len == params->pat_len){
             cnt_index = ct->t->aux[node];
             good = ct->cnts->good[cnt_index];
             bad = ct->cnts->bad[cnt_index];
@@ -1270,19 +1330,15 @@ bool traverse_count_trie(struct count_trie *ct, struct pattern_trie *pt, struct 
                     ps->more_to_come = true;
                 }
             }
-            if (is_utf_start_byte(c)) {
+            if ((uint8_t) c != 0xff) {
                 current_len--;
-            } else {
-                utf_bytes_to_end++;
             }
             continue;
         }
         root = ct->t->links[node];
         if (root == 0){
-            if (is_utf_start_byte(c)) {
+            if ((uint8_t) c != 0xff) {
                 current_len--;
-            } else {
-                utf_bytes_to_end++;
             }
             continue;
         }
@@ -1483,7 +1539,7 @@ Traverses through the pattern trie and writes all the patterns present there to 
 whole trie has been explored and patterns successfully written.
 
 @c
-bool output_patterns(struct pattern_trie *pt, FILE *output_file){
+bool output_patterns(struct pattern_trie *pt, struct translate_table *tt, FILE *output_file){
     size_t root = 1;
     uint8_t c;
     struct string_buffer *pattern = init_buffer(16);
@@ -1518,7 +1574,7 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
             continue;
         }
         if (pt->t->aux[node] > 0){
-            output_pattern(pattern, pt->ops, pt->t->aux[node], output_file);
+            output_pattern(pattern, tt, pt->ops, pt->t->aux[node], output_file);
         }
         root = pt->t->links[node];
         if (root == 0){
@@ -1539,27 +1595,27 @@ bool output_patterns(struct pattern_trie *pt, FILE *output_file){
 Writes single pattern to the output trie.
 
 @c
-void output_pattern(struct string_buffer *pattern, struct outputs *ops, size_t op_index, FILE *output_file){
+void output_pattern(struct string_buffer *pattern, struct translate_table *tt, struct outputs *ops, size_t op_index, FILE *output_file){
     if (op_index == 0){
         return;
     }
     size_t pattern_position = 0;
-    size_t level;
-    for (size_t i = 0; i < pattern->size; i++) {
-        if (is_utf_start_byte(pattern->data[i])){
-            level = get_highest_level(ops, op_index, pattern_position);
-            if (level > 0){
-                fputc('\xfe', output_file);
-                fputc((uint8_t) level, output_file);
-            }
-            pattern_position++;
+    size_t level, letter_index;
+    char *word_index = pattern->data;
+    size_t edge_of_word_idx = get_letter_index(tt, (char[2]){EDGE_OF_WORD, '\0'});
+    while (word_index < pattern->data + pattern->size){
+        level = get_highest_level(ops, op_index, pattern_position);
+        if (level > 0){
+            fputc('\xfe', output_file);
+            fputc((uint8_t) level, output_file);
         }
-        if (pattern->data[i] == EDGE_OF_WORD){
+        letter_index = convert_byte_sequence(&word_index);
+        if (letter_index == edge_of_word_idx){
             fputc('.', output_file);
         } else {
-            fputc(pattern->data[i], output_file);
+            fprintf(output_file, "%s", tt->alphabet->data + tt->index_to_alphabet[letter_index]);
         }
-        
+        pattern_position++;
     }
     level = get_highest_level(ops, op_index, pattern_position);
     if (level > 0){
@@ -1599,41 +1655,40 @@ Hyphenates the given word according to the actual set of patterns from pattern t
 
 @c
 bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *params){
-    size_t current_index = word->size;
-    size_t current_pos = word->length;
+    size_t current_index = 0;
+    size_t current_pos = 0;
     size_t node, base, start_index, dot_index, end_index, op_index, dot_pos, end_pos;
     struct output op;
     if (word->length < (uint8_t) (params->right_hyphen_min + 1)){
         return true;
     }
-    size_t start_pos = word->length - params->right_hyphen_min;
+    size_t start_pos = 0;
     for (size_t i = 0; i < word->length - params->right_hyphen_min; i++) {
-        start_pos--;
-        while (current_pos > start_pos) {
-            current_index--;
-            if (is_utf_start_byte(word->lowercase[current_index])) {
-                current_pos--;
+        while (current_pos < start_pos) {
+            if ((uint8_t) word->translated[current_index] != 0xff) {
+                current_pos++;
             }
+            current_index++;
         }
         start_index = current_index;
         end_index = current_index;
         end_pos = current_pos;
-        node = 1 + (uint8_t) word->lowercase[start_index];
-        while (pt->t->nodes[node] == word->lowercase[end_index]){
-            end_index++;
-            if (is_utf_start_byte(word->lowercase[end_index])){
+        node = 1 + (uint8_t) word->translated[start_index];
+        while (pt->t->nodes[node] == word->translated[end_index]){
+            if ((uint8_t) word->translated[end_index] != 0xff){
                 end_pos++;
             }
+            end_index++;
             op_index = pt->ops->lookup[pt->t->aux[node]];
             while (op_index > 0){
                 op = pt->ops->data[op_index];
                 dot_pos = start_pos;
                 dot_index = start_index;
                 while (dot_pos < start_pos + op.position){
-                    dot_index++;
-                    if (is_utf_start_byte(word->lowercase[dot_index])){
+                    if ((uint8_t) word->translated[dot_index] != 0xff){
                         dot_pos++;
                     }
+                    dot_index++;
                 }
                 if (dot_index > 0){
                     dot_index--;
@@ -1656,8 +1711,9 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
             if (base == 0){
                 break;
             }
-            node = base + (uint8_t) word->lowercase[end_index];
+            node = base + (uint8_t) word->translated[end_index];
         }
+        start_pos++;
     }
     return true;
 }
@@ -1728,7 +1784,7 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
         }
         count_dots(word, params, ps);
         if (pattmp != NULL && word->length > 2){
-            output_hyphenated_word(pattmp, word, params);
+            output_hyphenated_word(pattmp, word, tt, params);
         }
     }
     destroy_buffer(buf);
@@ -1740,30 +1796,26 @@ bool hyphenate_all_words(struct params *params, struct translate_table *tt, stru
 Writes the parsed and hyphenated word to the {\tt pattmp} file.
 
 @c
-void output_hyphenated_word(FILE *pattmp, struct word *word, struct params *params){
+void output_hyphenated_word(FILE *pattmp, struct word *word, struct translate_table *tt, struct params *params){
     if (params->word_weight > 1){
         fprintf(pattmp, "%d", params->word_weight);
     }
-    char c;
-    size_t weight, dot_pos = 0;
+    size_t weight, letter_index, dot_pos = 0;
+    size_t edge_of_word_idx = get_letter_index(tt, (char[2]){EDGE_OF_WORD, '\0'});
+    char *word_index = word->translated;
     bool has_hyphen, found_hyphen;
-    for (size_t i = 0; i < word->size; i++){
-        has_hyphen = false;
-        found_hyphen = (get_found_hyphen(word, i) % 2 == 1 );
-        c = word->lowercase[i];
-        if (c == EDGE_OF_WORD){
+    while (word_index < word->translated + word->size){
+        found_hyphen = (get_found_hyphen(word, word_index - word->translated) % 2 == 1 );
+        weight = get_true_hyphen(word, word_index - word->translated);
+        has_hyphen = (weight % 2 == 1);
+        letter_index = convert_byte_sequence(&word_index);
+        if (letter_index == edge_of_word_idx){
             continue;
         }
-        if (is_utf_start_byte(c)){
-            dot_pos++;
-        }
-        fputc(c, pattmp);
-        weight = get_true_hyphen(word, i);
+        fprintf(pattmp, "%s", tt->alphabet->data + tt->index_to_alphabet[letter_index]);
+        dot_pos++;
         if (weight == 0 || dot_pos < params->left_hyphen_min || dot_pos >= word->length - params->right_hyphen_min - 1){
             continue;
-        }
-        if (weight % 2 == 1) {
-            has_hyphen = true;
         }
         weight /= 4;
         if (weight != params->word_weight){
@@ -1796,23 +1848,6 @@ Returns true if the given byte is the start byte of a UTF-8 character or a \utfp
 @c
 inline bool is_utf_start_byte(uint8_t byte){
     return byte < 0x80 || byte > 0xbf ;
-}
-
-@ n\_utf\_following\_bytes.
-Returns the number of bytes in UTF-8 charcter following after the given start byte. If the byte is an \utfpatgen
-special symbol or it is not a start byte, 0 is returned.
-
-@c
-uint8_t n_utf_following_bytes(uint8_t c){
-    if (c < 128 || c >= 248){
-        return 0;
-    } else if (c < 224){
-        return 1;
-    } else if (c < 240){
-        return 2;
-    } else {
-        return 3;
-    }
 }
 
 @** Structures.
@@ -2528,52 +2563,10 @@ struct pattern_counts *resize_pattern_counts(struct pattern_counts *pc, size_t n
     return pc;
 }
 
-void reset_pattern_counts(struct pattern_counts *pc){
-    pc->size = 0;
-    memset(pc->good, 0, pc->capacity * sizeof(size_t));
-    memset(pc->bad, 0, pc->capacity * sizeof(size_t));
-}
-
 void destroy_pattern_counts(struct pattern_counts *pc){
     free(pc->good);
     free(pc->bad);
     free(pc);
-}
-
-size_t get_good(struct pattern_counts *pc, size_t index){
-    if (index >= pc->capacity){
-        return 0;
-    }
-    return pc->good[index];
-}
-
-bool set_good(struct pattern_counts *pc, size_t index, size_t value){
-    if (index >= pc->capacity) {
-        size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
-        if (resize_pattern_counts(pc, new_capacity) == NULL) {
-            return false;
-        }
-    }
-    pc->good[index] = value;
-    return true;
-}
-
-size_t get_bad(struct pattern_counts *pc, size_t index){
-    if (index >= pc->capacity){
-        return 0;
-    }
-    return pc->bad[index];
-}
-
-bool set_bad(struct pattern_counts *pc, size_t index, size_t value){
-    if (index >= pc->capacity) {
-        size_t new_capacity = ((index / pc->capacity) + 1)* pc->capacity;
-        if (resize_pattern_counts(pc, new_capacity) == NULL) {
-            return false;
-        }
-    }
-    pc->bad[index] = value;
-    return true;
 }
 
 @* Count trie.
@@ -2740,7 +2733,17 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
     }
     tt->mapping = mapping;
     tt->alphabet = alphabet;
+    tt->index_to_alphabet = malloc(alphabet_capacity * sizeof(size_t));
+    if (tt->index_to_alphabet == NULL){
+        destroy_trie(tt->mapping);
+        destroy_buffer(tt->alphabet);
+        free(tt);
+        return NULL;
+    }
+    tt->letter_count = 0;
+    tt->letter_capacity = alphabet_capacity;
     if (!append_char(tt->alphabet, '\0')){
+        free(tt->index_to_alphabet);
         destroy_trie(tt->mapping);
         destroy_buffer(tt->alphabet);
         free(tt);
@@ -2752,6 +2755,7 @@ struct translate_table *init_tr_table(size_t mapping_capacity, size_t alphabet_c
 void destroy_tr_table(struct translate_table *tt){
     destroy_trie(tt->mapping);
     destroy_buffer(tt->alphabet);
+    free(tt->index_to_alphabet);
     free(tt);
 }
 
@@ -2761,10 +2765,70 @@ Returns the lowercase representation of the given letter, or NULL if the letter 
 @c
 char *get_lower(struct translate_table *tt, const char *letter){
     size_t index = traverse_trie(tt->mapping, letter);
-    if (index == 0 || tt->mapping->aux[index] >= tt->alphabet->size){
+    if (index == 0 || tt->mapping->aux[index] > tt->letter_count || tt->mapping->aux[index] == 0){
         return NULL;
     }
-    return tt->alphabet->data + tt->mapping->aux[index];
+    size_t alphabet_offset = tt->index_to_alphabet[tt->mapping->aux[index]];
+    if (alphabet_offset >= tt->alphabet->size){
+        return NULL;
+    }
+    return tt->alphabet->data + alphabet_offset;
+}
+
+@ get\_letter\_index.
+Returns the index of the given letter in the translate table, or 0 if the letter
+does not exist.
+
+@c
+size_t get_letter_index(struct translate_table *tt, char *letter){
+    size_t index = traverse_trie(tt->mapping, letter);
+    if (index == 0 || tt->mapping->aux[index] > tt->letter_count || tt->mapping->aux[index] == 0){
+        return 0;
+    }
+    return tt->mapping->aux[index];
+}
+
+@ convert\_index.
+Converts a letter index to a byte sequence and appends it to the word.
+While the index is greater than 254, appends 0xFF byte to the word and
+subtracts 254 from the index. Finally appends the byte with the same
+value as the remainder.
+
+@c
+bool convert_index(size_t index, struct word *word){
+    if (index == 0){
+        return true;
+    }
+    size_t ff_count = (index-1) / 254;
+    size_t remainder = index % 254;
+    for (size_t i = 0; i < ff_count; i++){
+        if (!append_char_to_word(word, (char) 0xff)){
+            return false;
+        }
+    }
+    if (!append_char_to_word(word, (char) remainder)){
+        return false;
+    }
+    return true;
+}
+
+@ convert\_byte\_sequence.
+Converts a byte sequence to a translate table index. This is the reverse operation
+of convert\_index.
+
+@c
+size_t convert_byte_sequence(char **sequence){
+    if (sequence == NULL || *sequence == NULL){
+        return 0;
+    }
+    size_t ff_count = 0;
+    while (**sequence == (char) 0xff){
+        ff_count++;
+        (*sequence)++;
+    }
+    size_t remainder = (uint8_t) **sequence;
+    (*sequence)++;
+    return ff_count * 254 + remainder;
 }
 
 @* Params.
@@ -2966,27 +3030,27 @@ struct word *init_word(size_t capacity){
     if (word == NULL){
         return NULL;
     }
-    word->lowercase = calloc(capacity, sizeof(char));
-    if (word->lowercase == NULL){
+    word->translated = calloc(capacity, sizeof(char));
+    if (word->translated == NULL){
         free(word);
         return NULL;
     }
     word->true_hyphens = calloc(capacity, sizeof(size_t));
     if (word->true_hyphens == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word);
         return NULL;
     }
     word->found_hyphens = calloc(capacity, sizeof(uint8_t));
     if (word->found_hyphens == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word->true_hyphens);
         free(word);
         return NULL;
     }
     word->no_more = calloc(capacity, sizeof(bool));
     if (word->no_more == NULL){
-        free(word->lowercase);
+        free(word->translated);
         free(word->true_hyphens);
         free(word->found_hyphens);
         free(word);
@@ -2999,9 +3063,9 @@ struct word *init_word(size_t capacity){
 }
 
 struct word *resize_word(struct word *word, size_t new_capacity){
-    char *new_lowercase = realloc(word->lowercase, new_capacity * sizeof(char));
-    if (new_lowercase == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
-    word->lowercase = new_lowercase;
+    char *new_translated = realloc(word->translated, new_capacity * sizeof(char));
+    if (new_translated == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
+    word->translated = new_translated;
 
     size_t *new_true_hyphens = realloc(word->true_hyphens, new_capacity * sizeof(size_t));
     if (new_true_hyphens == NULL) { fprintf(stderr, "Allocation error\n"); return NULL; }
@@ -3016,7 +3080,7 @@ struct word *resize_word(struct word *word, size_t new_capacity){
     word->no_more = new_no_more;
 
     size_t diff = new_capacity - word->capacity;
-    memset(word->lowercase + word->capacity, '\0', diff * sizeof(char));
+    memset(word->translated + word->capacity, '\0', diff * sizeof(char));
     memset(word->true_hyphens + word->capacity, 0, diff * sizeof(size_t));
     memset(word->found_hyphens + word->capacity, 0, diff * sizeof(uint8_t));
     memset(word->no_more + word->capacity, false, diff * sizeof(bool));
@@ -3028,14 +3092,14 @@ struct word *resize_word(struct word *word, size_t new_capacity){
 void reset_word(struct word *word){
     word->length = 0;
     word->size = 0;
-    memset(word->lowercase, 0, word->capacity*sizeof(char));
+    memset(word->translated, 0, word->capacity*sizeof(char));
     memset(word->true_hyphens, 0, word->capacity*sizeof(size_t));
     memset(word->found_hyphens, 0, word->capacity*sizeof(uint8_t));
     memset(word->no_more, false, word->capacity*sizeof(bool));
 }
 
 void destroy_word(struct word *word){
-    free(word->lowercase);
+    free(word->translated);
     free(word->true_hyphens);
     free(word->found_hyphens);
     free(word->no_more);
@@ -3096,30 +3160,10 @@ bool append_char_to_word(struct word *word, char c){
             return false;
         }
     }
-    word->lowercase[word->size] = c;
+    word->translated[word->size] = c;
     word->size++;
-    if (is_utf_start_byte(c)){
+    if ((uint8_t) c != 0xff){
         word->length++;
-    }
-    return true;
-}
-
-@ append\_string\_to\_word.
-Adds the given number of bytes of character array to the end of word. Returns true if the insertion was successful.
-
-@c
-bool append_string_to_word(struct word *word, char *s, size_t length){
-    if (word->size >= word->capacity - length){
-        if (!resize_word(word, 2 * (word->capacity + length))){
-            return false;
-        }
-    }
-    for (size_t i = 0; i < length; i++) {
-        if (is_utf_start_byte(s[i])){
-            word->length++;
-        }
-        word->lowercase[word->size] = s[i];
-        word->size++;
     }
     return true;
 }
@@ -3205,41 +3249,32 @@ bool set_hyphen(struct pattern *pat, size_t index, uint8_t value){
     return true;
 }
 
-@ append\_char\_to\_pattern.
-Puts the given byte to the end of pattern. Returns true if the insertion was successful.
+@ convert\_index\_to\_pattern.
+Converts a letter index to a byte sequence and appends it to the pattern.
+While the index is greater than 254, appends 0xFF byte to the pattern and
+subtracts 254 from the index. Finally appends the byte with the same
+value as the remainder.
 
 @c
-bool append_char_to_pattern(struct pattern *pat, char c){
-    if(pat->size >= pat->capacity - 1){
-        if(!resize_pattern(pat, 2*pat->capacity)){
+bool convert_index_to_pattern(size_t index, struct pattern *pat){
+    size_t ff_count = index / 254;
+    size_t remainder = index % 254;
+    size_t total_bytes = ff_count + 1;
+    
+    if(pat->size >= pat->capacity - total_bytes){
+        if(!resize_pattern(pat, 2*(pat->capacity + total_bytes))){
             return false;
         }
     }
-    pat->text[pat->size]= c;
-    pat->size++;
-    if (is_utf_start_byte(c)){
-        pat->length++;
-    }
-    return true;
-}
-
-@ append\_string\_to\_pattern.
-Adds the given number of bytes of character array to the end of pattern. Returns true if the insertion was successful.
-
-@c
-bool append_string_to_pattern(struct pattern *pat, char *s, size_t length){
-    if(pat->size >= pat->capacity - length){
-        if(!resize_pattern(pat, 2*(pat->capacity + length))){
-            return false;
-        }
-    }
-    for (size_t i = 0; i < length; i++) {
-        if (is_utf_start_byte(s[i])){
-            pat->length++;
-        }
-        pat->text[pat->size] = s[i];
+    
+    for (size_t i = 0; i < ff_count; i++){
+        pat->text[pat->size] = (char) 0xff;
         pat->size++;
     }
+    
+    pat->text[pat->size] = (char) remainder;
+    pat->size++;
+    
     return true;
 }
 
