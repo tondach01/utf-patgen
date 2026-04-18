@@ -1086,7 +1086,7 @@ void count_dots(struct word *word, struct params *params, struct pass_stats *ps)
     bool odd_level;
     size_t dot_index, hyphenation_value, weight;
     enum hyphen_type hyf;
-    for (size_t dot_pos = params->left_hyphen_min + 1; dot_pos < (uint8_t) (word->length - params->right_hyphen_min - 1); dot_pos++){
+    for (size_t dot_pos = params->left_hyphen_min + 1; dot_pos < (uint8_t) (word->length - params->right_hyphen_min); dot_pos++){
         while (current_pos < dot_pos){
             if ((uint8_t) word->translated[current_index] != 0xff) {
                 current_pos++;
