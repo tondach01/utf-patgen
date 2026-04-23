@@ -2378,7 +2378,7 @@ void destroy_outputs(struct outputs *ops){
 }
 
 bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
-    size_t *new_lookup = calloc(new_cap, sizeof(size_t));
+    size_t *new_lookup = calloc(new_cap + 1, sizeof(size_t));
     size_t *old_lookup = ops->lookup;
     if (new_lookup == NULL){
         return false;
