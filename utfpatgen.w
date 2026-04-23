@@ -2387,7 +2387,7 @@ bool resize_lookup(struct outputs *ops, size_t new_cap, struct trie *t) {
     ops->lookup_cap = new_cap;
     size_t old_hash, new_hash, op_index;
     struct output op;
-    for (size_t node = 0; node <= t->capacity; node++){
+    for (size_t node = 0; node < t->capacity; node++){
         if (!is_node_occupied(t, node) || t->aux[node] == 0){
             continue;
         }
