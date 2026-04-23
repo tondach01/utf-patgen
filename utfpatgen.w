@@ -2348,7 +2348,7 @@ struct outputs *init_outputs(size_t capacity){
     ops->data[0].next_op_index = 1;
     ops->lookup_cap = 2*capacity;
     ops->lookup_cnt = 0;
-    ops->lookup = calloc(2*capacity, sizeof(size_t));
+    ops->lookup = calloc(2*capacity + 1, sizeof(size_t));
     if (ops->lookup == NULL) {
         fputs("Allocation error\n", stderr);
         free(ops->data);
