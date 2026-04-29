@@ -1178,7 +1178,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
             return false;
         }
         if (ct->cnts->size >= ct->cnts->capacity) {
-            size_t new_capacity = ct->t->capacity;
+            size_t new_capacity = 2 * ct->cnts->capacity;
             if (resize_pattern_counts(ct->cnts, new_capacity) == NULL) {
                 return false;
             }
