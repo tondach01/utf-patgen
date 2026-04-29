@@ -1168,8 +1168,8 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
         start_index++;
         end_pos = dot_pos;
         end_index = current_index;
-        while (end_pos < start_pos + params->pat_len){
-            if (end_index >= word->size || (uint8_t) word->translated[end_index] != 0xff){
+        while (end_index < word->size && end_pos < start_pos + params->pat_len){
+            if ((uint8_t) word->translated[end_index] != 0xff){
                 end_pos++;
             }
             end_index++;
