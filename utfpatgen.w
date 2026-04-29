@@ -1027,7 +1027,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
             }
             letter_index = get_letter_index(tt, letter->data);
             if (letter_index == 0) {
-                fprintf(stderr, "Character '%s' not known\n", letter->data);
+                fprintf(stderr, "Character '%s' in word '%s' not known\n", letter->data, buf->data);
                 destroy_buffer(letter);
                 return false;
             }
@@ -1055,7 +1055,7 @@ bool parse_word(struct string_buffer *buf, struct translate_table *tt, struct pa
         }
         letter_index = get_letter_index(tt, letter->data);
         if (letter_index == 0) {
-            fprintf(stderr, "Character '%s' not known\n", letter->data);
+            fprintf(stderr, "Character '%s' in word '%s' not known\n", letter->data, buf->data);
             destroy_buffer(letter);
             return false;
         }
