@@ -2796,7 +2796,7 @@ bool convert_index(size_t index, struct word *word){
         return true;
     }
     size_t ff_count = (index-1) / 254;
-    size_t remainder = index % 254;
+    size_t remainder = ((index - 1) % 254) + 1;
     for (size_t i = 0; i < ff_count; i++){
         if (!append_char_to_word(word, (char) 0xff)){
             return false;
@@ -3253,8 +3253,10 @@ value as the remainder.
 
 @c
 bool convert_index_to_pattern(size_t index, struct pattern *pat){
-    size_t ff_count = index / 254;
-    size_t remainder = index % 254;
+    if (index == 0) return true;
+    
+    size_t ff_count = (index-1) / 254;
+    size_t remainder = ((index - 1) % 254) + 1;
     size_t total_bytes = ff_count + 1;
     
     if(pat->size >= pat->capacity - total_bytes){
