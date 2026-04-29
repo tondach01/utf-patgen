@@ -2244,11 +2244,7 @@ successful, resulting index is stored in {\tt out\_base} and true is returned.
 bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
     size_t t_index;
     uint8_t offset;
-    if (q->occupied > 7) {
-        t_index = t->aux[t->node_max + 1];
-    } else {
-        t_index = t->links[0];
-    }
+    t_index = t->links[0];
     for (size_t i = 0; i <= t->capacity; i++) {
         if (t_index == 0){
             t_index = t->capacity + 1; // free for sure after resize
