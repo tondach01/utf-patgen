@@ -2163,7 +2163,7 @@ bool repack(struct trie *t, struct trie *q, size_t *node, size_t *base, char val
     }
     if (q->node_max >= q->capacity){
         size_t new_capacity = ((q->node_max / q->capacity) + 1) * q->capacity;
-        if (resize_trie(t, new_capacity) == NULL) {
+        if (resize_trie(q, new_capacity) == NULL) {
             return false;
         }
     }
@@ -2212,13 +2212,6 @@ bool first_fit(struct trie *t, struct trie *q, size_t *out_base){
     if (!find_base_for_first_fit(t, q, &base)) {
         return false;
     }
-    size_t max_target_index = base + 255;
-    if (max_target_index >= t->capacity) {
-        size_t new_capacity = ((max_target_index / t->capacity) + 1) * t->capacity;
-        if (resize_trie(t, new_capacity) == NULL) {
-            return false;
-        }
-    }
     for (size_t q_index = 1; q_index <= q->node_max; q_index++) {
         size_t t_index = base + (uint8_t) q->nodes[q_index];
         set_links(t, t->aux[t_index], t->links[t_index]);
@@ -2259,6 +2252,13 @@ bool find_base_for_first_fit(struct trie *t, struct trie *q, size_t *out_base){
             continue;
         }
         *out_base = t_index - offset;
+        size_t max_target_index = *(out_base) + 255;
+        if (max_target_index >= t->capacity) {
+            size_t new_capacity = ((max_target_index / t->capacity) + 1) * t->capacity;
+            if (resize_trie(t, new_capacity) == NULL) {
+                return false;
+            }
+        }
         if (get_base_used(t, *out_base)) {
             t_index = t->links[t_index];
             continue;
