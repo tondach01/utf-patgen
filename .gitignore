@@ -11,13 +11,14 @@ test/output*
 # binaries
 build
 
-# VS Code  and CLion configurations
+# environments
 .vscode
 .idea
+.venv
 
 # profiling output
-gmon.out
-profile_visual.png
+*.out
+*.png
 
 # outputs of pdftex
 *.pdf
