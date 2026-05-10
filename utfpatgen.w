@@ -17,7 +17,7 @@ intend to overcome several limitations of the original, such as the number of hy
 use some reserved characters in dictionary, and most importantly, we enable native usage of the UTF-8 encoding in
 dictionaries that are no longer limited by the fixed number of lowercase characters permitted by \patgen.
 
-We provide \utfpatgen open-source and free of charge under {\bf TODO} license. Please note that there is no warranty
+We provide \utfpatgen open-source and free of charge under MIT license. Please note that there is no warranty
 and despite our greatest effort, the program may contain bugs.
 
 @** Terminology.
