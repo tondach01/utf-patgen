@@ -11,12 +11,10 @@ UTFPATGEN_BIN = ./build/utfpatgen
 UNITTEST_BIN = ./build/unit_test
 
 # Test files
-PARAMPROFILE = ./test/cshyphen.in
-DICTIONARY = ../hyph-bench/data/ms/wiktionary/ms_wiktionary.wlh
-# ./test/wortliste10k.wlh
+PARAMPROFILE = ./test/wortliste8.in
+DICTIONARY = ./test/wortliste10k.wlh
 OUTFILE = ./test/output.pat
-TRANSLATEFILE = ../hyph-bench/data/ms/wiktionary/ms_wiktionary.tr
-# ./test/german.tr
+TRANSLATEFILE = ./test/german.tr
 
 ifeq ($(OS),Windows_NT)
     EXT = .exe
