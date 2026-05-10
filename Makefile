@@ -28,6 +28,7 @@ endif
 .PHONY: all coverage build-profile build-debug build-execute analyze-cov run run-tests run-patgen
 all: clean utfpatgen.pdf build-execute run
 
+# Run configurations
 run:
 	sed -b 's/1/\xFE\x01/g; s/2/\xFE\x02/g; s/3/\xFE\x03/g; s/4/\xFE\x04/g; s/5/\xFE\x05/g; s/6/\xFE\x06/g; s/7/\xFE\x07/g; s/8/\xFE\x08/g; s/9/\xFE\x09/g' $(DICTIONARY) > $(DICTIONARY)_utfp
 	cat $(PARAMPROFILE) | $(UTFPATGEN_BIN) $(DICTIONARY)_utfp $(EMPTY) $(OUTFILE)_pre $(TRANSLATEFILE)
@@ -38,8 +39,9 @@ run-tests:
 	$(UNITTEST_BIN)
 
 run-patgen:
-	cat $(PARAMPROFILE) | $(UTFPATGEN_BIN) $(DICTIONARY) $(EMPTY) $(OUTFILE) $(TRANSLATEFILE)
+	cat $(PARAMPROFILE) | patgen $(DICTIONARY) $(EMPTY) $(OUTFILE) $(TRANSLATEFILE)
 
+# Executables
 build-execute: test/unit_test.c | build build/utfpatgen.c
 	cp utfpatgen.h build/
 	$(CXX) $(CXXFLAGS) $(OPTIFLAG) -o build/utfpatgen build/utfpatgen.c
@@ -91,7 +93,7 @@ utfpatgen.pdf: build/utfpatgen.tex | build
 	rm build/cweb.cls build/cwebacromac.tex build/cwebmac.tex
 	mv build/utfpatgen.pdf utfpatgen.pdf
 
-# Executable
+# C source code
 build/utfpatgen.c: utfpatgen.w | build
 	ctangle $< - $@
 
