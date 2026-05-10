@@ -11,7 +11,7 @@ UTFPATGEN_BIN = ./build/utfpatgen
 UNITTEST_BIN = ./build/unit_test
 
 # Test files
-PARAMPROFILE = ./test/wortliste8.in
+PARAMPROFILE = ./test/cshyphen.in
 DICTIONARY = ./test/wortliste10k.wlh
 OUTFILE = ./test/output.pat
 TRANSLATEFILE = ./test/german.tr
