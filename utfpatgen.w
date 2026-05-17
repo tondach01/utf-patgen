@@ -154,8 +154,8 @@ if (!read_patterns(params, pt, tt, &ps)){
 }
 
 @* Level range specification.
-Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar
-and \hyphfinishpar specify the range of hyphenation levels covered during the run. The program can generate patterns up
+Besides the command line parameters, the program prompts for the hyperparameters of the algorithm. The \hyphstartpar{}
+and \hyphfinishpar{} specify the range of hyphenation levels covered during the run. The program can generate patterns up
 to level 255.
 
 @<Level range specification@>=
@@ -180,7 +180,7 @@ if (hyph_start > hyph_finish){
 }
 
 @* Pattern generation loop.
-The algorithm runs for each level within the specified range, going from \hyphstartpar up. The program prompts for
+The algorithm runs for each level within the specified range, going from \hyphstartpar{} up. The program prompts for
 level-specific hyperparameters, generates and prunes the patterns.
 
 @<Pattern generation@>=
@@ -206,9 +206,9 @@ for (size_t i = params->hyph_start; i <= params->hyph_finish; i++){
 }
 
 @* Level hyperparameters input.
-The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar and \patfinishpar that define the
+The program again prompts for hyperparameter input. Firstly, it asks for \patstartpar{} and \patfinishpar{} that define the
 length range of patterns for respective level. The maximum length of a pattern in \utfpatgen{} is set to 255.
-Subsequently, the user is prompted to insert the three weights \goodwtpar, \badwtpar and \threshpar. These define the
+Subsequently, the user is prompted to insert the three weights \goodwtpar{}, \badwtpar{} and \threshpar{}. These define the
 acceptance criteria for candidate patterns -- in order to accept the pattern during the ongoing iteration, its number
 of {\it good} (supporting) and {\it bad} (contradicting) occurences must make the following inequality to hold:
 $
@@ -430,7 +430,7 @@ translate file follows the same pattern as required by \patgen:
 \item{$\bullet$} consequent lines: '$\_X\_Y_1\_...Y_n\_\_$', where '$X$' is a lowercase letter, '$Y_k$' an arbitrary
     (even 0) number of upper-case variants of '$X$', and '$\_$' a delimiter, usually space.
 
-Note that this format allows two-digit values of \lefthyphenminpar and \righthyphenminpar at most and one-byte
+Note that this format allows two-digit values of \lefthyphenminpar{} and \righthyphenminpar{} at most and one-byte
 characters for hyphen symbols. Practically, this is not a problem.
 
 The translate file must be provided as an input to \utfpatgen, but may be left empty. In that case, the default values
@@ -1203,7 +1203,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 @* Pattern collection.
 After the dictionary has been processed, the count trie contains the number of good (supporting) and bad
 (contradicting) occurences of each candidate pattern found. There are 3 types of patterns based on these counts and the
-\goodwtpar, \badwtpar, and \threshpar parameters:
+\goodwtpar{}, \badwtpar{}, and \threshpar{} parameters:
 
     \item{$\bullet$} {\bf good patterns} for which inequality 
         $
