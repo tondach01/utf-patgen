@@ -1,5 +1,5 @@
-\def\title{UTF-PATGEN}
-\def\utfpatgen{{\tt utf-patgen}}
+\def\title{UTFpatgen}
+\def\utfpatgen{{\tt utfpatgen}}
 \def\patgen{{\tt patgen}}
 \def\lefthyphenminpar{{\tt lefthyphenmin}}
 \def\righthyphenminpar{{\tt righthyphenmin}}
@@ -328,7 +328,7 @@ whether all files have been opened successfully.
 @c
 bool parse_input(char *argv[], int argc, struct params *params){
     if (argc != 5){
-        fprintf(stderr, "UTF-patgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
+        fprintf(stderr, "utfpatgen need exactly 4 arguments.\nTry `utfpatgen --help` for more information.\n");
         return false;
     }
     FILE *dictionary_file = fopen(argv[1], "rb");
@@ -411,7 +411,7 @@ Prints out the version number of \utfpatgen{} to the standard output.
 
 @c
 void print_version(){
-    printf("This is UTF-patgen version %s\n", UTFPATGEN_VERSION);
+    printf("This is utfpatgen version %s\n", UTFPATGEN_VERSION);
 }
 
 @* Translate file processing.
