@@ -766,9 +766,11 @@ The user can provide \utfpatgen{} with initial set of patterns to work with.
 Similarly to the translate file, the pattern file must be given as input, but
 may be left empty. Each line of the file represents one pattern, with following
 format required:
+
 {\narrower
     $<hyph. level><character><hyph. level>\dots<hyph. level>$
 \par}
+
 Zero levels are omitted implicitly. A special character ('.' in \patgen{},
 {\tt EDGE\_OF\_WORD} '0xff' in \utfpatgen{}) denotes edges of the word (it can
 be only used as the first or last character of a pattern). The original \patgen
