@@ -49,13 +49,14 @@ marked), and {\bf GOOD\_HYF} (in the data, marked). Strictly speaking, there is
 a hyphen between each pair of neighboring characters in the data, but NO\_HYF
 marking is omitted implicitly.
 
-{\bf Supporting occurences} of a pattern in the data are those that are in
+{\bf Supporting occurrences} of a pattern in the data are those that are in
 favor of the hyphenation information it holds. For hyphenating patterns, these
 are the cases where the word has a MISS\_HYF on the dot position pointed by the
 pattern. For inhibiting patterns, dot position with a BAD\_HYF is a supporting
-one. {\bf Contradicting occurences} are those that would break a correct
+one. {\bf Contradicting occurrences} are those that would break a correct
 hyphen, thus NO\_HYF for hyphenating, and GOOD\_HYF for inhibiting patterns.
-Note that a occurence of a pattern can be neither supporting nor contradicting.
+Note that an occurrence of a pattern can be neither supporting nor
+contradicting.
 
 {\bf Hyphenation level} marks the strength of a hyphenation. It is represented
 by a non-negative integer and creates a hierarchy of patterns. Pattern with
@@ -73,7 +74,7 @@ the \patgen{} technical report. We have nevertheless decided to rewrite several
 parts of the algorithm in more "modern" way to improve its readability and
 testability. The main points to mention are:
 
-    \item{$\bullet$} the algorithm is implemented in CWEB (C being the laguage
+    \item{$\bullet$} the algorithm is implemented in CWEB (C being the language
         of the program), not WEB (with Pascal),
     \item{$\bullet$} instead of statically defining the sizes of structures
         (tries, buffers, etc.), these are allocated and reallocated
@@ -241,7 +242,8 @@ respective level. The maximum length of a pattern in \utfpatgen{} is set to 255.
 Subsequently, the user is prompted to insert the three weights \goodwtpar{},
 \badwtpar{} and \threshpar{}. These define the acceptance criteria for candidate
 patterns -- in order to accept the pattern during the ongoing iteration, its
-number of {\it good} (supporting) and {\it bad} (contradicting) occurences must
+number of {\it good} (supporting) and {\it bad} (contradicting) occurrences
+must
 make the following inequality to hold:
 $
     good * good\_wt - bad * bad\_wt \geq thresh
@@ -280,7 +282,7 @@ params->thresh = (uint8_t) thresh;
 The single pass of \utfpatgen{} at given hyphenation level comprises iterating
 through pattern lengths ({\tt pat\_len} parameter, in ascending order) and dot
 positions ({\tt pat\_dot}, from the middle toward the edges) and processing the
-dictionary. The algorithm collects supporting and contradicting occurences and
+dictionary. The algorithm collects supporting and contradicting occurrences and
 eventually adds new patterns to the set. It can happen that an iteration is
 skipped if it is known in advance that it will not yield any new patterns.
 
@@ -943,7 +945,7 @@ word weight is omitted, \utfpatgen{} uses the default value 1. The lines of the
 dictionary file thus look like this:
 
 {\narrower
-    $<word weigth><character><hyphen weight><hyphen><character>\dots<character>$
+    $<word weight><character><hyphen weight><hyphen><character>\dots<character>$
 \par}
 
 Since some patterns may be tied to the edges of the word, special byte symbol
@@ -1270,7 +1272,7 @@ bool process_word(struct word *word, struct count_trie *ct, struct params *param
 
 @* Pattern collection.
 After the dictionary has been processed, the count trie contains the number of
-good (supporting) and bad (contradicting) occurences of each candidate pattern
+good (supporting) and bad (contradicting) occurrences of each candidate pattern
 found. There are 3 types of patterns based on these counts and the
 \goodwtpar{}, \badwtpar{}, and \threshpar{} parameters:
 
@@ -1802,7 +1804,7 @@ bool hyphenate_word(struct word *word, struct pattern_trie *pt, struct params *p
     return true;
 }
 
-@ hyphenate\_dicitonary.
+@ hyphenate\_dictionary.
 Hyphenates dictionary entries and writes them to newly created {\tt pattmp} file
 if required. Return value indicates whether the hyphenation and file printout
 finished successfully.
@@ -1845,7 +1847,7 @@ bool hyphenate_dictionary(struct params *params, struct translate_table *tt, str
 }
 
 @ hyphenate\_all\_words.
-Itearates over the words in the dictionary, parses, hyphenates, and writes them
+Iterates over the words in the dictionary, parses, hyphenates, and writes them
 to the {\tt pattmp} file. Returns true if no error occurs.
 
 @c
@@ -1922,7 +1924,7 @@ Following methods greatly simplify dealing with UTF-8 encoding. We took
 advantage of the design that allows to easily determine whether a byte is the
 first one in UTF-8 character -- its two highest bits are not '10'. The first
 byte also encodes the number of bytes that form the UTF-8 character. If the
-highest bit is '0', the character comprise the single byte and its meaning is
+highest bit is '0', the character comprises a single byte and its meaning is
 the same as it would be in ASCII encoding. If the highest bit is '1', the
 number of '1' bits on the highest positions equals the number of bytes of the
 character (with the exception of '10' which is not allowed in the leading
@@ -1972,7 +1974,7 @@ root node $r_0$. Our next destination is node $n_1 = r_0 + x_1$. Then we check
 whether $value(n_1) = x_1$ and if the equation holds, we set $r_1 = link(n_1)$
 as the new root. If the equation does not hold or $r_1 = 0$, we can end the
 search and conclude that the sequence is not present in the trie. Otherwise, we
-repeat the the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired
+repeat the steps for $n_2 \dots n_n$ and return the $n_n$ node as desired
 result.
 
 The internal representation of the trie consists a structure with following
@@ -2637,13 +2639,14 @@ bool set_output(struct pattern_trie *pt, size_t node, size_t value, size_t posit
 }
 
 @* Pattern counts.
-The structure that stores the numbers of supporting and contradicting occurences
+The structure that stores the numbers of supporting and contradicting
+occurrences
 for patterns. It comprises 4 fields:
 
     \item{$\bullet$} {\bf capacity}: the maximum index that can be used,
     \item{$\bullet$} {\bf size}: the highest index currently in use,
-    \item{$\bullet$} {\bf good}: array of supporting occurence counts,
-    \item{$\bullet$} {\bf bad}: array of contradicting occurence counts.
+    \item{$\bullet$} {\bf good}: array of supporting occurrence counts,
+    \item{$\bullet$} {\bf bad}: array of contradicting occurrence counts.
 
 The counts on given index correspond to the same pattern.
 
@@ -2695,13 +2698,13 @@ void destroy_pattern_counts(struct pattern_counts *pc){
 }
 
 @* Count trie.
-This structure stores candidate patterns and their occurence counts. During
+This structure stores candidate patterns and their occurrence counts. During
 dictionary file processing, every word contributes to count trie with its
 substrings as candidate patterns. In implementation, the count trie is composed
 from 2 distinct substructures:
 
     \item{$\bullet$} {\bf t}: a trie storing the patterns,
-    \item{$\bullet$} {\bf cnts}: pattern counts with the numbers of occurences.
+    \item{$\bullet$} {\bf cnts}: pattern counts with the numbers of occurrences.
 
 Note that the count trie does not need any outputs, since the only pattern
 template that the current iteration explores is defined by {\tt pat\_len} and
@@ -2967,7 +2970,7 @@ size_t convert_byte_sequence(char **sequence){
 
 @* Params.
 This structure encompasses all the parameters that influence the computation of
-\utfpatgen{}. We can sort them by their scope of into {\bf global} (usually
+\utfpatgen{}. We can sort them by their scope into {\bf global} (usually
 defined once and used throughout the whole run), {\bf level-specific} (defined
 specifically for each hyphenation level), and {\bf pass-specific} (defined
 specifically for each iteration within a level):
@@ -2999,8 +3002,10 @@ specifically for each iteration within a level):
     \item{$\bullet$} {\bf hyph\_level} (level-specific): the current hyphenation level,
     \item{$\bullet$} {\bf pat\_start} (level-specific): the shortest pattern length,
     \item{$\bullet$} {\bf pat\_finish} (level-specific): the longest pattern length,
-    \item{$\bullet$} {\bf good\_wt} (level-specific): the supporting occurence weight,
-    \item{$\bullet$} {\bf bad\_wt} (level-specific): the contradicting occurence weight,
+    \item{$\bullet$} {\bf good\_wt} (level-specific): the supporting occurrence
+        weight,
+    \item{$\bullet$} {\bf bad\_wt} (level-specific): the contradicting occurrence
+        weight,
     \item{$\bullet$} {\bf thresh} (level-specific): the pattern acceptance threshold,
     \item{$\bullet$} {\bf good\_dot} (level-specific): the hyphen type considered as
         correct,
