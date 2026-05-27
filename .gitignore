@@ -21,7 +21,6 @@ build
 *.png
 
 # outputs of pdftex
-*.pdf
 *.log
 *.aux
 *.scn
