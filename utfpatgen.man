@@ -12,9 +12,13 @@ UTFpatgen \- generate patterns for TeX hyphenation
 .I dictionary_file pattern_file patout_file translate_file
 .\"=====================================================================
 .SH DESCRIPTION
-The
 .I UTFpatgen
-program reads a
+is an extension to
+.BR patgen (1)
+for generating patterns from large input alphabets, with an extended
+hyphenation level range and native dynamic memory management.
+.PP
+The program reads a
 .I dictionary_file
 containing a list of hyphenated words and a
 .I pattern_file
@@ -37,12 +41,6 @@ creates a new dictionary file
 showing the good and bad hyphens found by the generated patterns, where
 .I n
 is the highest hyphenation level.
-.PP
-The
-.I UTFpatgen
-is an extension to
-.BR patgen (1)
-for generating patterns from large input alphabets. 
 .PP
 All filenames must be complete; no adding of default
 extensions or path searching is done.
