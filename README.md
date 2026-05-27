@@ -34,7 +34,7 @@ Please note that `cweave` and `pdftex` TeX utilities are needed to successfully
 run the recipe.
 
 ## Licence
-*version 0.1 (May 2026)*
+*version 1.0 (May 2026)*
 
 *© 2026 Ondřej Metelka, under [MIT licence](https://mit-license.org/)*
 

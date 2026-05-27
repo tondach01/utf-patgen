@@ -114,4 +114,4 @@ https://tug.org/TUGboat/Contents/listkeyword.html#CatTAGMultilingualDocumentProc
 language-specific document processing.
 .\"=====================================================================
 .SH AUTHORS
-© 2026 Ondřej Metelka (https://github.com/tondach01/utfpatgen)
+© 2026 Ondřej Metelka (https://ctan.org/pkg/utfpatgen)

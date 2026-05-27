@@ -404,6 +404,7 @@ void print_help(){
     printf("\tfrom the DICTIONARY, PATTERNS, and TRANSLATE files.\n");
     printf("\n--help        print this help and exit\n");
     printf("--version     output version information and exit\n");
+    printf("\nutfpatgen home page: https://ctan.org/pkg/utfpatgen\n");
 }
 
 @ print\_version.
@@ -412,6 +413,10 @@ Prints out the version number of \utfpatgen{} to the standard output.
 @c
 void print_version(){
     printf("This is utfpatgen version %s\n", UTFPATGEN_VERSION);
+    printf("\tCopyright 2026 Ondřej Metelka\n");
+    printf("\tLicense MIT: https://mit-license.org/\n");
+    printf("\nThis is free software: you are free to change and redistribute it.\n");
+    printf("\tThere is NO WARRANTY, to the extent permitted by law.\n");
 }
 
 @* Translate file processing.
