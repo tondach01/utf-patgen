@@ -12,17 +12,17 @@
 \def\threshpar{{\tt thresh}}
 
 @** Introduction.
-This is \utfpatgen{} -- reimplementation of the classic \patgen{} program for pattern generation. With \utfpatgen, we
+This is \utfpatgen{} -- reimplementation of the classic \patgen{} program for pattern generation. With \utfpatgen{}, we
 intend to overcome several limitations of the original, such as the number of hyphenation levels possible, inability to
 use some reserved characters in dictionary, and most importantly, we enable native usage of the UTF-8 encoding in
-dictionaries that are no longer limited by the fixed number of lowercase characters permitted by \patgen.
+dictionaries that are no longer limited by the fixed number of lowercase characters permitted by \patgen{}.
 
 We provide \utfpatgen{} open-source and free of charge under MIT license. Please note that there is no warranty
 and despite our greatest effort, the program may contain bugs.
 
 @** Terminology.
 Before diving into the implementation part of the program, it is useful to mention several terms occurring frequently
-throughout the text. It may come useful especially to those who are not thoroughly familiar with \patgen. The
+throughout the text. It may come useful especially to those who are not thoroughly familiar with \patgen{}. The
 definitions here are mostly informal and intended to ease reader's understanding of the topic.
 
 {\bf Hyphenation} is a process of splitting words so that they fit better to the paragraphs when typeset. It follows
@@ -32,7 +32,7 @@ the linguistic rules set for the language in which the text is written.
 position}) on the edges of the pattern or in between the characters. Whether this information tells that the position
 should or should not be hyphenated, we distinguish between {\bf hyphenating} and {\bf inhibiting patterns}.
 
-{\bf Hyphen} (in context of \patgen{} and \utfpatgen) is a mark between two characters holding the information whether
+{\bf Hyphen} (in context of \patgen{} and \utfpatgen{}) is a mark between two characters holding the information whether
 that position should be split during hyphenation and whether this split was detected by current patterns. There are
 therefore 4 types of hyphens: {\bf NO\_HYF} (not in the data, not marked), {\bf MISS\_HYF} (in the data, not
 marked), {\bf BAD\_HYF} (not in the data, marked), and {\bf GOOD\_HYF} (in the data, marked). Strictly speaking,
@@ -52,7 +52,7 @@ levels, the patterns are hyphenating, at even levels inhibiting.
 effective insertion, deletion and lookup. Furthermore, we can condense it via {\it packing} to save space.
 
 @** Algorithm overview.
-In general, we tried to adhere as tightly as possible to the original ideas of \patgen. Therefore, you may find the
+In general, we tried to adhere as tightly as possible to the original ideas of \patgen{}. Therefore, you may find the
 names and functions similar to those in the \patgen{} technical report. We have nevertheless decided to rewrite several
 parts of the algorithm in more "modern" way to improve its readability and testability. The main points to mention are:
 
@@ -433,7 +433,7 @@ translate file follows the same pattern as required by \patgen:
 Note that this format allows two-digit values of \lefthyphenminpar{} and \righthyphenminpar{} at most and one-byte
 characters for hyphen symbols. Practically, this is not a problem.
 
-The translate file must be provided as an input to \utfpatgen, but may be left empty. In that case, the default values
+The translate file must be provided as an input to \utfpatgen{}, but may be left empty. In that case, the default values
 for parameters ASCII character mapping are used.
 
 @ read\_translate.
@@ -708,7 +708,7 @@ required:
 {\narrower
     $<hyph. level><character><hyph. level>\dots<hyph. level>$
 \par}
-Zero levels are omitted implicitly. A special character ('.' in \patgen, \tt EDGE\_OF\_WORD '0xff' in \utfpatgen)
+Zero levels are omitted implicitly. A special character ('.' in \patgen{}, {\tt EDGE\_OF\_WORD} '0xff' in \utfpatgen{})
 denotes edges of the word (it can be only used as the first or last character of a pattern). The original \patgen
 program that supports only levels up to 9 represents them simply as ASCII numeric literals '0' to '9'. On the other
 hand, \utfpatgen{} expects each byte representing a level preceded with a special {\tt HYPHEN\_FLAG} byte of hexadecimal
@@ -2832,7 +2832,7 @@ size_t convert_byte_sequence(char **sequence){
 }
 
 @* Params.
-This structure encompasses all the parameters that influence the computation of \utfpatgen. We can sort them by their
+This structure encompasses all the parameters that influence the computation of \utfpatgen{}. We can sort them by their
 scope of into {\bf global} (usually defined once and used throughout the whole run), {\bf level-specific} (defined
 specificallly for each hyphenation level), and {\bf pass-specific} (defined specifically for each iteration within
 a level):
@@ -2925,7 +2925,7 @@ of the pattern generation, and present it on standard output. Following fields a
         level.
 
 @* Stack.
-We decided to implement a stack-like structure to break the recursive functions from \patgen. In most cases the stack
+We decided to implement a stack-like structure to break the recursive functions from \patgen{}. In most cases the stack
 holds data related to previous iterations of a method, for instance, the trie bases on the path to current node. There
 are only 3 fields:
 
